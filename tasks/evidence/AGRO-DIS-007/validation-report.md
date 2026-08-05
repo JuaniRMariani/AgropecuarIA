@@ -53,7 +53,7 @@ E2E cubre todos los estados operativos, costo NO-GO, conexión inicial bloqueada
 
 ### Revisión y seguridad
 
-- Principal QA reprodujo todos los gates y aprobó 21/21 backend, 3/10 contratos, 5/5 unit frontend y 4/4 E2E.
+- Principal QA reprodujo todos los gates y aprobó 21/21 backend, 3/8 contratos disponibles en su corrida, 5/5 unit frontend y 4/4 E2E. El principal y AppSec verificaron luego la suite final ampliada a 3/10.
 - AppSec/Arquitectura encontró inicialmente integridad de costos/fixtures y cardinalidad/default-deny; todos los hallazgos se corrigieron y la reauditoría final quedó en 0 críticos, 0 altos, 0 medios y 0 bajos.
 - `git diff --check`: `PASS` en revisiones independientes.
 - No hay secretos/credenciales/PII real, sinks DOM peligrosos, idempotency key renderizada ni persistencia offline de producto.

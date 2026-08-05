@@ -1,0 +1,77 @@
+{
+  "catalogVersion": "1.0.0-candidate.1",
+  "capturedAt": "2026-08-04",
+  "evidenceKind": "CURATED_LOCAL_SOURCE_SNAPSHOT",
+  "entries": [
+    {
+      "sourceId": "SRC-INDEC-CNA-2018",
+      "locator": "https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-8-87",
+      "documentReference": "docs/14-catalogo-productivo-argentino.md — líneas base agrícola y pecuaria",
+      "familyCodes": ["APICULTURA", "AROMATICAS-MEDICINALES-CONDIMENTARIAS", "AVES", "BOVINOS", "BUBALINOS", "CAMELIDOS-DOMESTICOS", "CAPRINOS", "CEREALES-PSEUDOCEREALES", "CITRICOS", "CONEJOS-PILIFEROS", "EQUIDOS", "FORESTACION-AGROFORESTERIA", "FORRAJERAS-ANUALES", "FRUTALES-CAROZO", "FRUTALES-PEPITA", "FRUTAS-FINAS", "FRUTOS-SECOS", "HORTALIZAS", "INDUSTRIALES-REGIONALES", "LEGUMBRES", "OLEAGINOSAS", "OVINOS", "PASTURAS-RECURSOS-PERENNES", "PORCINOS", "PRODUCCIONES-MENORES", "SUBTROPICALES-OTROS-FRUTALES"],
+      "observations": ["Fuente estadística nacional usada como denominador transversal; no se interpreta sola como lista exhaustiva ni como habilitación regulatoria."]
+    },
+    {
+      "sourceId": "SRC-SAGYP-ESTIMACIONES",
+      "locator": "https://www.magyp.gob.ar/sitio/areas/estimaciones/index.php",
+      "documentReference": "docs/14-catalogo-productivo-argentino.md — cereales, oleaginosas y legumbres",
+      "familyCodes": ["CEREALES-PSEUDOCEREALES", "LEGUMBRES", "OLEAGINOSAS"],
+      "observations": ["Contraste editorial de cultivos y estimaciones agrícolas; no aporta por sí sola variedades exhaustivas."]
+    },
+    {
+      "sourceId": "SRC-SENASA-VEGETAL",
+      "locator": "https://www.argentina.gob.ar/senasa/programas-sanitarios/cadenavegetal",
+      "documentReference": "docs/14-catalogo-productivo-argentino.md — cadenas vegetales",
+      "familyCodes": ["CITRICOS", "FRUTALES-CAROZO", "FRUTALES-PEPITA", "FRUTAS-FINAS", "FRUTOS-SECOS", "HORTALIZAS", "INDUSTRIALES-REGIONALES", "PRODUCCIONES-CONTROLADAS-EMERGENTES", "SUBTROPICALES-OTROS-FRUTALES", "VIVEROS-FLORICULTURA-PROPAGACION"],
+      "observations": ["Clasificación sanitaria vegetal usada para contraste de familias; una mención no automatiza normativa."]
+    },
+    {
+      "sourceId": "SRC-SENASA-ANIMAL",
+      "locator": "https://www.argentina.gob.ar/senasa/programas-sanitarios/cadenaanimal",
+      "documentReference": "docs/14-catalogo-productivo-argentino.md — línea base pecuaria",
+      "familyCodes": ["ACUICULTURA", "AVES", "BOVINOS", "BUBALINOS", "CAMELIDOS-DOMESTICOS", "CAPRINOS", "CONEJOS-PILIFEROS", "EQUIDOS", "FAUNA-PRODUCTIVA", "OVINOS", "PORCINOS", "PRODUCCIONES-MENORES"],
+      "observations": ["Cadenas animales y grupos sanitarios usados para identidad y revisión regulatoria."]
+    },
+    {
+      "sourceId": "SRC-SENASA-RENSPA",
+      "locator": "https://www.argentina.gob.ar/senasa/micrositios/renspa",
+      "documentReference": "docs/14-catalogo-productivo-argentino.md — actividades con registro sanitario",
+      "familyCodes": ["APICULTURA", "AVES", "BOVINOS", "BUBALINOS", "CAMELIDOS-DOMESTICOS", "CAPRINOS", "CONEJOS-PILIFEROS", "EQUIDOS", "FAUNA-PRODUCTIVA", "INDUSTRIALES-REGIONALES", "OVINOS", "PORCINOS"],
+      "observations": ["Evidencia de alcance registral; la obligación concreta depende de actividad y jurisdicción."]
+    },
+    {
+      "sourceId": "SRC-INASE-RNC",
+      "locator": "https://www.argentina.gob.ar/node/104464",
+      "documentReference": "docs/14-catalogo-productivo-argentino.md — variedades/cultivares bajo demanda",
+      "familyCodes": ["VITICULTURA-OLIVICULTURA", "VIVEROS-FLORICULTURA-PROPAGACION"],
+      "observations": ["Locator para cultivares y variedades bajo demanda; no se precarga exhaustivamente en v1."]
+    },
+    {
+      "sourceId": "SRC-INV-SUPERFICIE",
+      "locator": "https://www.argentina.gob.ar/inv/vinos/estadisticas/superficie/anuarios",
+      "documentReference": "docs/14-catalogo-productivo-argentino.md — viticultura",
+      "familyCodes": ["VITICULTURA-OLIVICULTURA"],
+      "observations": ["Fuente sectorial para vid, aptitudes y variedades bajo demanda."]
+    },
+    {
+      "sourceId": "SRC-INTA-PROGRAMAS",
+      "locator": "https://www.argentina.gob.ar/inta/programas-nacionales",
+      "documentReference": "docs/14-catalogo-productivo-argentino.md — contraste técnico transversal",
+      "familyCodes": ["ACUICULTURA", "APICULTURA", "AROMATICAS-MEDICINALES-CONDIMENTARIAS", "AVES", "CAMELIDOS-DOMESTICOS", "FAUNA-PRODUCTIVA", "FORESTACION-AGROFORESTERIA", "FORRAJERAS-ANUALES", "PASTURAS-RECURSOS-PERENNES", "PRODUCCIONES-CONTROLADAS-EMERGENTES", "PRODUCCIONES-MENORES", "VIVEROS-FLORICULTURA-PROPAGACION"],
+      "observations": ["Contraste técnico; no reemplaza una taxonomía oficial ni aprobación profesional específica."]
+    },
+    {
+      "sourceId": "SRC-SENASA-ACUICULTURA",
+      "locator": "https://www.argentina.gob.ar/senasa/programas-sanitarios/cadenaanimal/animales-acuaticos-produccion-primaria",
+      "documentReference": "docs/14-catalogo-productivo-argentino.md — acuicultura y fauna acuática",
+      "familyCodes": ["ACUICULTURA", "FAUNA-PRODUCTIVA"],
+      "observations": ["Producción primaria acuática sujeta a identidad y controles aplicables."]
+    },
+    {
+      "sourceId": "SRC-SENASA-APICULTURA",
+      "locator": "https://www.argentina.gob.ar/senasa/programas-sanitarios/cadenaanimal/abejas/produccion-primaria",
+      "documentReference": "docs/14-catalogo-productivo-argentino.md — apicultura",
+      "familyCodes": ["APICULTURA"],
+      "observations": ["Producción primaria apícola y unidades de seguimiento relacionadas."]
+    }
+  ]
+}

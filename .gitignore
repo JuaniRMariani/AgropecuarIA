@@ -1,0 +1,33 @@
+# Local agent/browser artifacts
+.playwright-cli/
+
+# JavaScript/Next.js generated files
+**/node_modules/
+**/.next/
+**/out/
+**/coverage/
+**/playwright-report/
+**/test-results/
+**/output/e2e/
+**/output/playwright/
+**/*.tsbuildinfo
+**/next-env.d.ts
+
+# .NET generated files
+**/bin/
+**/obj/
+**/TestResults/
+
+# Ephemeral services and local configuration
+**/.runtime/
+**/.env
+**/.env.*
+!**/.env.example
+*.user
+*.suo
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

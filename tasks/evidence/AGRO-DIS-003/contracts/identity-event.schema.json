@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.example/contracts/identity/identity-event.v1.schema.json",
+  "title": "Identity audit event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eventId", "eventType", "occurredAt", "actorId", "correlationId", "outcome"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "eventType": {
+      "enum": [
+        "IdentityLinked",
+        "RecoveryRequested",
+        "RecoveryCompleted",
+        "SessionRevoked",
+        "OrganizationContextChanged",
+        "AccessDenied"
+      ]
+    },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "actorId": { "type": ["string", "null"], "format": "uuid" },
+    "organizationId": { "type": ["string", "null"], "format": "uuid" },
+    "correlationId": { "type": "string", "format": "uuid" },
+    "outcome": { "enum": ["succeeded", "denied", "failed", "accepted"] },
+    "reasonCode": { "type": ["string", "null"], "maxLength": 80 }
+  }
+}

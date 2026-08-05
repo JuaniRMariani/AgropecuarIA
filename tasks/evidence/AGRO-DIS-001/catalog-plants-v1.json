@@ -1,0 +1,3114 @@
+{
+  "catalogVersion": "1.0.0-candidate.1",
+  "domain": "VEGETAL",
+  "status": "CANDIDATE",
+  "denominatorDefinition": "Cada entrada nominal explícita de la tabla «Línea base agrícola v1» se representa una vez; las frases abiertas se conservan como CONTROLLED_PLACEHOLDER para revisión editorial.",
+  "entries": [
+    {
+      "code": "AR-VEG-MAIZ",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "maíz",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-TRIGO-PAN",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "trigo pan",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-TRIGO-CANDEAL",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "trigo candeal",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ARROZ",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "arroz",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CEBADA-CERVECERA-FORRAJERA",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "cebada cervecera/forrajera",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-AVENA",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "avena",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-SORGO-GRANIFERO-FORRAJERO",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "sorgo granífero/forrajero",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CENTENO",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "centeno",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MIJO",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "mijo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ALPISTE",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "alpiste",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-TRITICALE",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "triticale",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-QUINOA",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "quinoa",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-AMARANTO",
+      "familyCode": "CEREALES-PSEUDOCEREALES",
+      "canonicalName": "amaranto",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-SOJA",
+      "familyCode": "OLEAGINOSAS",
+      "canonicalName": "soja",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-GIRASOL",
+      "familyCode": "OLEAGINOSAS",
+      "canonicalName": "girasol",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MANI",
+      "familyCode": "OLEAGINOSAS",
+      "canonicalName": "maní",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-COLZA-CANOLA",
+      "familyCode": "OLEAGINOSAS",
+      "canonicalName": "colza",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [
+        "canola"
+      ],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-LINO",
+      "familyCode": "OLEAGINOSAS",
+      "canonicalName": "lino",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CARTAMO",
+      "familyCode": "OLEAGINOSAS",
+      "canonicalName": "cártamo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-SESAMO",
+      "familyCode": "OLEAGINOSAS",
+      "canonicalName": "sésamo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CHIA",
+      "familyCode": "OLEAGINOSAS",
+      "canonicalName": "chía",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-POROTO-ALUBIA",
+      "familyCode": "LEGUMBRES",
+      "canonicalName": "poroto alubia",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-POROTO-NEGRO",
+      "familyCode": "LEGUMBRES",
+      "canonicalName": "poroto negro",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-POROTO-DE-COLOR",
+      "familyCode": "LEGUMBRES",
+      "canonicalName": "poroto de color",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-GARBANZO",
+      "familyCode": "LEGUMBRES",
+      "canonicalName": "garbanzo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ARVEJA-SECA-FRESCA",
+      "familyCode": "LEGUMBRES",
+      "canonicalName": "arveja seca/fresca",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-LENTEJA",
+      "familyCode": "LEGUMBRES",
+      "canonicalName": "lenteja",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-HABA",
+      "familyCode": "LEGUMBRES",
+      "canonicalName": "haba",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-LUPINO",
+      "familyCode": "LEGUMBRES",
+      "canonicalName": "lupino",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-OTROS-POROTOS",
+      "familyCode": "LEGUMBRES",
+      "canonicalName": "otros porotos",
+      "scientificName": null,
+      "entryType": "CONTROLLED_PLACEHOLDER",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SAGYP-ESTIMACIONES"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Placeholder controlado para la frase abierta «y otros» de porotos; requiere resolución editorial."
+    },
+    {
+      "code": "AR-VEG-CANA-DE-AZUCAR",
+      "familyCode": "INDUSTRIALES-REGIONALES",
+      "canonicalName": "caña de azúcar",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ALGODON",
+      "familyCode": "INDUSTRIALES-REGIONALES",
+      "canonicalName": "algodón",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-TABACO",
+      "familyCode": "INDUSTRIALES-REGIONALES",
+      "canonicalName": "tabaco",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-YERBA-MATE",
+      "familyCode": "INDUSTRIALES-REGIONALES",
+      "canonicalName": "yerba mate",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-TE",
+      "familyCode": "INDUSTRIALES-REGIONALES",
+      "canonicalName": "té",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MANDIOCA",
+      "familyCode": "INDUSTRIALES-REGIONALES",
+      "canonicalName": "mandioca",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-STEVIA",
+      "familyCode": "INDUSTRIALES-REGIONALES",
+      "canonicalName": "stevia",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-JOJOBA",
+      "familyCode": "INDUSTRIALES-REGIONALES",
+      "canonicalName": "jojoba",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-LUPULO",
+      "familyCode": "INDUSTRIALES-REGIONALES",
+      "canonicalName": "lúpulo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-TUNG",
+      "familyCode": "INDUSTRIALES-REGIONALES",
+      "canonicalName": "tung",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CANAMO-CANNABIS",
+      "familyCode": "INDUSTRIALES-REGIONALES",
+      "canonicalName": "cáñamo/cannabis",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-SENASA-VEGETAL",
+        "SRC-SENASA-RENSPA"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Requiere perfil regulatorio y jurisdiccional."
+    },
+    {
+      "code": "AR-VEG-OTROS-REGIONALES",
+      "familyCode": "INDUSTRIALES-REGIONALES",
+      "canonicalName": "otros cultivos regionales",
+      "scientificName": null,
+      "entryType": "CONTROLLED_PLACEHOLDER",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Placeholder controlado para producciones regionales no enumeradas."
+    },
+    {
+      "code": "AR-VEG-AVENA-FORRAJERA",
+      "familyCode": "FORRAJERAS-ANUALES",
+      "canonicalName": "avena forrajera",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CENTENO-FORRAJERO",
+      "familyCode": "FORRAJERAS-ANUALES",
+      "canonicalName": "centeno forrajero",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CEBADA-FORRAJERA",
+      "familyCode": "FORRAJERAS-ANUALES",
+      "canonicalName": "cebada forrajera",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-TRITICALE-FORRAJERO",
+      "familyCode": "FORRAJERAS-ANUALES",
+      "canonicalName": "triticale forrajero",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MAIZ-SILERO",
+      "familyCode": "FORRAJERAS-ANUALES",
+      "canonicalName": "maíz silero",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-SORGO-SILERO",
+      "familyCode": "FORRAJERAS-ANUALES",
+      "canonicalName": "sorgo silero",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MIJO-FORRAJERO",
+      "familyCode": "FORRAJERAS-ANUALES",
+      "canonicalName": "mijo forrajero",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MOHA",
+      "familyCode": "FORRAJERAS-ANUALES",
+      "canonicalName": "moha",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-RAIGRAS-ANUAL",
+      "familyCode": "FORRAJERAS-ANUALES",
+      "canonicalName": "raigrás anual",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MEZCLAS-VERDEOS-CONFIGURABLES",
+      "familyCode": "FORRAJERAS-ANUALES",
+      "canonicalName": "mezclas/verdeos configurables",
+      "scientificName": null,
+      "entryType": "CONTROLLED_PLACEHOLDER",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Placeholder controlado; cada mezcla deberá conservar componentes y proporciones."
+    },
+    {
+      "code": "AR-VEG-ALFALFA",
+      "familyCode": "PASTURAS-RECURSOS-PERENNES",
+      "canonicalName": "alfalfa",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-FESTUCA",
+      "familyCode": "PASTURAS-RECURSOS-PERENNES",
+      "canonicalName": "festuca",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-RAIGRAS-PERENNE",
+      "familyCode": "PASTURAS-RECURSOS-PERENNES",
+      "canonicalName": "raigrás perenne",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-AGROPIRO",
+      "familyCode": "PASTURAS-RECURSOS-PERENNES",
+      "canonicalName": "agropiro",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-TREBOL-BLANCO-ROJO",
+      "familyCode": "PASTURAS-RECURSOS-PERENNES",
+      "canonicalName": "trébol blanco/rojo",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-LOTUS",
+      "familyCode": "PASTURAS-RECURSOS-PERENNES",
+      "canonicalName": "lotus",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PASTO-OVILLO",
+      "familyCode": "PASTURAS-RECURSOS-PERENNES",
+      "canonicalName": "pasto ovillo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PANICUM-GATTON-PANIC",
+      "familyCode": "PASTURAS-RECURSOS-PERENNES",
+      "canonicalName": "Panicum/Gatton panic",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-BUFFEL-GRASS",
+      "familyCode": "PASTURAS-RECURSOS-PERENNES",
+      "canonicalName": "buffel grass",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PASTURAS-CONSOCIADAS",
+      "familyCode": "PASTURAS-RECURSOS-PERENNES",
+      "canonicalName": "pasturas consociadas",
+      "scientificName": null,
+      "entryType": "MIXTURE",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CAMPO-NATURAL-PASTIZAL",
+      "familyCode": "PASTURAS-RECURSOS-PERENNES",
+      "canonicalName": "campo natural",
+      "scientificName": null,
+      "entryType": "RESOURCE",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [
+        "pastizal"
+      ],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PAPA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "papa",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-BATATA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "batata",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MANDIOCA-HORTICOLA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "mandioca hortícola",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CEBOLLA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "cebolla",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-AJO",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "ajo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-TOMATE",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "tomate",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PIMIENTO-PIMENTON",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "pimiento",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [
+        "pimentón"
+      ],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ZAPALLOS",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "zapallos",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ZAPALLITO",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "zapallito",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PEPINO",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "pepino",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-LECHUGA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "lechuga",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ACELGA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "acelga",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ESPINACA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "espinaca",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-REPOLLO",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "repollo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-BROCOLI",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "brócoli",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-COLIFLOR",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "coliflor",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ZANAHORIA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "zanahoria",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-REMOLACHA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "remolacha",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CHOCLO",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "choclo",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CHAUCHA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "chaucha",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ARVEJA-FRESCA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "arveja fresca",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ESPARRAGO",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "espárrago",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ALCAUCIL",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "alcaucil",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MELON",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "melón",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-SANDIA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "sandía",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-FRUTILLA",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "frutilla",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-OTRAS-HORTALIZAS",
+      "familyCode": "HORTALIZAS",
+      "canonicalName": "otras hortalizas de hoja/fruto/raíz/bulbo/flor",
+      "scientificName": null,
+      "entryType": "CONTROLLED_PLACEHOLDER",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Placeholder controlado para la frase abierta."
+    },
+    {
+      "code": "AR-VEG-MANZANA",
+      "familyCode": "FRUTALES-PEPITA",
+      "canonicalName": "manzana",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PERA",
+      "familyCode": "FRUTALES-PEPITA",
+      "canonicalName": "pera",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MEMBRILLO",
+      "familyCode": "FRUTALES-PEPITA",
+      "canonicalName": "membrillo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-LIMON",
+      "familyCode": "CITRICOS",
+      "canonicalName": "limón",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-NARANJA",
+      "familyCode": "CITRICOS",
+      "canonicalName": "naranja",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MANDARINA",
+      "familyCode": "CITRICOS",
+      "canonicalName": "mandarina",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-POMELO",
+      "familyCode": "CITRICOS",
+      "canonicalName": "pomelo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-DURAZNO",
+      "familyCode": "FRUTALES-CAROZO",
+      "canonicalName": "durazno",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-NECTARINA",
+      "familyCode": "FRUTALES-CAROZO",
+      "canonicalName": "nectarina",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CIRUELA",
+      "familyCode": "FRUTALES-CAROZO",
+      "canonicalName": "ciruela",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CEREZA",
+      "familyCode": "FRUTALES-CAROZO",
+      "canonicalName": "cereza",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-DAMASCO",
+      "familyCode": "FRUTALES-CAROZO",
+      "canonicalName": "damasco",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-GUINDO",
+      "familyCode": "FRUTALES-CAROZO",
+      "canonicalName": "guindo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-NOGAL",
+      "familyCode": "FRUTOS-SECOS",
+      "canonicalName": "nogal",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ALMENDRO",
+      "familyCode": "FRUTOS-SECOS",
+      "canonicalName": "almendro",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PISTACHO",
+      "familyCode": "FRUTOS-SECOS",
+      "canonicalName": "pistacho",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PECAN",
+      "familyCode": "FRUTOS-SECOS",
+      "canonicalName": "pecán",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-AVELLANO",
+      "familyCode": "FRUTOS-SECOS",
+      "canonicalName": "avellano",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CASTANO",
+      "familyCode": "FRUTOS-SECOS",
+      "canonicalName": "castaño",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-OTROS-FRUTOS-SECOS",
+      "familyCode": "FRUTOS-SECOS",
+      "canonicalName": "otros frutos secos",
+      "scientificName": null,
+      "entryType": "CONTROLLED_PLACEHOLDER",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Placeholder controlado para la frase abierta."
+    },
+    {
+      "code": "AR-VEG-ARANDANO",
+      "familyCode": "FRUTAS-FINAS",
+      "canonicalName": "arándano",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-FRAMBUESA",
+      "familyCode": "FRUTAS-FINAS",
+      "canonicalName": "frambuesa",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MORA",
+      "familyCode": "FRUTAS-FINAS",
+      "canonicalName": "mora",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-OTRAS-BERRIES",
+      "familyCode": "FRUTAS-FINAS",
+      "canonicalName": "otras berries",
+      "scientificName": null,
+      "entryType": "CONTROLLED_PLACEHOLDER",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Placeholder controlado para la frase abierta."
+    },
+    {
+      "code": "AR-VEG-BANANA",
+      "familyCode": "SUBTROPICALES-OTROS-FRUTALES",
+      "canonicalName": "banana",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PALTA",
+      "familyCode": "SUBTROPICALES-OTROS-FRUTALES",
+      "canonicalName": "palta",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MANGO",
+      "familyCode": "SUBTROPICALES-OTROS-FRUTALES",
+      "canonicalName": "mango",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PAPAYA",
+      "familyCode": "SUBTROPICALES-OTROS-FRUTALES",
+      "canonicalName": "papaya",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ANANA",
+      "familyCode": "SUBTROPICALES-OTROS-FRUTALES",
+      "canonicalName": "ananá",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-KIWI",
+      "familyCode": "SUBTROPICALES-OTROS-FRUTALES",
+      "canonicalName": "kiwi",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-HIGO",
+      "familyCode": "SUBTROPICALES-OTROS-FRUTALES",
+      "canonicalName": "higo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-OTROS-FRUTALES-DECLARADOS",
+      "familyCode": "SUBTROPICALES-OTROS-FRUTALES",
+      "canonicalName": "otros frutales declarados",
+      "scientificName": null,
+      "entryType": "CONTROLLED_PLACEHOLDER",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-SENASA-VEGETAL"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Placeholder controlado; requiere fuente declarada y revisión editorial."
+    },
+    {
+      "code": "AR-VEG-VID-POR-APTITUD-VARIEDAD",
+      "familyCode": "VITICULTURA-OLIVICULTURA",
+      "canonicalName": "vid por aptitud/variedad",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INV-SUPERFICIE",
+        "SRC-INASE-RNC"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-OLIVO-ACEITE-MESA",
+      "familyCode": "VITICULTURA-OLIVICULTURA",
+      "canonicalName": "olivo para aceite y/o mesa",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INV-SUPERFICIE",
+        "SRC-INASE-RNC"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-OREGANO",
+      "familyCode": "AROMATICAS-MEDICINALES-CONDIMENTARIAS",
+      "canonicalName": "orégano",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-CORIANDRO",
+      "familyCode": "AROMATICAS-MEDICINALES-CONDIMENTARIAS",
+      "canonicalName": "coriandro",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-COMINO",
+      "familyCode": "AROMATICAS-MEDICINALES-CONDIMENTARIAS",
+      "canonicalName": "comino",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ANIS",
+      "familyCode": "AROMATICAS-MEDICINALES-CONDIMENTARIAS",
+      "canonicalName": "anís",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-HINOJO",
+      "familyCode": "AROMATICAS-MEDICINALES-CONDIMENTARIAS",
+      "canonicalName": "hinojo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MANZANILLA",
+      "familyCode": "AROMATICAS-MEDICINALES-CONDIMENTARIAS",
+      "canonicalName": "manzanilla",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-LAVANDA",
+      "familyCode": "AROMATICAS-MEDICINALES-CONDIMENTARIAS",
+      "canonicalName": "lavanda",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MENTA",
+      "familyCode": "AROMATICAS-MEDICINALES-CONDIMENTARIAS",
+      "canonicalName": "menta",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ROMERO",
+      "familyCode": "AROMATICAS-MEDICINALES-CONDIMENTARIAS",
+      "canonicalName": "romero",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-TOMILLO",
+      "familyCode": "AROMATICAS-MEDICINALES-CONDIMENTARIAS",
+      "canonicalName": "tomillo",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ALBAHACA",
+      "familyCode": "AROMATICAS-MEDICINALES-CONDIMENTARIAS",
+      "canonicalName": "albahaca",
+      "scientificName": null,
+      "entryType": "SPECIES",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-OTRAS-AROMATICAS",
+      "familyCode": "AROMATICAS-MEDICINALES-CONDIMENTARIAS",
+      "canonicalName": "otras aromáticas, medicinales y condimentarias",
+      "scientificName": null,
+      "entryType": "CONTROLLED_PLACEHOLDER",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Placeholder controlado para la frase abierta."
+    },
+    {
+      "code": "AR-VEG-PINOS",
+      "familyCode": "FORESTACION-AGROFORESTERIA",
+      "canonicalName": "pinos",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-EUCALIPTOS",
+      "familyCode": "FORESTACION-AGROFORESTERIA",
+      "canonicalName": "eucaliptos",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ALAMOS",
+      "familyCode": "FORESTACION-AGROFORESTERIA",
+      "canonicalName": "álamos",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-SAUCES",
+      "familyCode": "FORESTACION-AGROFORESTERIA",
+      "canonicalName": "sauces",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-ARAUCARIAS",
+      "familyCode": "FORESTACION-AGROFORESTERIA",
+      "canonicalName": "araucarias",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-RODALES",
+      "familyCode": "FORESTACION-AGROFORESTERIA",
+      "canonicalName": "rodales",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-SISTEMAS-SILVOPASTORILES",
+      "familyCode": "FORESTACION-AGROFORESTERIA",
+      "canonicalName": "sistemas silvopastoriles",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-OTRAS-ESPECIES-IMPLANTADAS",
+      "familyCode": "FORESTACION-AGROFORESTERIA",
+      "canonicalName": "otras especies implantadas",
+      "scientificName": null,
+      "entryType": "CONTROLLED_PLACEHOLDER",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INDEC-CNA-2018",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Placeholder controlado para la frase abierta."
+    },
+    {
+      "code": "AR-VEG-PLANTINES-HORTICOLAS",
+      "familyCode": "VIVEROS-FLORICULTURA-PROPAGACION",
+      "canonicalName": "plantines hortícolas",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INASE-RNC",
+        "SRC-SENASA-VEGETAL",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PLANTINES-FRUTALES",
+      "familyCode": "VIVEROS-FLORICULTURA-PROPAGACION",
+      "canonicalName": "plantines frutales",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INASE-RNC",
+        "SRC-SENASA-VEGETAL",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PLANTINES-FORESTALES",
+      "familyCode": "VIVEROS-FLORICULTURA-PROPAGACION",
+      "canonicalName": "plantines forestales",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INASE-RNC",
+        "SRC-SENASA-VEGETAL",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-PLANTINES-ORNAMENTALES",
+      "familyCode": "VIVEROS-FLORICULTURA-PROPAGACION",
+      "canonicalName": "plantines ornamentales",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INASE-RNC",
+        "SRC-SENASA-VEGETAL",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-FLORES-DE-CORTE",
+      "familyCode": "VIVEROS-FLORICULTURA-PROPAGACION",
+      "canonicalName": "flores de corte",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INASE-RNC",
+        "SRC-SENASA-VEGETAL",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-MATERIAL-DE-PROPAGACION",
+      "familyCode": "VIVEROS-FLORICULTURA-PROPAGACION",
+      "canonicalName": "material de propagación",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "APPROVED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-INASE-RNC",
+        "SRC-SENASA-VEGETAL",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": false,
+      "requiresValidatedProfile": false
+    },
+    {
+      "code": "AR-VEG-HONGOS-COMESTIBLES",
+      "familyCode": "PRODUCCIONES-CONTROLADAS-EMERGENTES",
+      "canonicalName": "hongos comestibles",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-SENASA-VEGETAL",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Producción controlada/emergente sujeta a revisión."
+    },
+    {
+      "code": "AR-VEG-HIDROPONIA",
+      "familyCode": "PRODUCCIONES-CONTROLADAS-EMERGENTES",
+      "canonicalName": "hidroponía",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-SENASA-VEGETAL",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Sistema controlado/emergente sujeto a revisión."
+    },
+    {
+      "code": "AR-VEG-ACUAPONIA-VEGETAL",
+      "familyCode": "PRODUCCIONES-CONTROLADAS-EMERGENTES",
+      "canonicalName": "acuaponía vegetal",
+      "scientificName": null,
+      "entryType": "PRODUCTION_GROUP",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-SENASA-VEGETAL",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Sistema controlado/emergente sujeto a revisión."
+    },
+    {
+      "code": "AR-VEG-OTRAS-PRODUCCIONES-VERIFICADAS",
+      "familyCode": "PRODUCCIONES-CONTROLADAS-EMERGENTES",
+      "canonicalName": "otras producciones verificadas por el administrador del catálogo",
+      "scientificName": null,
+      "entryType": "CONTROLLED_PLACEHOLDER",
+      "supportLevel": "CATALOGADA",
+      "reviewStatus": "REVIEW_REQUIRED",
+      "lifecycleStatus": "ACTIVE",
+      "jurisdictions": [
+        "AR"
+      ],
+      "sourceIds": [
+        "SRC-SENASA-VEGETAL",
+        "SRC-INTA-PROGRAMAS"
+      ],
+      "aliases": [],
+      "regulated": true,
+      "requiresValidatedProfile": true,
+      "notes": "Placeholder controlado; requiere fuente verificable y revisión."
+    }
+  ]
+}

@@ -1,0 +1,181 @@
+{
+  "catalogVersion": "1.0.0-candidate.1",
+  "domain": "ANIMAL",
+  "status": "CANDIDATE",
+  "denominatorDefinition": "Entradas animales y grupos productivos nominales explícitos de la tabla Línea base pecuaria v1; las dimensiones se modelan una sola vez por familia, separadas de las entradas; expresiones abiertas se conservan como placeholders controlados y las menciones repetidas se representan una sola vez.",
+  "familyDimensions": [
+    {
+      "familyCode": "BOVINOS",
+      "systems": ["cría", "recría", "invernada", "terminación", "ciclo completo", "feedlot", "tambo", "cabaña"],
+      "purposes": [],
+      "trackingUnits": ["individuo", "rodeo"],
+      "products": ["carne", "leche", "genética", "cuero", "subproductos"],
+      "categories": ["ternero", "ternera", "vaquillona", "vaca", "novillito", "novillo", "torito", "toro", "buey", "toruno", "lactancia", "preñez", "servicio", "reposición", "descarte"]
+    },
+    {
+      "familyCode": "BUBALINOS",
+      "systems": ["carne", "leche", "mixta", "cría", "recría", "terminación", "cabaña"],
+      "purposes": [],
+      "trackingUnits": ["individuo", "rodeo"],
+      "products": ["carne", "leche", "genética"],
+      "categories": ["ternero", "ternera", "vaquillona", "vaca", "novillito", "novillo", "torito", "toro", "buey", "toruno", "lactancia", "preñez", "servicio", "reposición", "descarte"]
+    },
+    {
+      "familyCode": "OVINOS",
+      "systems": ["carne", "lana", "doble propósito", "leche", "cabaña", "peletera"],
+      "purposes": [],
+      "trackingUnits": ["individuo", "majada"],
+      "products": ["carne", "lana", "leche", "cuero", "genética"],
+      "categories": ["cordero", "cordera", "borrego", "borrega", "oveja", "capón", "carnero"]
+    },
+    {
+      "familyCode": "CAPRINOS",
+      "systems": ["carne", "leche", "fibra", "pelo", "cuero", "cabaña", "mixta"],
+      "purposes": [],
+      "trackingUnits": ["individuo", "hato"],
+      "products": ["carne", "leche", "fibra", "cuero", "genética"],
+      "categories": ["cabrito", "cabrita", "chivito", "chivita", "cabrilla", "cabra", "capón", "chivo", "chivato"]
+    },
+    {
+      "familyCode": "PORCINOS",
+      "systems": ["lechones", "crecimiento", "engorde", "ciclo completo", "genética", "aire libre", "mixto", "intensivo"],
+      "purposes": [],
+      "trackingUnits": ["lote", "individuo reproductor"],
+      "products": ["animal", "carne", "genética"],
+      "categories": ["lechón", "cachorro", "cachorra", "reposición", "capón", "cerda", "padrillo"]
+    },
+    {
+      "familyCode": "EQUIDOS",
+      "systems": ["trabajo", "deporte", "recreación", "haras", "cabaña", "exportación"],
+      "purposes": [],
+      "trackingUnits": ["individuo"],
+      "products": ["trabajo", "deporte", "reproducción", "animal", "productos"],
+      "categories": ["potrillo", "potrilla", "potro", "potra", "yegua", "caballo castrado", "padrillo"]
+    },
+    {
+      "familyCode": "CAMELIDOS-DOMESTICOS",
+      "systems": ["carne", "fibra", "cuero", "cabaña", "servicios"],
+      "purposes": [],
+      "trackingUnits": ["individuo", "tropa"],
+      "products": ["carne", "fibra", "cuero", "genética"],
+      "categories": []
+    },
+    {
+      "familyCode": "AVES",
+      "systems": ["pollos parrilleros", "ponedoras", "reproductores", "incubación"],
+      "purposes": [],
+      "trackingUnits": ["lote", "galpón"],
+      "products": ["carne", "huevo", "material vivo", "plumas"],
+      "categories": ["fase", "lote"]
+    },
+    {
+      "familyCode": "CONEJOS-PILIFEROS",
+      "systems": [],
+      "purposes": [],
+      "trackingUnits": ["lote", "jaula", "reproductor"],
+      "products": ["carne", "pelo", "piel", "genética"],
+      "categories": []
+    },
+    {
+      "familyCode": "APICULTURA",
+      "systems": ["apiario fijo", "apiario trashumante", "polinización"],
+      "purposes": [],
+      "trackingUnits": ["apiario", "colmena", "núcleo", "reina"],
+      "products": ["miel", "polen", "propóleos", "jalea", "cera", "apitoxina", "material vivo"],
+      "categories": []
+    },
+    {
+      "familyCode": "ACUICULTURA",
+      "systems": [],
+      "purposes": [],
+      "trackingUnits": ["lote acuático", "estanque", "jaula"],
+      "products": ["biomasa", "juveniles", "consumo", "repoblamiento"],
+      "categories": ["fase", "lote"]
+    },
+    {
+      "familyCode": "FAUNA-PRODUCTIVA",
+      "systems": [],
+      "purposes": [],
+      "trackingUnits": ["individuo", "lote", "cupo"],
+      "products": ["carne", "cuero", "fibra", "reproductores", "otros permitidos"],
+      "categories": []
+    },
+    {
+      "familyCode": "PRODUCCIONES-MENORES",
+      "systems": [],
+      "purposes": [],
+      "trackingUnits": ["biomasa", "camas", "núcleos", "lotes", "individuos"],
+      "products": [],
+      "categories": []
+    }
+  ],
+  "entries": [
+    {"code":"AR-ANI-BOVINOS","familyCode":"BOVINOS","canonicalName":"Bovinos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-BUBALINOS","familyCode":"BUBALINOS","canonicalName":"Bubalinos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-OVINOS","familyCode":"OVINOS","canonicalName":"Ovinos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-CAPRINOS","familyCode":"CAPRINOS","canonicalName":"Caprinos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-PORCINOS","familyCode":"PORCINOS","canonicalName":"Porcinos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+
+    {"code":"AR-ANI-EQUIDOS-CABALLOS","familyCode":"EQUIDOS","canonicalName":"Caballos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-EQUIDOS-ASNOS","familyCode":"EQUIDOS","canonicalName":"Asnos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-EQUIDOS-MULAS","familyCode":"EQUIDOS","canonicalName":"Mulas","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-EQUIDOS-BURDEGANOS","familyCode":"EQUIDOS","canonicalName":"Burdéganos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+
+    {"code":"AR-ANI-CAMELIDOS-LLAMAS","familyCode":"CAMELIDOS-DOMESTICOS","canonicalName":"Llamas","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-CAMELIDOS-ALPACAS","familyCode":"CAMELIDOS-DOMESTICOS","canonicalName":"Alpacas","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+
+    {"code":"AR-ANI-AVES-POLLOS-PARRILLEROS","familyCode":"AVES","canonicalName":"Pollos parrilleros","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-AVES-PONEDORAS","familyCode":"AVES","canonicalName":"Ponedoras","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-AVES-REPRODUCTORES-INCUBACION","familyCode":"AVES","canonicalName":"Reproductores/incubación","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-AVES-PAVOS","familyCode":"AVES","canonicalName":"Pavos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-AVES-PATOS","familyCode":"AVES","canonicalName":"Patos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-AVES-GANSOS","familyCode":"AVES","canonicalName":"Gansos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-AVES-CODORNICES","familyCode":"AVES","canonicalName":"Codornices","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-AVES-FAISANES","familyCode":"AVES","canonicalName":"Faisanes","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-AVES-PALOMAS","familyCode":"AVES","canonicalName":"Palomas","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-AVES-NANDU-CHOIQUE","familyCode":"AVES","canonicalName":"Ñandú/choique","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA","SRC-INTA-PROGRAMAS"],"aliases":["Ñandú","Choique"],"regulated":true,"requiresValidatedProfile":true,"notes":"También aparece en la familia de fauna productiva; se conserva una única entrada regulada y los dos términos explícitos de la fuente como claves de búsqueda."},
+    {"code":"AR-ANI-AVES-OTRAS-AUTORIZADAS","familyCode":"AVES","canonicalName":"Otras aves autorizadas","scientificName":null,"entryType":"CONTROLLED_PLACEHOLDER","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":true,"requiresValidatedProfile":true,"notes":"Placeholder controlado para la expresión abierta 'otras autorizadas'."},
+
+    {"code":"AR-ANI-PILIFEROS-CONEJOS","familyCode":"CONEJOS-PILIFEROS","canonicalName":"Conejos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-PILIFEROS-CHINCHILLAS","familyCode":"CONEJOS-PILIFEROS","canonicalName":"Chinchillas","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":true,"requiresValidatedProfile":true},
+    {"code":"AR-ANI-PILIFEROS-VISONES","familyCode":"CONEJOS-PILIFEROS","canonicalName":"Visones","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":true,"requiresValidatedProfile":true},
+    {"code":"AR-ANI-PILIFEROS-ZORROS","familyCode":"CONEJOS-PILIFEROS","canonicalName":"Zorros","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":true,"requiresValidatedProfile":true},
+    {"code":"AR-ANI-PILIFEROS-OTROS-VALIDACION","familyCode":"CONEJOS-PILIFEROS","canonicalName":"Otros pilíferos sujetos a validación","scientificName":null,"entryType":"CONTROLLED_PLACEHOLDER","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":true,"requiresValidatedProfile":true,"notes":"Placeholder controlado para la expresión abierta 'otros sujetos a validación'."},
+
+    {"code":"AR-ANI-APICULTURA-ABEJA-MELIFERA","familyCode":"APICULTURA","canonicalName":"Abeja melífera","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-APICULTURA","SRC-SENASA-RENSPA","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+
+    {"code":"AR-ANI-ACUICULTURA-PACU","familyCode":"ACUICULTURA","canonicalName":"Pacú","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-TRUCHA-ARCOIRIS","familyCode":"ACUICULTURA","canonicalName":"Trucha arcoíris","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-SURUBI","familyCode":"ACUICULTURA","canonicalName":"Surubí","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-CARPAS","familyCode":"ACUICULTURA","canonicalName":"Carpas","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-TILAPIA","familyCode":"ACUICULTURA","canonicalName":"Tilapia","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-BOGA","familyCode":"ACUICULTURA","canonicalName":"Boga","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-SABALO","familyCode":"ACUICULTURA","canonicalName":"Sábalo","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-PEJERREY","familyCode":"ACUICULTURA","canonicalName":"Pejerrey","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-TARARIRA","familyCode":"ACUICULTURA","canonicalName":"Tararira","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-DORADO","familyCode":"ACUICULTURA","canonicalName":"Dorado","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-BAGRES","familyCode":"ACUICULTURA","canonicalName":"Bagres","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-ESTURION","familyCode":"ACUICULTURA","canonicalName":"Esturión","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-OSTRAS","familyCode":"ACUICULTURA","canonicalName":"Ostras","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-MEJILLONES","familyCode":"ACUICULTURA","canonicalName":"Mejillones","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-CRUSTACEOS","familyCode":"ACUICULTURA","canonicalName":"Crustáceos","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-RANA","familyCode":"ACUICULTURA","canonicalName":"Rana","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-ALGAS","familyCode":"ACUICULTURA","canonicalName":"Algas","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-ACUICULTURA-OTRAS-AUTORIZADAS","familyCode":"ACUICULTURA","canonicalName":"Otras producciones acuícolas autorizadas","scientificName":null,"entryType":"CONTROLLED_PLACEHOLDER","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL"],"aliases":[],"regulated":true,"requiresValidatedProfile":true,"notes":"Placeholder controlado para la expresión abierta 'otras autorizadas'."},
+
+    {"code":"AR-ANI-FAUNA-YACARE","familyCode":"FAUNA-PRODUCTIVA","canonicalName":"Yacaré","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ACUICULTURA","SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":true,"requiresValidatedProfile":true,"notes":"También aparece en acuicultura; se conserva una única entrada regulada."},
+    {"code":"AR-ANI-FAUNA-CIERVO-COLORADO","familyCode":"FAUNA-PRODUCTIVA","canonicalName":"Ciervo colorado","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":true,"requiresValidatedProfile":true},
+    {"code":"AR-ANI-FAUNA-OTROS-CERVIDOS","familyCode":"FAUNA-PRODUCTIVA","canonicalName":"Otros cérvidos","scientificName":null,"entryType":"CONTROLLED_PLACEHOLDER","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":true,"requiresValidatedProfile":true,"notes":"Placeholder controlado para la expresión abierta 'otros cérvidos'."},
+    {"code":"AR-ANI-FAUNA-GUANACO","familyCode":"FAUNA-PRODUCTIVA","canonicalName":"Guanaco","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":true,"requiresValidatedProfile":true},
+    {"code":"AR-ANI-FAUNA-VICUNA","familyCode":"FAUNA-PRODUCTIVA","canonicalName":"Vicuña","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":true,"requiresValidatedProfile":true},
+    {"code":"AR-ANI-FAUNA-JABALI","familyCode":"FAUNA-PRODUCTIVA","canonicalName":"Jabalí","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":true,"requiresValidatedProfile":true},
+    {"code":"AR-ANI-FAUNA-LIEBRE","familyCode":"FAUNA-PRODUCTIVA","canonicalName":"Liebre","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":true,"requiresValidatedProfile":true},
+    {"code":"AR-ANI-FAUNA-CARPINCHO","familyCode":"FAUNA-PRODUCTIVA","canonicalName":"Carpincho","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":true,"requiresValidatedProfile":true},
+    {"code":"AR-ANI-FAUNA-OTROS-PERFIL-LEGAL","familyCode":"FAUNA-PRODUCTIVA","canonicalName":"Otra fauna productiva con perfil legal","scientificName":null,"entryType":"CONTROLLED_PLACEHOLDER","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-SENASA-RENSPA"],"aliases":[],"regulated":true,"requiresValidatedProfile":true,"notes":"Placeholder controlado para la expresión abierta 'otros solo con perfil legal'."},
+
+    {"code":"AR-ANI-MENORES-CARACOLES","familyCode":"PRODUCCIONES-MENORES","canonicalName":"Caracoles","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-MENORES-LOMBRICES","familyCode":"PRODUCCIONES-MENORES","canonicalName":"Lombrices","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-MENORES-SERICICULTURA","familyCode":"PRODUCCIONES-MENORES","canonicalName":"Sericicultura","scientificName":null,"entryType":"PRODUCTION_GROUP","supportLevel":"CATALOGADA","reviewStatus":"APPROVED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-INDEC-CNA-2018","SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":false,"requiresValidatedProfile":false},
+    {"code":"AR-ANI-MENORES-OTROS-ANIMALES-INVERTEBRADOS","familyCode":"PRODUCCIONES-MENORES","canonicalName":"Otros animales o invertebrados habilitados","scientificName":null,"entryType":"CONTROLLED_PLACEHOLDER","supportLevel":"CATALOGADA","reviewStatus":"REVIEW_REQUIRED","lifecycleStatus":"ACTIVE","jurisdictions":["AR"],"sourceIds":["SRC-SENASA-ANIMAL","SRC-INTA-PROGRAMAS"],"aliases":[],"regulated":true,"requiresValidatedProfile":true,"notes":"Placeholder controlado para la expresión abierta 'otros animales/invertebrados declarados en fuentes oficiales o habilitados'."}
+  ]
+}

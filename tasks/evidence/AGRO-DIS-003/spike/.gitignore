@@ -1,0 +1,10 @@
+.runtime/
+**/bin/
+**/obj/
+web/.next/
+web/node_modules/
+web/next-env.d.ts
+web/*.tsbuildinfo
+web/test-results/
+web/output/e2e/
+web/output/playwright/

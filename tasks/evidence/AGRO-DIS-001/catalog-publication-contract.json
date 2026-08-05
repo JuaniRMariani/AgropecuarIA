@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agropecuaria:catalog-publication-contract:1",
+  "title": "Contrato conceptual de diff y publicación de catálogo",
+  "description": "Contrato R0 no productivo. Fija semántica y compatibilidad; no crea un endpoint ni autoriza publicación.",
+  "contractVersion": "1.0.0",
+  "catalogVersion": "1.0.0-candidate.1",
+  "diff": {
+    "required": ["fromVersion", "toVersion", "generatedAtUtc", "changes"],
+    "changeKinds": ["ADDED", "UPDATED", "INACTIVATED", "SUCCEEDED"],
+    "change": {
+      "required": ["code", "domain", "kind", "changedFields", "sourceIds"],
+      "invariants": [
+        "code es estable e irreutilizable",
+        "INACTIVATED no elimina referencias históricas",
+        "SUCCEEDED requiere successorCode existente del mismo dominio",
+        "cambiar supportLevel requiere evidencia y aprobación"
+      ]
+    }
+  },
+  "event": {
+    "name": "ProductCatalogPublished",
+    "version": 1,
+    "required": [
+      "eventId",
+      "occurredAtUtc",
+      "catalogVersion",
+      "previousCatalogVersion",
+      "manifestSha256",
+      "publishedBySubject",
+      "reason",
+      "counts",
+      "correlationId"
+    ],
+    "privacy": {
+      "tenantScoped": false,
+      "containsPersonalData": true,
+      "publishedBySubject": "dato personal seudonimizado del actor autenticado; nunca email o nombre directo; acceso y retención restringidos"
+    },
+    "idempotency": "catalogVersion + manifestSha256",
+    "compatibility": "consumidores ignoran campos adicionales; cambios incompatibles incrementan event.version",
+    "rollback": "publicar un nuevo evento que activa una versión previa; nunca borrar ni reescribir eventos"
+  },
+  "example": {
+    "diff": {
+      "fromVersion": "1.0.0-candidate.0",
+      "toVersion": "1.0.0-candidate.1",
+      "generatedAtUtc": "2026-08-04T12:00:00Z",
+      "changes": [
+        {
+          "code": "AR-ANI-AVES-PONEDORAS",
+          "domain": "ANIMAL",
+          "kind": "ADDED",
+          "changedFields": ["canonicalName", "sourceIds", "supportLevel"],
+          "sourceIds": ["SRC-INDEC-CNA-2018", "SRC-SENASA-ANIMAL", "SRC-SENASA-RENSPA"]
+        }
+      ]
+    },
+    "event": {
+      "eventId": "018f-example-non-production",
+      "occurredAtUtc": "2026-08-04T12:00:00Z",
+      "catalogVersion": "1.0.0-candidate.1",
+      "previousCatalogVersion": "1.0.0-candidate.0",
+      "manifestSha256": "REPLACE_WITH_PUBLICATION_MANIFEST_HASH",
+      "publishedBySubject": "subject-example",
+      "reason": "Aprobación editorial de ejemplo; no representa una publicación real",
+      "counts": {
+        "added": 1,
+        "updated": 0,
+        "inactivated": 0,
+        "succeeded": 0
+      },
+      "correlationId": "correlation-example"
+    }
+  }
+}

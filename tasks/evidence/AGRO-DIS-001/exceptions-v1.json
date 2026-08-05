@@ -1,0 +1,35 @@
+{
+  "catalogVersion": "1.0.0-candidate.1",
+  "exceptions": [
+    {
+      "id": "EXC-CAT-001",
+      "scope": "Variedades, cultivares, razas y líneas genéticas",
+      "type": "DEFERRED_DEPTH",
+      "reason": "Las fuentes son dinámicas y el sponsor aprobó sincronización o alta bajo demanda en lugar de precarga exhaustiva.",
+      "decision": "Mantener fuera del denominador v1; toda incorporación conserva fuente, código externo y vigencia.",
+      "approver": "Sponsor/owner",
+      "approvedAt": "2026-08-04",
+      "status": "APPROVED"
+    },
+    {
+      "id": "EXC-CAT-002",
+      "scope": "Expresiones abiertas 'otros/otras' del discovery",
+      "type": "CONTROLLED_PLACEHOLDER",
+      "reason": "No designan un taxón único ni permiten afirmar una lista eterna.",
+      "decision": "Representar solo placeholders controlados por familia; un alta concreta requiere identidad y fuente verificables.",
+      "approver": "Sponsor/owner",
+      "approvedAt": "2026-08-04",
+      "status": "APPROVED"
+    },
+    {
+      "id": "EXC-CAT-003",
+      "scope": "Fauna productiva, cannabis/cáñamo y actividades sujetas a autorización",
+      "type": "REGULATED_ACTIVITY",
+      "reason": "La presencia en el catálogo no prueba legalidad, origen, cupo ni habilitación jurisdiccional.",
+      "decision": "Mantener CATALOGADA y REVIEW_REQUIRED; prohibir elevación de soporte sin perfil legal/técnico validado.",
+      "approver": "Sponsor/owner",
+      "approvedAt": "2026-08-04",
+      "status": "APPROVED"
+    }
+  ]
+}

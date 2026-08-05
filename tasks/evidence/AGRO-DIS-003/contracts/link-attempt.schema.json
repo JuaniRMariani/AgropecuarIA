@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.example/contracts/identity/link-attempt.v1.schema.json",
+  "title": "Account link attempt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["attemptId", "state", "currentIdentity", "candidateIdentity", "expiresAt"],
+  "properties": {
+    "attemptId": { "type": "string", "format": "uuid" },
+    "state": {
+      "enum": [
+        "requested",
+        "current_reauthenticated",
+        "candidate_reauthenticated",
+        "linked",
+        "rejected",
+        "expired"
+      ]
+    },
+    "currentIdentity": { "$ref": "#/$defs/externalIdentity" },
+    "candidateIdentity": { "$ref": "#/$defs/externalIdentity" },
+    "expiresAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "externalIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issuer", "subject"],
+      "properties": {
+        "issuer": { "type": "string", "format": "uri", "maxLength": 500 },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 255 }
+      }
+    }
+  }
+}

@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.local/schemas/catalog-national-v1.schema.json",
+  "title": "AgropecuarIA Catálogo Nacional v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "catalogVersion",
+    "domain",
+    "status",
+    "denominatorDefinition",
+    "entries"
+  ],
+  "properties": {
+    "catalogVersion": {
+      "const": "1.0.0-candidate.1"
+    },
+    "domain": {
+      "enum": ["VEGETAL", "ANIMAL"]
+    },
+    "status": {
+      "const": "CANDIDATE"
+    },
+    "denominatorDefinition": {
+      "type": "string",
+      "minLength": 20
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/catalogEntry"
+      }
+    },
+    "familyDimensions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/familyDimensions"
+      }
+    }
+  },
+  "$defs": {
+    "catalogEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "familyCode",
+        "canonicalName",
+        "entryType",
+        "supportLevel",
+        "reviewStatus",
+        "lifecycleStatus",
+        "jurisdictions",
+        "sourceIds",
+        "aliases",
+        "regulated",
+        "requiresValidatedProfile"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^AR-(VEG|ANI)-[A-Z0-9-]+$"
+        },
+        "familyCode": {
+          "type": "string",
+          "pattern": "^[A-Z0-9-]+$"
+        },
+        "canonicalName": {
+          "type": "string",
+          "minLength": 2
+        },
+        "scientificName": {
+          "type": ["string", "null"]
+        },
+        "entryType": {
+          "enum": ["SPECIES", "RESOURCE", "MIXTURE", "PRODUCTION_GROUP", "CONTROLLED_PLACEHOLDER"]
+        },
+        "supportLevel": {
+          "const": "CATALOGADA"
+        },
+        "reviewStatus": {
+          "enum": ["APPROVED", "REVIEW_REQUIRED"]
+        },
+        "lifecycleStatus": {
+          "enum": ["ACTIVE", "INACTIVE", "SUCCEEDED"]
+        },
+        "jurisdictions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^AR($|-[A-Z])"
+          }
+        },
+        "sourceIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^SRC-[A-Z0-9-]+$"
+          }
+        },
+        "aliases": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 2
+          }
+        },
+        "regulated": {
+          "type": "boolean"
+        },
+        "requiresValidatedProfile": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "successorCode": {
+          "type": ["string", "null"],
+          "pattern": "^AR-(VEG|ANI)-[A-Z0-9-]+$"
+        }
+      }
+    },
+    "familyDimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["familyCode", "systems", "purposes", "trackingUnits", "products", "categories"],
+      "properties": {
+        "familyCode": {
+          "type": "string",
+          "pattern": "^[A-Z0-9-]+$"
+        },
+        "systems": {
+          "$ref": "#/$defs/uniqueLabels"
+        },
+        "purposes": {
+          "$ref": "#/$defs/uniqueLabels"
+        },
+        "trackingUnits": {
+          "$ref": "#/$defs/uniqueLabels"
+        },
+        "products": {
+          "$ref": "#/$defs/uniqueLabels"
+        },
+        "categories": {
+          "$ref": "#/$defs/uniqueLabels"
+        }
+      }
+    },
+    "uniqueLabels": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 2
+      }
+    }
+  }
+}

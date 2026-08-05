@@ -1,0 +1,25 @@
+:root {
+  --ink: #173b2d;
+  --ink-deep: #0d281e;
+  --paper: #f4f0e5;
+  --paper-light: #fbfaf4;
+  --field: #a7b892;
+  --clay: #ad5c3d;
+  --sun: #edb643;
+  --line: #c9c4b5;
+}
+
+* { box-sizing: border-box; }
+html { min-height: 100%; background: var(--paper); }
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--ink-deep);
+  background:
+    linear-gradient(90deg, transparent 49.8%, rgb(23 59 45 / 4%) 50%, transparent 50.2%),
+    var(--paper);
+  font-family: var(--font-body), sans-serif;
+}
+button { font: inherit; }
+button:focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
+::selection { color: white; background: var(--ink); }

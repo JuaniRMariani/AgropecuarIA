@@ -1,0 +1,7 @@
+{
+  "capturedAt": "2026-01-15T12:00:00-03:00",
+  "evaluatedAt": "2026-08-04T12:00:00-03:00",
+  "staleAfterDays": 90,
+  "expectedFreshness": "STALE",
+  "canPublish": false
+}

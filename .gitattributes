@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+# Markdown uses intentional two-space hard breaks in the approved planning corpus.
+*.md text eol=lf -whitespace
+
+*.ico binary
+*.png binary

@@ -1,0 +1,111 @@
+{
+  "catalogVersion": "1.0.0-candidate.1",
+  "sourceDocument": "docs/14-catalogo-productivo-argentino.md",
+  "scope": "Dimensiones nominales explícitas de la línea base pecuaria y sus categorías",
+  "families": [
+    {
+      "familyCode": "BOVINOS",
+      "purposes": [],
+      "systems": ["cría", "recría", "invernada", "terminación", "ciclo completo", "feedlot", "tambo", "cabaña"],
+      "trackingUnits": ["individuo", "rodeo"],
+      "products": ["carne", "leche", "genética", "cuero", "subproductos"],
+      "categories": ["ternero", "ternera", "vaquillona", "vaca", "novillito", "novillo", "torito", "toro", "buey", "toruno", "lactancia", "preñez", "servicio", "reposición", "descarte"]
+    },
+    {
+      "familyCode": "BUBALINOS",
+      "purposes": [],
+      "systems": ["carne", "leche", "mixta", "cría", "recría", "terminación", "cabaña"],
+      "trackingUnits": ["individuo", "rodeo"],
+      "products": ["carne", "leche", "genética"],
+      "categories": ["ternero", "ternera", "vaquillona", "vaca", "novillito", "novillo", "torito", "toro", "buey", "toruno", "lactancia", "preñez", "servicio", "reposición", "descarte"]
+    },
+    {
+      "familyCode": "OVINOS",
+      "purposes": [],
+      "systems": ["carne", "lana", "doble propósito", "leche", "cabaña", "peletera"],
+      "trackingUnits": ["individuo", "majada"],
+      "products": ["carne", "lana", "leche", "cuero", "genética"],
+      "categories": ["cordero", "cordera", "borrego", "borrega", "oveja", "capón", "carnero"]
+    },
+    {
+      "familyCode": "CAPRINOS",
+      "purposes": [],
+      "systems": ["carne", "leche", "fibra", "pelo", "cuero", "cabaña", "mixta"],
+      "trackingUnits": ["individuo", "hato"],
+      "products": ["carne", "leche", "fibra", "cuero", "genética"],
+      "categories": ["cabrito", "cabrita", "chivito", "chivita", "cabrilla", "cabra", "capón", "chivo", "chivato"]
+    },
+    {
+      "familyCode": "PORCINOS",
+      "purposes": [],
+      "systems": ["lechones", "crecimiento", "engorde", "ciclo completo", "genética", "aire libre", "mixto", "intensivo"],
+      "trackingUnits": ["lote", "individuo reproductor"],
+      "products": ["animal", "carne", "genética"],
+      "categories": ["lechón", "cachorro", "cachorra", "reposición", "capón", "cerda", "padrillo"]
+    },
+    {
+      "familyCode": "EQUIDOS",
+      "purposes": [],
+      "systems": ["trabajo", "deporte", "recreación", "haras", "cabaña", "exportación"],
+      "trackingUnits": ["individuo"],
+      "products": ["trabajo", "deporte", "reproducción", "animal", "productos"],
+      "categories": ["potrillo", "potrilla", "potro", "potra", "yegua", "caballo castrado", "padrillo"]
+    },
+    {
+      "familyCode": "CAMELIDOS-DOMESTICOS",
+      "purposes": [],
+      "systems": ["carne", "fibra", "cuero", "cabaña", "servicios"],
+      "trackingUnits": ["individuo", "tropa"],
+      "products": ["carne", "fibra", "cuero", "genética"],
+      "categories": []
+    },
+    {
+      "familyCode": "AVES",
+      "purposes": [],
+      "systems": ["pollos parrilleros", "ponedoras", "reproductores", "incubación"],
+      "trackingUnits": ["lote", "galpón"],
+      "products": ["carne", "huevo", "material vivo", "plumas"],
+      "categories": ["fase", "lote"]
+    },
+    {
+      "familyCode": "CONEJOS-PILIFEROS",
+      "purposes": [],
+      "systems": [],
+      "trackingUnits": ["lote", "jaula", "reproductor"],
+      "products": ["carne", "pelo", "piel", "genética"],
+      "categories": []
+    },
+    {
+      "familyCode": "APICULTURA",
+      "purposes": [],
+      "systems": ["apiario fijo", "apiario trashumante", "polinización"],
+      "trackingUnits": ["apiario", "colmena", "núcleo", "reina"],
+      "products": ["miel", "polen", "propóleos", "jalea", "cera", "apitoxina", "material vivo"],
+      "categories": []
+    },
+    {
+      "familyCode": "ACUICULTURA",
+      "purposes": [],
+      "systems": [],
+      "trackingUnits": ["lote acuático", "estanque", "jaula"],
+      "products": ["biomasa", "juveniles", "consumo", "repoblamiento"],
+      "categories": ["fase", "lote"]
+    },
+    {
+      "familyCode": "FAUNA-PRODUCTIVA",
+      "purposes": [],
+      "systems": [],
+      "trackingUnits": ["individuo", "lote", "cupo"],
+      "products": ["carne", "cuero", "fibra", "reproductores", "otros permitidos"],
+      "categories": []
+    },
+    {
+      "familyCode": "PRODUCCIONES-MENORES",
+      "purposes": [],
+      "systems": [],
+      "trackingUnits": ["biomasa", "camas", "núcleos", "lotes", "individuos"],
+      "products": [],
+      "categories": []
+    }
+  ]
+}

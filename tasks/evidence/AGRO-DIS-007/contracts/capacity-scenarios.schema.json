@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.local/contracts/discovery/capacity-scenarios-1.0.schema.json",
+  "title": "Synthetic capacity scenario bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "classification", "validUntil", "scenarios", "networkProfiles"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "classification": { "const": "synthetic-estimate" },
+    "validUntil": { "type": "string", "format": "date" },
+    "scenarios": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "allOf": [
+        { "contains": { "type": "object", "required": ["id"], "properties": { "id": { "const": "pilot" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["id"], "properties": { "id": { "const": "growth-10x" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["id"], "properties": { "id": { "const": "burst-2x" } } }, "minContains": 1, "maxContains": 1 }
+      ],
+      "items": { "$ref": "#/$defs/scenario" }
+    },
+    "networkProfiles": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "allOf": [
+        { "contains": { "type": "object", "required": ["id"], "properties": { "id": { "const": "target" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["id"], "properties": { "id": { "const": "constrained" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["id"], "properties": { "id": { "const": "critical" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["id"], "properties": { "id": { "const": "offline" } } }, "minContains": 1, "maxContains": 1 }
+      ],
+      "items": { "$ref": "#/$defs/networkProfile" }
+    }
+  },
+  "$defs": {
+    "positiveInteger": { "type": "integer", "minimum": 1 },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "confidence", "owner", "volumes", "demand"],
+      "properties": {
+        "id": { "enum": ["pilot", "growth-10x", "burst-2x"] },
+        "label": { "type": "string", "minLength": 1 },
+        "confidence": { "const": "low" },
+        "owner": { "const": "Delivery/SRE/Product" },
+        "volumes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tenants", "registeredUsers", "concurrentUsers", "farms", "fields", "documentsPerMonth", "averageDocumentMiB", "importRowsPerDay", "jobsPerHour"],
+          "properties": {
+            "tenants": { "$ref": "#/$defs/positiveInteger" },
+            "registeredUsers": { "$ref": "#/$defs/positiveInteger" },
+            "concurrentUsers": { "$ref": "#/$defs/positiveInteger" },
+            "farms": { "$ref": "#/$defs/positiveInteger" },
+            "fields": { "$ref": "#/$defs/positiveInteger" },
+            "documentsPerMonth": { "$ref": "#/$defs/positiveInteger" },
+            "averageDocumentMiB": { "type": "number", "exclusiveMinimum": 0 },
+            "importRowsPerDay": { "$ref": "#/$defs/positiveInteger" },
+            "jobsPerHour": { "$ref": "#/$defs/positiveInteger" }
+          }
+        },
+        "demand": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["dailyReadRequests", "dailyWriteRequests", "peakFactor", "retentionMonths", "objectVersionFactor", "workerRowsPerSecond"],
+          "properties": {
+            "dailyReadRequests": { "$ref": "#/$defs/positiveInteger" },
+            "dailyWriteRequests": { "$ref": "#/$defs/positiveInteger" },
+            "peakFactor": { "type": "number", "minimum": 1 },
+            "retentionMonths": { "$ref": "#/$defs/positiveInteger" },
+            "objectVersionFactor": { "type": "number", "minimum": 1 },
+            "workerRowsPerSecond": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        }
+      }
+    },
+    "networkProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "latencyMs", "downloadKbps", "uploadKbps", "packetLossPercent", "online", "evidence"],
+      "properties": {
+        "id": { "enum": ["target", "constrained", "critical", "offline"] },
+        "label": { "type": "string", "minLength": 1 },
+        "latencyMs": { "type": "integer", "minimum": 0 },
+        "downloadKbps": { "type": "integer", "minimum": 0 },
+        "uploadKbps": { "type": "integer", "minimum": 0 },
+        "packetLossPercent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "online": { "type": "boolean" },
+        "evidence": { "const": "synthetic" }
+      }
+    }
+  }
+}

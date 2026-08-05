@@ -581,3 +581,65 @@ Estado inicial: `Propuesto`; seleccionada por el líder con la delegación expl�
 - Evidencia principal: `tasks/evidence/AGRO-DIS-005/validation-report.md`.
 - Estado final: `En revisión`; no se marca `Completada` porque los gates externos de proveedor, Legal y RPO administrado siguen abiertos.
 - Autoevaluación informativa: 97/100 (contexto 15, arquitectura 19, multiagente 10, full-stack/datos/observabilidad 14, tests/seguridad 20, preservación/cierre 19). Cero gate interno fallido; la puntuación no compensa los gates externos.
+
+## Iteración 12 — AGRO-DIS-007 capacidad, SLO, costos y conectividad (2026-08-05)
+
+Estado inicial: `Propuesto`; seleccionada por el líder con la delegación explícita del sponsor. Transiciones registradas: `Propuesto → Ready` al aceptar rangos sintéticos, owners y caducidad como evidencia R0; `Ready → En curso` al publicar este plan. Clasificación: spike R0 Must/M aislado y descartable; no es benchmark del producto, promesa de fecha, presupuesto aprobado, SLA contractual ni aprovisionamiento.
+
+### DoR, evidencia y decisiones reversibles
+
+- [x] Confirmar ID único, outcome, exclusiones, requisitos, riesgos y dependencias futuras.
+- [x] Resolver Q-019 como envelope: 1–3 carriles de ejecución y roles mínimos; presupuesto cloud, capacidad nominal y calendario siguen abiertos y no producen fechas.
+- [x] Resolver Q-020 con tres escenarios sintéticos versionados (`pilot`, `growth-10x`, `burst-2x`), confianza baja, owner y vencimiento 2026-09-30; no se presentan como demanda observada.
+- [x] Resolver Q-060 para el spike con targets hipotéticos existentes: disponibilidad mensual 99,9 %, RPO 15 min, RTO 2 h y sensibilidad; contrato SLA/soporte/retención sigue abierto.
+- [x] Resolver Q-061 con perfiles sintéticos de red `target`, `constrained`, `critical` y `offline`; la conectividad rural real permanece sin medir y offline sigue fuera del MVP.
+- [x] Confirmar toolchain: .NET SDK 10.0.201, Node 22.19.0, pnpm 10.33.0 y `npx` disponibles. Docker, cloud y un producto desplegable no son necesarios para este R0.
+
+### Contratos y límites fijados antes de editar código
+
+- Cadena determinística: `CapacityScenario → CapacityProjection → SloEvaluation / CostProjection`; ningún resultado se etiqueta `observed` si proviene de fixtures.
+- El costo se calcula por drivers explícitos y rangos `low/base/high`; precio faltante produce `incomplete`/NO-GO, nunca cero. Moneda, región, fuente, fecha y tratamiento impositivo son obligatorios para un catálogo real.
+- El catálogo SLI separa core propio de dependencias externas y define numerador, denominador, ventana, exclusiones y owner. 99,9 % equivale a 43 min 12 s en 30 días y a 1.000 eventos malos por millón elegible.
+- Telemetría usa allow-list de dimensiones acotadas (`route_template`, método, clase de estado, dependencia, job, cache, entorno). Se prohíben tenant/user/resource IDs, CUIT, email, coordenadas, filename, path/query, payload e idempotency key.
+- La UI es un laboratorio online: muestra estimación, confianza, faltantes, fecha de revalidación y estados de red. Sin red bloquea confirmación y no persiste/encola trabajo en `localStorage`, IndexedDB ni service worker.
+- Canary, rollback y DR son políticas de decisión; no se despliega ni provisiona. Índices, partición y cuotas productivas se difieren hasta medir carga real.
+
+### Plan verificable
+
+- [x] Publicar JSON Schema y fixtures para escenarios de capacidad, catálogo de costos y reporte reproducible.
+- [x] Implementar modelo .NET 10 para throughput, storage, drain time, error budget, costos incompletos y política de cardinalidad; agregar pruebas negativas y de límites.
+- [x] Implementar laboratorio Next.js 16/React 19 con pnpm para escenarios, SLO, costo incompleto y perfiles online/degradado/offline, accesible y responsive.
+- [x] Ejecutar contratos, restore/build/format/tests/scan .NET y frozen install/format/lint/typecheck/unit/build/audit/E2E frontend.
+- [x] Revisar independientemente QA y AppSec/Arquitectura; resolver hallazgos y registrar evidencia exacta.
+- [x] Actualizar ADR, preguntas/gaps/riesgos/trazabilidad, reporte y estado sin convertir estimaciones en compromisos.
+
+### Ownership disjunto — olas 2 y 3
+
+- Principal: contratos/fixtures compartidos, `.slnx`, `global.json`, manifests/lockfiles frontend, documentación, backlog, integración, gates finales y Git.
+- Backend/Capacity: `tasks/evidence/AGRO-DIS-007/spike/src/**` y `spike/tests/**`; no edita contratos, manifests ni documentación.
+- Frontend: `tasks/evidence/AGRO-DIS-007/spike/web/app/**`, `features/**`, `lib/**` y tests UI; no edita package/lock/config ni documentos.
+- Principal QA y AppSec/Arquitectura revisan el estado combinado en modo read-only; ningún implementador aprueba su propio cambio.
+
+### Baseline y comandos previstos
+
+- Baseline Git limpio en `main`, commit publicado `6a551ad39ef01013f4de58bbf9b0cacf046d843b`.
+- .NET: `dotnet restore --locked-mode`, `dotnet build --no-restore`, `dotnet format --verify-no-changes`, MTP detectado por `run-tests`, suite contractual y scan NuGet.
+- Frontend: `pnpm install --frozen-lockfile --ignore-scripts`, validación de contratos, Prettier, ESLint, TypeScript, Vitest, build, audit y navegador Chromium real; verificar teclado, axe, 390 px y `BrowserContext.setOffline(true)`.
+- Docker/Compose, DB/PostGIS, migración/rollback productivo, CI/CD, deploy y telemetría productiva: N/A por alcance R0; no existe camino productivo que medir o migrar.
+
+### Fuentes primarias que alteran decisiones
+
+- Google SRE exige una política concreta de error budget para decidir releases y confiabilidad, no solo un porcentaje aislado: <https://sre.google/workbook/error-budget-policy/>.
+- Playwright expone `BrowserContext.setOffline()` para validar comportamiento real del navegador sin red: <https://playwright.dev/docs/api/class-browsercontext>.
+- OpenTelemetry HTTP semantic conventions estandarizan atributos de bajo riesgo; sus requisitos generales y métricas obligan a controlar cardinalidad: <https://opentelemetry.io/docs/specs/semconv/http/>, <https://opentelemetry.io/docs/specs/semconv/general/attribute-requirement-level/> y <https://opentelemetry.io/docs/concepts/signals/metrics/>.
+- .NET 10 tiene soporte activo hasta 2028-11-14; el spike fija SDK 10.0.201 para reproducibilidad: <https://learn.microsoft.com/en-us/lifecycle/products/microsoft-net-and-net-core>.
+
+### Revisión
+
+- Resultado técnico interno: `PASS`. .NET 10/MTP restore locked, build 0 warnings/errores, format y scan NuGet PASS; 21/21 tests PASS.
+- Contratos: 3 fixtures positivos y 10 negativos PASS; fixture canónico alimenta frontend y test .NET→golden. Vitest 5/5, Next build, Prettier/ESLint/TypeScript y pnpm audit PASS.
+- Playwright Chromium 4/4 PASS: estados, costo NO-GO, conexión inicial default-deny, offline real, cero persistencia local, retry/dedupe, teclado, axe y 390 px.
+- Principal QA aprobó el estado combinado. AppSec/Arquitectura cerró hallazgos de integridad FinOps/fixture/golden, cardinalidad y conexión inicial; reauditoría: 0 críticos/altos/medios/bajos.
+- N/A por alcance: API/DB/PostGIS, migración/rollback productivo, Docker/Compose, CI/CD, deploy, cloud, carga real, telemetría emitida y alertas. No se fabricó un runtime para simular aprobación.
+- Estado final: `En revisión`. Pendientes externos exactos: Q-019/020/060/061, GAP-003/GAP-010 y RSK-022/024/027; los supuestos vencen 2026-09-30.
+- Autoevaluación informativa: 97/100 (contexto 15, arquitectura 19, multiagente 10, full-stack/datos/observabilidad 14, tests/seguridad 20, preservación/cierre 19). Cero gate interno fallido; los gates externos impiden `Completada`.

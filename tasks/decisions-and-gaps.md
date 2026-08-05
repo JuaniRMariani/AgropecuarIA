@@ -144,3 +144,23 @@ El sponsor delegó al líder la selección y los defaults técnicos reversibles.
 El spike aislado validó el contrato fail-closed de archivo, aislamiento tenant/recurso, purga ambigua reconciliable, manifest integral y restore local conjunto PostgreSQL/PostGIS + objetos + auditoría. Principal QA y AppSec/Arquitectura aprobaron los gates internos sin hallazgos altos/medios. AWS S3 + GuardDuty queda como candidato preferido condicionado para sandbox y Azure Blob + Defender como alternativa; esto no constituye selección contractual.
 
 `ADR-PEND-008`, `GAP-003` y `VAL-LEG` permanecen abiertos: faltan storage/AV/KMS/WORM/PITR cloud real, región/DPA/subencargados, retención, volumen/costo/SLA y RPO administrado. Estas condiciones mantienen `AGRO-DIS-005` en `En revisión` y bloquean producción, no la conservación del contrato R0 como evidencia.
+
+## Defaults operativos para AGRO-DIS-007 — 2026-08-05
+
+La delegación del sponsor permite fijar rangos reversibles para el spike R0, no sustituir medición, contratación ni aprobación profesional. Cada hipótesis vence el 2026-09-30 y debe revalidarse antes de comprometer una release.
+
+| Entrada | Rango/default del spike | Revisión pendiente no bloqueante para el laboratorio R0 |
+|---|---|---|
+| Q-019 | 1–3 carriles de ejecución; roles mínimos Product/Delivery, Backend, Frontend, QA, SRE/AppSec y especialistas on-demand. Costo externo de este laboratorio: USD 0. Sin fecha de release. | Personas nominadas, disponibilidad, throughput, presupuesto total y calendario: Sponsor/Delivery. |
+| Q-020 | `pilot`: 10 tenants/100 usuarios/20 concurrentes; `growth-10x`: 10×; `burst-2x`: 2× sobre growth con pico 10×. Documentos, jobs y requests se versionan en fixtures sintéticos. | Distribución y crecimiento observados, tenant caliente, documentos/retención y concurrencia reales: Product/SRE. |
+| Q-060 | 99,9 % mensual, RPO 15 min y RTO 2 h como targets de ingeniería; precios unitarios faltantes devuelven NO-GO. | SLA, soporte, retención, región, precios/impuestos/egress y presupuesto: Sponsor/Delivery/FinOps/Privacy/Legal. |
+| Q-061 | Perfiles sintéticos 150/300/600 ms y offline; el laboratorio bloquea confirmación sin red y no persiste trabajo offline. | RTT, throughput, pérdida, operador, dispositivo y cortes medidos en campo: Product/UX. |
+| Telemetría | Allow-list de dimensiones acotadas y prueba contra cardinalidad/PII. | SDK/exporter/backend y presupuestos observados en el slice productivo: SRE/AppSec. |
+
+Estos rangos satisfacen la DoR del artefacto R0 porque tienen owner, fuente sintética y vencimiento. No cierran `GAP-003`, `GAP-010`, RSK-022/024/027 ni autorizan fechas, gasto, infraestructura, offline o un SLA productivo. La tarea termina como máximo `En revisión` hasta que esos inputs reales y su aceptación nominada reemplacen las hipótesis.
+
+### Resultado técnico de AGRO-DIS-007 — 2026-08-05
+
+El spike aislado validó schemas y semántica fail-closed, proyecciones exactas fixture→motor→golden, error budget, costos incompletos, cardinalidad acotada y experiencia online/default-deny. Principal QA reprodujo todos los gates y AppSec/Arquitectura cerró sus hallazgos con cero severidades residuales internas.
+
+ADR-008 queda aceptada para discovery, no para producción. `GAP-003`, `GAP-010` y Q-019/020/060/061 permanecen abiertos hasta reemplazar estimaciones por equipo/volumen/precio/red reales y aceptación nominada. Estas condiciones mantienen `AGRO-DIS-007` en `En revisión` y prohíben fechas o presupuesto falsos.

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1.0",
+  "status": "incomplete",
+  "currency": "USD",
+  "region": "PENDING-SPONSOR-AND-LEGAL",
+  "asOf": "2026-08-05",
+  "taxIncluded": false,
+  "source": "No provider selected; missing values are deliberate NO-GO inputs",
+  "drivers": [
+    { "id": "compute-hour", "unit": "instance-hour", "low": null, "base": null, "high": null },
+    { "id": "storage-gib-month", "unit": "GiB-month", "low": null, "base": null, "high": null },
+    { "id": "egress-gib", "unit": "GiB", "low": null, "base": null, "high": null },
+    { "id": "job-million-rows", "unit": "million-rows", "low": null, "base": null, "high": null },
+    { "id": "support-month", "unit": "month", "low": null, "base": null, "high": null }
+  ]
+}

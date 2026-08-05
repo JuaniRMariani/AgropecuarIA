@@ -36,3 +36,7 @@ Escalas: probabilidad e impacto `Baja/Media/Alta`; severidad `Baja/Media/Alta/Cr
 ## Revisión
 
 En cada release se revisan riesgos `Crítica/Alta`, evidencia de mitigación, riesgo residual y aceptación nominada. Un riesgo crítico sin mitigación demostrada bloquea la expansión del flag afectado; no necesariamente bloquea módulos independientes.
+
+### Evidencia R0 AGRO-DIS-007 — 2026-08-05
+
+El modelo reproducible, error budget, FinOps fail-closed, cardinalidad cerrada y laboratorio online reducen supuestos invisibles de RSK-022/024/027, pero no cambian su probabilidad ni severidad sin datos reales. Los tres riesgos permanecen abiertos: Sponsor/Delivery debe nominar equipo/presupuesto/fecha; Product/UX debe medir red de campo; SRE/FinOps debe medir carga/costo y fijar budgets antes de cualquier rollout.

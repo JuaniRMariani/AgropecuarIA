@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.local/contracts/discovery/unit-cost-catalog-1.0.schema.json",
+  "title": "Capacity planning unit cost catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "status", "currency", "region", "asOf", "taxIncluded", "source", "drivers"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "status": { "enum": ["incomplete", "synthetic-test-only", "approved"] },
+    "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "region": { "type": "string", "minLength": 1 },
+    "asOf": { "type": "string", "format": "date" },
+    "taxIncluded": { "type": "boolean" },
+    "source": { "type": "string", "minLength": 1 },
+    "drivers": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "allOf": [
+        { "contains": { "type": "object", "required": ["id"], "properties": { "id": { "const": "compute-hour" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["id"], "properties": { "id": { "const": "storage-gib-month" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["id"], "properties": { "id": { "const": "egress-gib" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["id"], "properties": { "id": { "const": "job-million-rows" } } }, "minContains": 1, "maxContains": 1 },
+        { "contains": { "type": "object", "required": ["id"], "properties": { "id": { "const": "support-month" } } }, "minContains": 1, "maxContains": 1 }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "unit", "low", "base", "high"],
+        "properties": {
+          "id": { "enum": ["compute-hour", "storage-gib-month", "egress-gib", "job-million-rows", "support-month"] },
+          "unit": { "type": "string", "minLength": 1 },
+          "low": { "type": ["number", "null"], "minimum": 0 },
+          "base": { "type": ["number", "null"], "minimum": 0 },
+          "high": { "type": ["number", "null"], "minimum": 0 }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["status"], "properties": { "status": { "enum": ["synthetic-test-only", "approved"] } } },
+      "then": {
+        "properties": {
+          "drivers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["low", "base", "high"],
+              "properties": {
+                "low": { "type": "number", "minimum": 0 },
+                "base": { "type": "number", "minimum": 0 },
+                "high": { "type": "number", "minimum": 0 }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

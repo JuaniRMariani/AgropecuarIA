@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "classification": "synthetic-estimate",
+  "validUntil": "2026-09-30",
+  "scenarios": [
+    {
+      "id": "pilot",
+      "label": "Piloto controlado",
+      "confidence": "low",
+      "owner": "Delivery/SRE/Product",
+      "volumes": { "tenants": 10, "registeredUsers": 100, "concurrentUsers": 20, "farms": 200, "fields": 2000, "documentsPerMonth": 10000, "averageDocumentMiB": 2.5, "importRowsPerDay": 10000, "jobsPerHour": 10 },
+      "demand": { "dailyReadRequests": 100000, "dailyWriteRequests": 20000, "peakFactor": 8, "retentionMonths": 12, "objectVersionFactor": 1.25, "workerRowsPerSecond": 250 }
+    },
+    {
+      "id": "growth-10x",
+      "label": "Crecimiento diez veces",
+      "confidence": "low",
+      "owner": "Delivery/SRE/Product",
+      "volumes": { "tenants": 100, "registeredUsers": 1000, "concurrentUsers": 200, "farms": 2000, "fields": 20000, "documentsPerMonth": 100000, "averageDocumentMiB": 2.5, "importRowsPerDay": 100000, "jobsPerHour": 100 },
+      "demand": { "dailyReadRequests": 1000000, "dailyWriteRequests": 200000, "peakFactor": 8, "retentionMonths": 12, "objectVersionFactor": 1.25, "workerRowsPerSecond": 250 }
+    },
+    {
+      "id": "burst-2x",
+      "label": "Ráfaga sobre crecimiento",
+      "confidence": "low",
+      "owner": "Delivery/SRE/Product",
+      "volumes": { "tenants": 100, "registeredUsers": 1000, "concurrentUsers": 400, "farms": 2000, "fields": 20000, "documentsPerMonth": 200000, "averageDocumentMiB": 2.5, "importRowsPerDay": 200000, "jobsPerHour": 200 },
+      "demand": { "dailyReadRequests": 2000000, "dailyWriteRequests": 400000, "peakFactor": 10, "retentionMonths": 12, "objectVersionFactor": 1.25, "workerRowsPerSecond": 250 }
+    }
+  ],
+  "networkProfiles": [
+    { "id": "target", "label": "4G objetivo", "latencyMs": 150, "downloadKbps": 9000, "uploadKbps": 1500, "packetLossPercent": 0, "online": true, "evidence": "synthetic" },
+    { "id": "constrained", "label": "Red limitada", "latencyMs": 300, "downloadKbps": 1500, "uploadKbps": 750, "packetLossPercent": 1, "online": true, "evidence": "synthetic" },
+    { "id": "critical", "label": "Red crítica", "latencyMs": 600, "downloadKbps": 400, "uploadKbps": 100, "packetLossPercent": 2, "online": true, "evidence": "synthetic" },
+    { "id": "offline", "label": "Sin conexión", "latencyMs": 0, "downloadKbps": 0, "uploadKbps": 0, "packetLossPercent": 100, "online": false, "evidence": "synthetic" }
+  ]
+}

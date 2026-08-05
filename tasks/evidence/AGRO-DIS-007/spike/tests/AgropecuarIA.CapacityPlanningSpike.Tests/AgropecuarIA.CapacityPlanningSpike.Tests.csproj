@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.3.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AgropecuarIA.CapacityPlanningSpike\AgropecuarIA.CapacityPlanningSpike.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\fixtures\capacity-scenarios.json" Link="fixtures\capacity-scenarios.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\fixtures\capacity-report.pilot.json" Link="fixtures\capacity-report.pilot.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\fixtures\unit-cost-catalog.incomplete.json" Link="fixtures\unit-cost-catalog.incomplete.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

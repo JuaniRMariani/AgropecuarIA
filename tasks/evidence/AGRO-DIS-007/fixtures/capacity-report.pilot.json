@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0",
+  "scenarioId": "pilot",
+  "classification": "synthetic-estimate",
+  "generatedAt": "2026-08-05T00:00:00Z",
+  "projection": {
+    "averageRequestsPerSecond": 1.3888888888888888888888888889,
+    "peakRequestsPerSecond": 11.111111111111111111111111111,
+    "retainedObjectGiB": 366.2109375,
+    "dailyImportDrainSeconds": 40
+  },
+  "slo": {
+    "availabilityTarget": 0.999,
+    "windowDays": 30,
+    "errorBudgetSeconds": 2592,
+    "badEventsPerMillion": 1000
+  },
+  "cost": {
+    "status": "incomplete",
+    "currency": "USD",
+    "missingDrivers": ["compute-hour", "egress-gib", "job-million-rows", "storage-gib-month", "support-month"]
+  }
+}

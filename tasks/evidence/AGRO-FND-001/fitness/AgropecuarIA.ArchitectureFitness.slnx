@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgropecuarIA.ArchitectureFitness/AgropecuarIA.ArchitectureFitness.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgropecuarIA.ArchitectureFitness.Tests/AgropecuarIA.ArchitectureFitness.Tests.csproj" />
+  </Folder>
+</Solution>

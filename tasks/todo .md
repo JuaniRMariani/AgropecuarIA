@@ -643,3 +643,52 @@ Estado inicial: `Propuesto`; seleccionada por el líder con la delegación expl�
 - N/A por alcance: API/DB/PostGIS, migración/rollback productivo, Docker/Compose, CI/CD, deploy, cloud, carga real, telemetría emitida y alertas. No se fabricó un runtime para simular aprobación.
 - Estado final: `En revisión`. Pendientes externos exactos: Q-019/020/060/061, GAP-003/GAP-010 y RSK-022/024/027; los supuestos vencen 2026-09-30.
 - Autoevaluación informativa: 97/100 (contexto 15, arquitectura 19, multiagente 10, full-stack/datos/observabilidad 14, tests/seguridad 20, preservación/cierre 19). Cero gate interno fallido; los gates externos impiden `Completada`.
+
+## Iteración 13 — AGRO-FND-001 límites modulares y contratos compatibles (2026-08-05)
+
+Estado inicial: `Propuesto`; seleccionada por el líder con la delegación explícita del sponsor. Transiciones registradas: `Propuesto → Ready` al verificar módulos, consumidores, conflictos y evidencia técnica de `AGRO-DIS-003/004`; `Ready → En curso` al publicar este plan. Clasificación: decisión y fitness R0 aplicables a R1; no autoriza bootstrap productivo, microservicios, broker, migraciones ni reutilizar spikes.
+
+### DoR y alcance fijado
+
+- [x] Confirmar ID único, outcome, exclusiones, requisitos, riesgos y consumidores.
+- [x] Aceptar `AGRO-DIS-003/004` como evidencia técnica R0 sin promover sus prototipos ni cerrar sus gates externos.
+- [x] Resolver la contradicción documental: `National Catalog` y `Productive Core` son bounded contexts distintos aunque compartan WS-03.
+- [x] Fijar `Organization` como tenant; CUIT no selecciona ni autoriza tenant y su cardinalidad legal queda para Product/Legal.
+- [x] Fijar `ManagementUnit` y su lifecycle en Productive Core; Territory posee solo representación espacial versionada y opcional.
+- [x] Confirmar que no se requieren reglas agronómicas, veterinarias, fiscales o contables para este límite genérico.
+
+### Plan verificable
+
+- [x] Publicar ADR aceptado, registro machine-readable de 15 módulos y mapa completo de consumidores.
+- [x] Publicar contratos versionados para scope, Problem Details, paginación cursor y eventos internos.
+- [x] Definir política N/N-1, extracción futura y `expand → backfill → contract`, separando decisión de ensayo operativo posterior.
+- [x] Implementar fitness tests aislados para DAG, ownership/schema, persistencia ajena, scope y compatibilidad aditiva/breaking.
+- [x] Cubrir negativos: ciclo, schema ajeno, scope ambiguo, consumidor N-1, evento duplicado/fuera de orden y error enumerante.
+- [x] Ejecutar restore/build/format/tests/scan y validación JSON; realizar revisión independiente QA y AppSec/Arquitectura.
+- [x] Actualizar arquitectura, decisiones/gaps, trazabilidad, reporte y estado final sin crear API/UI/producto.
+
+### Ownership disjunto — olas 2 y 3
+
+- Principal: ADR/documentación, contratos y fixtures compartidos, manifiestos `.slnx`/`.csproj`, registro/mapa, integración, estados y Git.
+- Backend/Architecture Fitness: `tasks/evidence/AGRO-FND-001/fitness/src/**` y `fitness/tests/**`; no edita manifiestos ni documentos.
+- Principal QA y AppSec/Arquitectura: revisión read-only del estado combinado; ningún implementador aprueba su propio cambio.
+
+### Baseline y comandos ejecutados
+
+- Baseline Git limpio en `main`, commit publicado `879146aa814dfc790ef69ad44641756440f20a44`; no existía `tasks/evidence/AGRO-FND-001` ni solución productiva raíz.
+- `dotnet restore --locked-mode`: PASS; `dotnet build --no-restore`: PASS, 0 warnings/errores.
+- MTP detectado por la skill `run-tests`: PASS 42/42, 0 failed/skipped; `dotnet format --verify-no-changes`: PASS.
+- 12 JSON parseados, cuatro producer schemas ejecutados con mutation tests, NuGet vulnerable scan y secrets scan dirigidos: PASS.
+- Frontend/pnpm, API, PostgreSQL/PostGIS, Docker/Compose, migración staging, observabilidad productiva, CI/CD y deploy: N/A; la tarea produce arquitectura verificable y no una superficie funcional.
+
+### Revisión
+
+- Resultado técnico R0 e independiente: `PASS`. Principal QA y AppSec/Arquitectura reprodujeron gates; cero hallazgos críticos, altos o medios residuales.
+- Topología: 15 módulos, 15 schemas dueños y 69 edges declarados/mapeados; DAG, ownership, scopes y persistencia ajena cubiertos por positivos y mutaciones negativas.
+- Contratos: scope discriminado, producer schemas cerrados, reader N-1 tolerante, 401/403/404/409/412, ETag después de authz y compatibilidad aditiva/breaking verificados.
+- Eventos: source/scope/tenant/agregado/version forman el stream; duplicate/out-of-order/gap/foreign/unknown no mutan ni elevan privilegios.
+- Hallazgos cerrados: schemas no ejecutados, required→optional, policies/shared kernel laxos, scope ambiguo, escalamiento platform/tenant, stream sin tenant/source, docs divergentes y vocabulario de dominio inventado.
+- `ADR-PEND-011` resuelta por ADR-009. `ADR-PEND-010` queda `política definida; ensayo pendiente` para `AGRO-FND-003`/`AGRO-PLT-004`; no se afirma staging, backup/restore ni migración R1.
+- Estado final: `En curso`. El gate R0 está aprobado, pero por ser tarea multirelease R0/R1 la tarea padre no pasa a `Completada` hasta demostrar el ensayo operativo R1.
+- Evidencia: `tasks/evidence/AGRO-FND-001/validation-report.md`.
+- Autoevaluación informativa: 96/100 (contexto 15, arquitectura 20, multiagente 10, full-stack/datos/observabilidad 12, tests/seguridad 20, preservación/cierre 19). Cero gate aplicable fallido; los N/A corresponden al alcance R0.

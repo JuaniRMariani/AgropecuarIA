@@ -55,3 +55,9 @@ Este archivo se actualizará después de cada corrección del sponsor o de un ha
 - Disparador: el sponsor pidió reemplazar npm por pnpm antes de iniciar la implementación frontend de `AGRO-DIS-004`.
 - Regla: todo frontend nuevo usa pnpm y conserva `pnpm-lock.yaml`; no generar ni mantener `package-lock.json` en esos proyectos.
 - Prevención: fijar `packageManager` en `package.json`, crear el lock con la versión disponible y ejecutar instalaciones verificables con `pnpm install --frozen-lockfile`.
+
+## Regla: filtros reactivos y viewport de tabla estable
+
+- Disparador: el sponsor pidió eliminar la lupa/aplicación manual al filtrar por texto, fecha u otros campos, limitar el loader a la tabla y evitar que el scroll horizontal solo sea accesible al final de listados largos.
+- Regla: los filtros de tablas aplican automáticamente con debounce/cancelación cuando corresponda; el estado de carga conserva shell y controles utilizables y actualiza solo la región de resultados con estado accesible.
+- Prevención: el componente de tabla debe ofrecer desplazamiento horizontal accesible desde el viewport visible —mediante contenedor sticky/sincronizado o layout equivalente—, conservar foco/posición y probar teclado, pantalla angosta, requests obsoletos y resultados vacíos. No crear un filtro global ni re-renderizar toda la página por cada cambio.

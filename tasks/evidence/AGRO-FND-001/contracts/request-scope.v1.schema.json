@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.invalid/contracts/request-scope.v1.schema.json",
+  "title": "RequestScopeV1",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["kind", "actorId", "correlationId"],
+      "properties": {
+        "kind": { "const": "platform" },
+        "actorId": { "type": "string", "format": "uuid" },
+        "correlationId": { "type": "string", "minLength": 1, "maxLength": 128 }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["kind", "tenantId", "actorId", "correlationId"],
+      "properties": {
+        "kind": { "const": "tenant" },
+        "tenantId": { "type": "string", "format": "uuid", "description": "Derived by the server from the authenticated context; never trusted from client input." },
+        "actorId": { "type": "string", "format": "uuid" },
+        "correlationId": { "type": "string", "minLength": 1, "maxLength": 128 }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

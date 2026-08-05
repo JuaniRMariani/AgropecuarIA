@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.invalid/contracts/event-envelope.v1.schema.json",
+  "title": "InternalEventEnvelopeV1",
+  "type": "object",
+  "required": ["eventId", "eventType", "schemaVersion", "source", "scope", "occurredAt", "recordedAt", "correlationId", "aggregateId", "aggregateVersion", "payload"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "eventType": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "schemaVersion": { "type": "string", "pattern": "^[1-9][0-9]*\\.[0-9]+\\.[0-9]+$" },
+    "source": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "scope": { "$ref": "request-scope.v1.schema.json" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "effectiveAt": { "type": ["string", "null"], "format": "date-time" },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "correlationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "causationId": { "type": ["string", "null"], "format": "uuid" },
+    "aggregateId": { "type": "string", "format": "uuid" },
+    "aggregateVersion": { "type": "integer", "minimum": 1 },
+    "payload": { "type": "object" }
+  },
+  "additionalProperties": false
+}

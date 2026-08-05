@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.3.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AgropecuarIA.ArchitectureFitness\AgropecuarIA.ArchitectureFitness.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\module-boundaries.json" Link="evidence\module-boundaries.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\consumer-map.json" Link="evidence\consumer-map.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\contracts\*.json" Link="evidence\contracts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\fixtures\**\*.json" Link="evidence\fixtures\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

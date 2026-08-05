@@ -1,6 +1,6 @@
 # ADR-001 — Monolito modular antes que microservicios
 
-- Estado: propuesto
+- Estado: aceptado
 - Fecha: 2026-08-04
 
 ## Contexto

@@ -1,0 +1,11 @@
+{
+  "name": "SyntheticResourceResponse",
+  "version": "1.0.0",
+  "toleratesUnknownFields": true,
+  "fields": [
+    { "name": "id", "type": "uuid", "required": true },
+    { "name": "name", "type": "string", "required": true },
+    { "name": "state", "type": "string", "required": true, "extensibleEnum": true, "enumValues": ["value-a", "value-b"] },
+    { "name": "spatialReferenceVersionId", "type": "uuid|null", "required": false }
+  ]
+}

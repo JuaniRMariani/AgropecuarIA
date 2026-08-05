@@ -28,7 +28,7 @@ Se aplica: instrucciones de sesión → `AGENTS.md` → decisiones explícitas d
 
 | ID | Estado documental | Acción requerida | Gate |
 |---|---|---|---|
-| ADR-001 | Propuesto | Ratificar monolito modular y reglas de dependencia antes de R1. | Revisión de arquitectura + prueba de límites. |
+| ADR-001 | Aceptado | Monolito modular y reglas de dependencia ratificados por ADR-009 y `AGRO-FND-001`. | Reabrir solo con evidencia medible de extracción. |
 | ADR-002 | Aceptado para contrato de discovery; pendiente R2 | WGS84/SRID 4326, `ST_Area(geography)`, superficie declarada separada, validez y GiST demostrados por AGRO-DIS-004. | Revisar límites y tolerancias con telemetría/casos productivos. |
 | ADR-003 | Propuesto | Elegir IdP y validar account linking/recovery antes del slice de identidad. | Spike contra tenant de prueba, sin credenciales reales. |
 | ADR-004 | Propuesto | Ratificar gateway, control humano, retención y proveedor luego de threat model/evals. | Dataset y kill switch aprobados. |
@@ -37,8 +37,8 @@ Se aplica: instrucciones de sesión → `AGENTS.md` → decisiones explícitas d
 | ADR-PEND-007 | Pendiente | RLS: política `default deny`, `FORCE RLS`, rol sin `BYPASSRLS`, contexto transaccional y operación de migraciones. | Suite tenant negativa y revisión de DBA/AppSec. |
 | ADR-PEND-008 | Contrato R0 validado; proveedor/Legal pendientes | ADR-007 fija port, cuarentena fail-closed, grants breves, manifest y restore aislado; AWS es candidato condicionado y Azure alternativa. | Sandbox storage/AV real, región/DPA/subencargados, política de retención y aprobación `VAL-LEG`. |
 | ADR-PEND-009 | Pendiente | Observabilidad y SLO: backend OTLP, backend de telemetría, cardinalidad/costos y seudonimización. | Prueba de carga y presupuesto operativo. |
-| ADR-PEND-010 | Pendiente | Estrategia de compatibilidad de migraciones y rollback/roll-forward del monolito. | Ensayo en staging con backup y restauración. |
-| ADR-PEND-011 | Pendiente | Ownership y ciclo de vida de `ManagementUnit` entre núcleo productivo y representación espacial, junto con dependencias permitidas entre módulos. | Revisión de arquitectura, mapa de consumidores y prueba de ausencia de ciclos/acceso a tablas ajenas. |
+| ADR-PEND-010 | Política definida; ensayo pendiente | ADR-009 fija N/N-1, cambios aditivos, `expand → backfill → contract`, rollback de aplicación y roll-forward de datos. | `AGRO-FND-003`/`AGRO-PLT-004`: ensayo staging con backup, restore y backfill reanudable. |
+| ADR-PEND-011 | Resuelta por ADR-009 | Productive Core posee `ManagementUnit`; Territory posee su representación espacial versionada y opcional; 15 módulos y edges quedan registrados. | Fitness tests y mapa de consumidores de `AGRO-FND-001`. |
 
 ## Gaps, preguntas y decisiones pendientes
 

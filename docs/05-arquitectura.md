@@ -38,25 +38,26 @@ flowchart LR
 ## Módulos
 
 1. Identity/Tenancy
-2. Establishments/GIS
-3. National Catalog/Productive Core
-4. Operations
-5. Agriculture
-6. Livestock
-7. Inventory/Assets
-8. Commerce/Finance
-9. Weather/Agroclimate
-10. Grazing/Forage Planning
-11. Documents
-12. Analytics/AI
-13. Audit/Compliance
-14. Integrations
+2. Territory/GIS
+3. National Catalog
+4. Productive Core
+5. Operations
+6. Agriculture
+7. Livestock
+8. Inventory/Assets
+9. Commerce/Finance
+10. Weather/Agroclimate
+11. Grazing/Forage Planning
+12. Documents
+13. Analytics/AI
+14. Audit/Compliance
+15. Integrations
 
 `Fiscal/ARCA` queda reservado como módulo futuro y no se implementa en el MVP.
 
 Cada módulo posee modelo, casos de uso y tablas. No consulta directamente tablas internas de otro módulo; usa contratos de aplicación o eventos internos.
 
-`National Catalog/Productive Core` publica versiones inmutables de taxonomía y perfiles, y ofrece el contrato común `ManagementUnit → ProductionCycle → ProductionEvent/Output`. Agriculture, Livestock, Apiary/Aquaculture futuros y otros perfiles extienden ese contrato; no se fuerzan entre sí.
+`National Catalog` publica versiones inmutables de taxonomía y perfiles. `Productive Core` consume ese contrato y posee el flujo común `ManagementUnit → ProductionCycle → ProductionEvent/Output`. Agriculture, Livestock, Apiary/Aquaculture futuros y otros perfiles extienden el núcleo; no se fuerzan entre sí ni consultan tablas de Catalog/Core.
 
 ## Multi-tenancy
 
@@ -169,5 +170,6 @@ Solo separar cuando exista al menos una causa medible: escalado independiente so
 - [ADR-006: catálogo productivo nacional y perfiles](adr/ADR-006-catalogo-productivo-nacional.md)
 - [ADR-007: storage privado, retención y recuperación](adr/ADR-007-storage-retencion-recuperacion.md)
 - [ADR-008: capacidad, SLO y FinOps guiados por evidencia](adr/ADR-008-capacidad-slo-finops.md)
+- [ADR-009: límites modulares y compatibilidad N/N-1](adr/ADR-009-limites-modulares-y-compatibilidad.md)
 
 Decisiones posteriores: offline/outbox, RLS, capa fiscal ARCA futura, proveedores/regiones productivos, OpenTelemetry y criterios de no-Kubernetes basados en medición.

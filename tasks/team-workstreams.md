@@ -39,20 +39,22 @@ Este documento asigna responsabilidades de implementación; no reemplaza los own
 | Módulo/dato | Owner | Consumidores por contrato | Prohibición clave |
 |---|---|---|---|
 | Identity/Tenancy | WS-02 | Todos | Ningún consumidor replica permisos ni confía en tenant del cliente. |
-| Territory/GIS | WS-04 | Core, Weather, Agriculture, Livestock, Grazing | Sin escritura/lectura directa de tablas espaciales ajenas. |
-| National Catalog | WS-03 | Core y especializaciones | Extensión tenant no altera baseline global. |
-| Productive Core | WS-03 | Agriculture, Livestock, Analytics | No fuerza apiarios/estanques/galpones al modelo lote/rodeo. |
-| Operations | WS-06 | Analytics, Notifications | Confirma stock/costo por contratos públicos, no tablas. |
-| Agriculture | WS-06 | Analytics/Finance | No publica reglas no aprobadas como universales. |
+| Territory/GIS | WS-04 | Core, Weather, Agriculture, Livestock, Grazing, Analytics, Integrations | Sin escritura/lectura directa de tablas espaciales ajenas. |
+| National Catalog | WS-03 | Core, Integrations | Extensión tenant no altera baseline global. |
+| Productive Core | WS-03 | Operations, Agriculture, Livestock, Grazing, Inventory, Finance, Analytics, Integrations | No fuerza apiarios/estanques/galpones al modelo lote/rodeo. |
+| Operations | WS-06 | Agriculture, Analytics | Confirma stock/costo por contratos públicos, no tablas. |
+| Agriculture | WS-06 | Analytics | No publica reglas no aprobadas como universales. |
 | Livestock | WS-07 | Grazing/Analytics | No expone contadores editables como stock fuente. |
 | Grazing/Forage | WS-08 | AI/Analytics | Aceptar recomendación no ejecuta movimiento. |
-| Weather | WS-05 | Operations/Grazing/AI | Snapshots son inmutables; no altera datos del proveedor. |
+| Weather | WS-05 | Operations, Grazing, Analytics, Integrations | Snapshots son inmutables; no altera datos del proveedor. |
 | Inventory/Assets | WS-09 | Operations/Agriculture/Livestock/Finance | Saldo deriva de movimientos; destino productivo es referencia contractual. |
 | Commerce/Finance | WS-10 | Analytics/Export | No mezcla documento fiscal futuro con operación/tesorería. |
-| Documents | WS-11 | Todos | Autoriza con el módulo dueño del recurso; no deduplica contenido entre tenants. |
-| Audit | WS-11 | Product/AppSec/Support autorizado | Append-only; separado de logs técnicos. |
+| Documents | WS-11 | Core, Operations, Agriculture, Livestock, Grazing, Inventory, Finance, Analytics, Integrations | Autoriza con el módulo dueño del recurso; no deduplica contenido entre tenants. |
+| Audit | WS-11 | Todos los módulos como escritores por puerto | Append-only; separado de logs técnicos. |
 | Analytics/AI | WS-12 | UI | No se convierte en fuente transaccional ni tool de mutación. |
-| Integrations | WS-14 | Módulos por puerto | No contiene reglas de negocio ni escribe tablas publicadas directamente. |
+| Integrations | WS-14 | Consume puertos de Territory, Catalog, Core, Weather y Documents; futuros consumidores se agregan por slice | No contiene reglas de negocio ni escribe tablas publicadas directamente. |
+
+El mapa canónico y exhaustivo de edges/contratos vigentes es `tasks/evidence/AGRO-FND-001/consumer-map.json`; esta tabla resume ownership humano. Un consumidor futuro se incorpora al mapa y a los fitness tests en el mismo cambio.
 
 ## Ownership de rutas futuras
 

@@ -82,7 +82,7 @@ Versión: 1.0 — 2026-08-04. Los rangos son inclusivos y representan cada ID in
 
 | ADR | Estado fuente | Épica/tarea | Verificación | Release |
 |---|---|---|---|---|
-| ADR-001 | Propuesto | EPIC-01/16 · AGRO-FND-001, AGRO-PLT-001 | TST-ARCH-MODULES, TST-DEPLOY-COMPAT | R0/R1 |
+| ADR-001 | Aceptado | EPIC-01/16 · AGRO-FND-001, AGRO-PLT-001 | TST-ARCH-MODULES, TST-DEPLOY-COMPAT | R0/R1 |
 | ADR-002 | Aceptado para contrato de discovery; pendiente R2 | EPIC-04 · AGRO-DIS-004, AGRO-GIS-001–003 | TST-GIS-POSTGIS | R0/R2 |
 | ADR-003 | Propuesto | EPIC-02 · AGRO-DIS-003, AGRO-ID-001–004 | TST-ID-AUTH | R0/R1 |
 | ADR-004 | Propuesto | EPIC-08/12 · AGRO-FOR-003/004, AGRO-IA-003–005 | TST-AI-EVAL, TST-FOR-3LEVELS | R4/R6 |
@@ -90,6 +90,7 @@ Versión: 1.0 — 2026-08-04. Los rangos son inclusivos y representan cada ID in
 | ADR-006 | Aceptado discovery | EPIC-03 · AGRO-DIS-001/002, AGRO-CAT-001–005 | TST-CAT-BASELINE, TST-PROFILE-ISOLATION | R0/R3 |
 | ADR-007 | Aceptado para contrato de discovery; pendiente proveedor/Legal y cloud | EPIC-00/11 · AGRO-DIS-005, AGRO-DOC-001–003 | TST-DOC-SECURE, TST-RESTORE | R0/R1–R5 |
 | ADR-008 | Aceptado para contrato de discovery; pendiente piloto/FinOps | EPIC-00/16/17 · AGRO-DIS-007, AGRO-PLT-003/004, AGRO-QA-002 | TST-CAPACITY-MODEL, TST-NETWORK-PWA, TST-OTEL-REDACTION | R0/R1+ |
+| ADR-009 | Aceptado para límites R0/R1; ensayo de migración pendiente | EPIC-01 · AGRO-FND-001/003 | TST-ARCH-MODULES, TST-CONTRACT-N-N1 | R0/R1 |
 
 ## Conteos y cobertura
 
@@ -104,6 +105,6 @@ Versión: 1.0 — 2026-08-04. Los rangos son inclusivos y representan cada ID in
 | RN fiscales futuras | 7 | 0 | 7 | 0 |
 | **RN total** | **78** | **71** | **7** | **0** |
 | RNF | 29 | 29 | 0 | 0 |
-| ADR | 8 | 8 | 0 | 0 |
+| ADR | 9 | 9 | 0 | 0 |
 
 Cobertura total RF/RN/RNF: 216/216 trazados a tarea+prueba o excepción justificada; 207 con tarea/prueba y 9 excepciones (`RF-GIS-010`, `RF-FIN-009`, `RN-FIS-001–007`). Ningún faltante.

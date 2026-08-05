@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.invalid/contracts/cursor-page.v1.schema.json",
+  "title": "CursorPageV1",
+  "type": "object",
+  "required": ["items", "hasMore"],
+  "properties": {
+    "items": { "type": "array", "maxItems": 200 },
+    "nextCursor": { "type": ["string", "null"], "maxLength": 2048 },
+    "hasMore": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

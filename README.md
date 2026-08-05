@@ -13,6 +13,7 @@ Las decisiones marcadas como **pendientes** requieren validación del sponsor, u
 - `AGRO-DIS-001`: catálogo nacional, gobierno, contrato y prototipo de estados de soporte.
 - `AGRO-DIS-003`: identidad, account linking, recovery, sesiones, tenant/RLS, frontend accesible y pruebas integradas.
 - `AGRO-DIS-004`: contratos GIS/clima, PostGIS real efímero, parsers Open-Meteo/CAP/WRF y mapa accesible con degradación.
+- `AGRO-DIS-005`: contratos de archivos, cuarentena fail-closed, restore PostgreSQL/PostGIS+objetos y prototipo accesible de estados.
 
 Los comandos reproducibles y límites de cada spike se documentan en su propio `README.md` dentro de `tasks/evidence/<ID>/`.
 

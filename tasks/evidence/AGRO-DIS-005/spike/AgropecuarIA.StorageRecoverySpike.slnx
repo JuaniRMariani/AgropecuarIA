@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgropecuarIA.StorageRecoverySpike/AgropecuarIA.StorageRecoverySpike.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgropecuarIA.StorageRecoverySpike.Tests/AgropecuarIA.StorageRecoverySpike.Tests.csproj" />
+  </Folder>
+</Solution>

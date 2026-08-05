@@ -519,3 +519,65 @@ Estado inicial: `Propuesto`; seleccionada por el líder con la delegación expl�
 - N/A: Docker/Compose/CI/deploy, migración/rollback y telemetría productiva; la tarea es un spike R0 aislado y no autoriza infraestructura ni pipeline productivo.
 - Estado final: `En revisión`. Pendientes externos exactos: plan/DPA/región/cuota/SLA y p75 cacheado Open-Meteo; canal/autenticidad/frescura durable CAP; presupuesto/operación/sandbox WRF; precisión local y `VAL-AGR`; tenant/authz/RLS/auditoría antes de R2.
 - Autoevaluación informativa: 97/100 (contexto 15, arquitectura 19, multiagente 10, full-stack/datos/observabilidad 14, tests/seguridad 20, preservación/cierre 19). Cero gate interno fallido; los gates externos impiden `Completada`.
+
+## Iteración 11 — AGRO-DIS-005 storage, antivirus, retención y restore integral (2026-08-05)
+
+Estado inicial: `Propuesto`; seleccionada por el líder con la delegación explícita del sponsor. Transiciones registradas: `Propuesto → Ready` al demostrar esta DoR y `Ready → En curso` al publicar el plan. Clasificación: spike R0 Must/M aislado y descartable; no es pipeline productivo, provisión cloud ni política legal.
+
+### DoR, evidencia y decisiones reversibles
+
+- [x] Confirmar ID único, outcome, exclusiones, requisitos, riesgos y tareas dependientes.
+- [x] Confirmar las clases `Público`, `Interno`, `Confidencial`, `Fiscal/personal` y `Secreto`; usar solo fixtures sintéticos y excluir secretos de objetos, DB y logs.
+- [x] Adoptar RPO ≤15 min, RTO ≤2 h y drill trimestral como hipótesis medibles del spike, no SLA contractual.
+- [x] Fijar shortlist reversible: AWS S3 + GuardDuty, Azure Blob + Defender y storage S3-compatible + scanner separado.
+- [x] Registrar que Q-058 no autoriza storage internacional y que región/DPA/subencargados/retención requieren `VAL-LEG`.
+- [x] Confirmar toolchain: .NET SDK 10.0.201, Node 22.19.0, pnpm 10.33.0 y PostgreSQL 17.9; Docker no está disponible.
+
+### Contratos y límites fijados antes de editar código
+
+- Estados fail-closed: `PendingUpload → Uploaded → Scanning → Available | Quarantined | Rejected | ScanFailed`; solo `clean` habilita descarga. La baja usa `Available → Purging → Deleted | PurgeUncertain` y nunca supone rollback ante un delete ambiguo.
+- La clave es generada por servidor bajo prefijo tenant opaco; hash valida integridad y nunca autoriza ni deduplica entre tenants.
+- Cada intención y descarga reautoriza tenant, recurso, acción y estado; una URL vencida o recurso ajeno responde sin revelar existencia.
+- MIME declarado se contrasta con magic bytes, tamaño y SHA-256. El spike usa un marcador antimalware sintético, no una firma EICAR real en el repositorio.
+- DB es fuente del estado. El objeto entra a cuarentena; un evento de scan duplicado debe ser idempotente y error/timeout nunca publica.
+- El manifest de backup registra cutoff, backup DB, versiones/hashes de objetos, auditoría y watermark; restore aislado verifica PostGIS, vínculos, hashes, hold y objetos huérfanos sin reemitir URLs.
+- Legal hold prevalece sobre purga. Los plazos, región y contrato siguen pendientes; no se implementa borrado productivo ni se tocan servicios existentes.
+
+### Plan verificable
+
+- [x] Publicar schemas versionados para intención/completado, resultado AV, grant de descarga, estado de archivo y manifest de backup.
+- [x] Implementar spike .NET 10 con dominio/ports compactos, storage local aislado, firma efímera, MIME/hash, cuarentena, auth tenant y telemetría redactada.
+- [x] Implementar harness PostgreSQL/PostGIS efímero y drill `pg_dump`/`pg_restore` + objetos, con corrupción, huérfanos, auditoría, geometría, medición RTO y gap RPO explícito.
+- [x] Implementar prototipo Next.js/React con pnpm para progreso, error, cuarentena, provider-down, expiración, conflicto y estados accesibles/responsive.
+- [x] Documentar matriz de proveedores, threat model, ADR storage/retención/DR, runbook, decisión go/no-go y gaps externos.
+- [x] Ejecutar restore/build/format/analyzers/tests .NET, schemas, frozen install/lint/typecheck/unit/build/E2E, scans y revisión independiente.
+- [x] Actualizar evidencia y estado final sin presentar el spike como producción.
+
+### Ownership disjunto — olas 2 y 3
+
+- Principal: contratos compartidos, `.slnx`, manifiestos/lockfiles, scripts de orquestación, documentación, estados, integración y publicación Git.
+- Backend/Storage: `tasks/evidence/AGRO-DIS-005/spike/src/**` y `spike/tests/**`.
+- Data/Restore: `tasks/evidence/AGRO-DIS-005/spike/postgres/**` y fixtures de restore asignados.
+- Frontend: `tasks/evidence/AGRO-DIS-005/spike/web/app/**`, `features/**`, `lib/**` y estilos; no edita manifiestos compartidos.
+- Principal QA y AppSec/Arquitectura revisan el estado combinado en modo read-only; ningún implementador aprueba su propio cambio.
+
+### Baseline y comandos previstos
+
+- Baseline Git limpio en `main`, commit publicado `5873ebbdea1e2bac52c5478d8148749bb6257911`; no existía `tasks/evidence/AGRO-DIS-005`.
+- .NET: restore locked, build sin warnings, format/analyzers, comando MTP detectado por la skill `run-tests` y suites de dominio/API/restore.
+- PostgreSQL/PostGIS: clúster efímero propio en loopback, dump/restore a base separada, verificación y teardown; nunca tocar el servicio del sistema.
+- Frontend: `pnpm install --frozen-lockfile`, format/lint/typecheck/unit/build y Playwright en navegador real, incluido 390 px y teclado.
+- Docker/Compose, cloud, credenciales, deploy, migración productiva, AV/provider real y PITR administrado: N/A para la ejecución local R0; quedan como gates externos explícitos.
+
+### Revisión
+
+- Resultado técnico interno e independiente: `PASS`. Principal QA y AppSec/Arquitectura aprobaron el R0; no quedan hallazgos altos/medios internos.
+- .NET SDK 10.0.201/MTP: restore locked, build 0 warnings/errores, format y scan NuGet PASS; 32/32 tests PASS. Se verifican tenant/BOLA, tokens, MIME/hash/tamaño, AV fail-closed e idempotente, hold/purga/descarga concurrentes, `PurgeUncertain`, reconciliación privilegiada y telemetría redactada.
+- PostgreSQL 17/PostGIS 3.6.2 real: 2 registros, 2 objetos y 4 eventos audit; SRID 4326, snapshots completos, `tenant_id ↔ tenant_ref`, tipo/ID de recurso, cadena criptográfica, append-only, legal hold, huérfano y corrupciones PASS. Principal observó RTO final `0,0217 min`; QA `0,0224 min`; AppSec `0,0258 min`. RPO: `UNPROVEN_WITHOUT_MANAGED_PITR`.
+- Frontend pnpm 10.33.0: frozen install, 5 contratos, Prettier, ESLint, TypeScript, build Next.js 16.3 y audit PASS; Vitest 8/8 y Playwright 5/5 PASS, incluido axe, teclado, fallos, conflicto y 390 px. Una corrida con contención concurrente de `.next` fue descartada y repetida en exclusión.
+- Hallazgos resueltos: Base64URL no canónica, filtración de paths, restore incompleto, binding tenant/recurso, cadena audit sintética, carreras hold/purge y download/purge, delete ambiguo, scanner detenido/verdict inválido, scopes operativos, clasificaciones y schemas.
+- Decisión: `GO técnico condicionado` para sandbox AWS detrás de ports; Azure es alternativa. `NO-GO productivo` hasta storage/AV/KMS/WORM/PITR cloud real, región/DPA/subencargados, política de retención/`VAL-LEG`, volumen/costo y controles productivos.
+- N/A: Docker/Compose/CI/deploy, migración/rollback cloud y alertas productivas; el R0 no autoriza infraestructura. Docker no estaba disponible.
+- Evidencia principal: `tasks/evidence/AGRO-DIS-005/validation-report.md`.
+- Estado final: `En revisión`; no se marca `Completada` porque los gates externos de proveedor, Legal y RPO administrado siguen abiertos.
+- Autoevaluación informativa: 97/100 (contexto 15, arquitectura 19, multiagente 10, full-stack/datos/observabilidad 14, tests/seguridad 20, preservación/cierre 19). Cero gate interno fallido; la puntuación no compensa los gates externos.

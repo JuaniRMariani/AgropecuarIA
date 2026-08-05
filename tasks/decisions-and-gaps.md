@@ -35,7 +35,7 @@ Se aplica: instrucciones de sesión → `AGENTS.md` → decisiones explícitas d
 | ADR-005 | Aceptado para contrato base; WRF postergado | Open-Meteo queda candidato condicionado, CAP autoridad fail-closed y WRF fuera del camino MVP hasta aprobar presupuesto/operación. | Plan/DPA/región/cuota y validación local siguen abiertos. |
 | ADR-006 | Aceptado para discovery | Elevar a aceptado de implementación al aprobar baseline, gobierno y perfiles iniciales. | Comité editorial y especialistas firman matriz de soporte. |
 | ADR-PEND-007 | Pendiente | RLS: política `default deny`, `FORCE RLS`, rol sin `BYPASSRLS`, contexto transaccional y operación de migraciones. | Suite tenant negativa y revisión de DBA/AppSec. |
-| ADR-PEND-008 | Pendiente | Storage privado: proveedor, antivirus, cuarentena, retención y borrado. | Threat model de archivos y restore de metadatos/binarios. |
+| ADR-PEND-008 | Contrato R0 validado; proveedor/Legal pendientes | ADR-007 fija port, cuarentena fail-closed, grants breves, manifest y restore aislado; AWS es candidato condicionado y Azure alternativa. | Sandbox storage/AV real, región/DPA/subencargados, política de retención y aprobación `VAL-LEG`. |
 | ADR-PEND-009 | Pendiente | Observabilidad y SLO: backend OTLP, backend de telemetría, cardinalidad/costos y seudonimización. | Prueba de carga y presupuesto operativo. |
 | ADR-PEND-010 | Pendiente | Estrategia de compatibilidad de migraciones y rollback/roll-forward del monolito. | Ensayo en staging con backup y restauración. |
 | ADR-PEND-011 | Pendiente | Ownership y ciclo de vida de `ManagementUnit` entre núcleo productivo y representación espacial, junto con dependencias permitidas entre módulos. | Revisión de arquitectura, mapa de consumidores y prueba de ausencia de ciclos/acceso a tablas ajenas. |
@@ -124,3 +124,23 @@ Estos defaults cierran la Definition of Ready del spike, no ADR-003 ni ADR-PEND-
 La implementación aislada confirmó contexto tenant server-side, autorización default-deny, `FORCE RLS`, pool/job fail-closed, linking con doble reautenticación/step-up y recovery con challenge one-shot. Principal QA y AppSec/Arquitectura aprobaron los gates internos sin hallazgos altos/críticos.
 
 ADR-003 y ADR-PEND-007 no se cierran: persisten sandbox OIDC/PKCE y failover reales, contrato/región/DPA/plan/SLA/exportabilidad, identidad externa one-to-many persistida con unicidad concurrente y discovery productivo seguro de membresías. Estas condiciones mantienen `AGRO-DIS-003` en `En revisión` y no impiden usar el resultado para diseñar el siguiente sandbox; sí impiden producción.
+
+## Defaults operativos para AGRO-DIS-005 — 2026-08-05
+
+El sponsor delegó al líder la selección y los defaults técnicos reversibles. Para ejecutar el spike R0 sin convertir supuestos en política legal o contractual se adoptan estas decisiones:
+
+| Entrada | Default del spike | Revisión pendiente no bloqueante para R0 |
+|---|---|---|
+| Clasificación | El contrato evalúa `Público`, `Interno`, `Confidencial`, `Fiscal/personal` y `Secreto`; solo las cuatro primeras pueden persistirse y `Secreto` se prueba como rechazo. Todo fixture es sintético. | Clasificación definitiva por tipo documental: Privacy/Legal/Product. |
+| Q-060 | RPO ≤15 min, RTO ≤2 h y drill trimestral se tratan como hipótesis medibles; no son SLA ni retención contractual. | Volumen, SLA, soporte, retención y presupuesto: Sponsor/Delivery/Privacy/Legal. |
+| Proveedor | Comparar AWS S3 + GuardDuty, Azure Blob + Defender y una opción S3-compatible con scanner separado; el port permanece independiente. | Región, DPA, subencargados, residencia, costo, soporte y contrato real. |
+| Retención | Legal hold prevalece sobre purga; no se fijan plazos legales. El spike prueba únicamente estados y controles con datos sintéticos. | Política y plazos nominados: Privacy/Legal. |
+| Antivirus | `clean` es el único resultado que habilita descarga; amenaza, unsupported, acceso denegado, timeout o fallo permanecen en cuarentena. | Scanner/plan/SLA/límites y prueba sandbox real. |
+
+`Q-058` está redactada para proveedores internacionales de IA/clima, no para object storage. Su referencia desde `AGRO-DIS-005` se registra como gap de trazabilidad y no como autorización para transferencias internacionales de archivos. Estos defaults cierran la Definition of Ready del spike aislado, no `ADR-PEND-008`, `GAP-003` ni `VAL-LEG`.
+
+### Resultado técnico de AGRO-DIS-005 — 2026-08-05
+
+El spike aislado validó el contrato fail-closed de archivo, aislamiento tenant/recurso, purga ambigua reconciliable, manifest integral y restore local conjunto PostgreSQL/PostGIS + objetos + auditoría. Principal QA y AppSec/Arquitectura aprobaron los gates internos sin hallazgos altos/medios. AWS S3 + GuardDuty queda como candidato preferido condicionado para sandbox y Azure Blob + Defender como alternativa; esto no constituye selección contractual.
+
+`ADR-PEND-008`, `GAP-003` y `VAL-LEG` permanecen abiertos: faltan storage/AV/KMS/WORM/PITR cloud real, región/DPA/subencargados, retención, volumen/costo/SLA y RPO administrado. Estas condiciones mantienen `AGRO-DIS-005` en `En revisión` y bloquean producción, no la conservación del contrato R0 como evidencia.

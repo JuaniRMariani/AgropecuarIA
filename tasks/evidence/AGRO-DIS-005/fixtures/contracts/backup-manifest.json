@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "1.0",
+  "backupId": "30000000-0000-4000-8000-000000000001",
+  "cutoffUtc": "2026-08-05T12:10:00Z",
+  "postgres": {
+    "dumpSha256": "04bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7caa5c292b9e39",
+    "metadataSnapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "postgisVersion": "3.6.2",
+    "recordCount": 1
+  },
+  "objects": [
+    {
+      "tenantId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "tenantRef": "8e4aa79b0e4e8c2f",
+      "fileId": "10000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "objectKey": "tenants/8e4aa79b0e4e8c2f/quarantine/10000000000040008000000000000001/v1",
+      "sha256": "2d711642b726b04401627ca9fbac32f5da7e5c8530fb1903cc4db02258717921",
+      "sizeBytes": 1,
+      "state": "available",
+      "legalHold": false,
+      "resourceType": "field",
+      "resourceId": "20000000-0000-4000-8000-000000000001",
+      "srid": 4326,
+      "longitude": -60.6393,
+      "latitude": -32.9442
+    }
+  ],
+  "audit": {
+    "recordCount": 3,
+    "lastSequence": 3,
+    "snapshotSha256": "dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494f8ed23f77f11e17",
+    "terminalEntries": [
+      { "tenantId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "tenantRef": "8e4aa79b0e4e8c2f", "entrySha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+    ]
+  },
+  "targets": { "rpoMinutes": 15, "rtoMinutes": 120 }
+}

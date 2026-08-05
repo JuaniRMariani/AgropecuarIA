@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.local/contracts/storage/download-grant-v1.schema.json",
+  "title": "DownloadGrantV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "fileId", "version", "downloadToken", "expiresAt", "displayName", "mediaType"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "fileId": { "type": "string", "format": "uuid" },
+    "version": { "type": "integer", "minimum": 1 },
+    "downloadToken": { "type": "string", "minLength": 32 },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "displayName": { "type": "string", "minLength": 1, "maxLength": 180 },
+    "mediaType": { "enum": ["application/pdf", "image/jpeg", "image/png"] }
+  }
+}

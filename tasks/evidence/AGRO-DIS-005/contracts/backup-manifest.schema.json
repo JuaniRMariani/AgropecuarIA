@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.local/contracts/storage/backup-manifest-v1.schema.json",
+  "title": "BackupManifestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "backupId", "cutoffUtc", "postgres", "objects", "audit", "targets"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "backupId": { "type": "string", "format": "uuid" },
+    "cutoffUtc": { "type": "string", "format": "date-time" },
+    "postgres": {
+      "type": "object", "additionalProperties": false, "required": ["dumpSha256", "metadataSnapshotSha256", "postgisVersion", "recordCount"],
+      "properties": { "dumpSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }, "metadataSnapshotSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }, "postgisVersion": { "type": "string", "minLength": 1 }, "recordCount": { "type": "integer", "minimum": 0 } }
+    },
+    "objects": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["tenantId", "tenantRef", "fileId", "version", "objectKey", "sha256", "sizeBytes", "state", "legalHold", "resourceType", "resourceId", "srid", "longitude", "latitude"],
+        "properties": { "tenantId": { "type": "string", "format": "uuid" }, "tenantRef": { "type": "string", "pattern": "^[a-f0-9]{16}$" }, "fileId": { "type": "string", "format": "uuid" }, "version": { "type": "integer", "minimum": 1 }, "objectKey": { "type": "string", "pattern": "^tenants/[a-f0-9]{16}/quarantine/[a-f0-9]{32}/v[1-9][0-9]*$" }, "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }, "sizeBytes": { "type": "integer", "minimum": 1 }, "state": { "enum": ["available", "quarantined"] }, "legalHold": { "type": "boolean" }, "resourceType": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" }, "resourceId": { "type": "string", "format": "uuid" }, "srid": { "const": 4326 }, "longitude": { "type": "number", "minimum": -180, "maximum": 180 }, "latitude": { "type": "number", "minimum": -90, "maximum": 90 } }
+      }
+    },
+    "audit": {
+      "type": "object", "additionalProperties": false,
+      "required": ["recordCount", "lastSequence", "snapshotSha256", "terminalEntries"],
+      "properties": {
+        "recordCount": { "type": "integer", "minimum": 0 },
+        "lastSequence": { "type": "integer", "minimum": 0 },
+        "snapshotSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "terminalEntries": {
+          "type": "array", "uniqueItems": true,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["tenantId", "tenantRef", "entrySha256"],
+            "properties": { "tenantId": { "type": "string", "format": "uuid" }, "tenantRef": { "type": "string", "pattern": "^[a-f0-9]{16}$" }, "entrySha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" } }
+          }
+        }
+      }
+    },
+    "targets": { "type": "object", "additionalProperties": false, "required": ["rpoMinutes", "rtoMinutes"], "properties": { "rpoMinutes": { "const": 15 }, "rtoMinutes": { "const": 120 } } }
+  }
+}

@@ -167,5 +167,6 @@ Solo separar cuando exista al menos una causa medible: escalado independiente so
 - [ADR-004: IA consultiva](adr/ADR-004-ia-control-humano.md)
 - [ADR-005: meteorología multifuente](adr/ADR-005-meteorologia.md)
 - [ADR-006: catálogo productivo nacional y perfiles](adr/ADR-006-catalogo-productivo-nacional.md)
+- [ADR-007: storage privado, retención y recuperación](adr/ADR-007-storage-retencion-recuperacion.md)
 
-Decisiones posteriores: offline/outbox, RLS, capa fiscal ARCA futura, object storage, OpenTelemetry y criterios de no-Kubernetes.
+Decisiones posteriores: offline/outbox, RLS, capa fiscal ARCA futura, proveedor/región productivos de object storage, OpenTelemetry y criterios de no-Kubernetes.

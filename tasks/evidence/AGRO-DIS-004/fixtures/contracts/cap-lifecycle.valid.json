@@ -1,0 +1,28 @@
+{
+  "contractVersion": "1.0",
+  "sender": "fixtures@agropecuaria.invalid",
+  "identifier": "synthetic-alert-001",
+  "sent": "2026-08-05T10:00:00-03:00",
+  "messageType": "Alert",
+  "status": "Test",
+  "scope": "Public",
+  "effective": "2026-08-05T10:00:00-03:00",
+  "expires": "2026-08-05T18:00:00-03:00",
+  "references": [],
+  "areas": [
+    {
+      "description": "Área sintética",
+      "polygons": [
+        [
+          { "longitude": -60.05, "latitude": -35.05 },
+          { "longitude": -59.95, "latitude": -35.05 },
+          { "longitude": -59.95, "latitude": -34.95 },
+          { "longitude": -60.05, "latitude": -35.05 }
+        ]
+      ]
+    }
+  ],
+  "lifecycleState": "active",
+  "sourceHash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "limitations": ["Synthetic contract example; not an official alert."]
+}

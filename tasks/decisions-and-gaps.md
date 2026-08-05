@@ -29,10 +29,10 @@ Se aplica: instrucciones de sesión → `AGENTS.md` → decisiones explícitas d
 | ID | Estado documental | Acción requerida | Gate |
 |---|---|---|---|
 | ADR-001 | Propuesto | Ratificar monolito modular y reglas de dependencia antes de R1. | Revisión de arquitectura + prueba de límites. |
-| ADR-002 | Propuesto | Ratificar PostGIS, SRID canónico y estrategia de área/proyección tras spike GIS. | Casos nacionales y performance aprobados. |
+| ADR-002 | Aceptado para contrato de discovery; pendiente R2 | WGS84/SRID 4326, `ST_Area(geography)`, superficie declarada separada, validez y GiST demostrados por AGRO-DIS-004. | Revisar límites y tolerancias con telemetría/casos productivos. |
 | ADR-003 | Propuesto | Elegir IdP y validar account linking/recovery antes del slice de identidad. | Spike contra tenant de prueba, sin credenciales reales. |
 | ADR-004 | Propuesto | Ratificar gateway, control humano, retención y proveedor luego de threat model/evals. | Dataset y kill switch aprobados. |
-| ADR-005 | Propuesto | Elegir plan Open-Meteo y resolver incorporación de WRF tras spikes. | Contratos, costos, latencia y degradación aceptados. |
+| ADR-005 | Aceptado para contrato base; WRF postergado | Open-Meteo queda candidato condicionado, CAP autoridad fail-closed y WRF fuera del camino MVP hasta aprobar presupuesto/operación. | Plan/DPA/región/cuota y validación local siguen abiertos. |
 | ADR-006 | Aceptado para discovery | Elevar a aceptado de implementación al aprobar baseline, gobierno y perfiles iniciales. | Comité editorial y especialistas firman matriz de soporte. |
 | ADR-PEND-007 | Pendiente | RLS: política `default deny`, `FORCE RLS`, rol sin `BYPASSRLS`, contexto transaccional y operación de migraciones. | Suite tenant negativa y revisión de DBA/AppSec. |
 | ADR-PEND-008 | Pendiente | Storage privado: proveedor, antivirus, cuarentena, retención y borrado. | Threat model de archivos y restore de metadatos/binarios. |
@@ -47,7 +47,7 @@ Se aplica: instrucciones de sesión → `AGENTS.md` → decisiones explícitas d
 | GAP-001 | Q-012–Q-017 | Ubicación, producción, escala, lluvia/forraje y dataset anonimizados del piloto. | Selección/aceptación de perfiles especializados; no bloquea catálogo ni flujo genérico. | Sponsor + productor + agrónomo/veterinario; acta y dataset aprobado. |
 | GAP-002 | Q-018, Q-052–Q-053 | Software, formato, columnas y totales que recibe el contador. | Solo adaptador específico; **no** bloquea paquete canónico ni R1–R4. | Contador; muestra importada y conciliada. |
 | GAP-003 | Q-019–Q-020, Q-060 | Equipo, presupuesto, calendario, volúmenes, SLA y retención. | Estimación temporal, dimensionamiento y contrato de proveedores. | Sponsor/Delivery; supuestos de capacidad firmados. |
-| GAP-004 | Q-021–Q-030 | Horizontes, umbrales, canales, proveedor contratado, tolerancia y autorización WRF. | Configuración productiva de alertas y WRF; no bloquea contrato base. | Sponsor/productor + Weather Lead; matriz y resultado de spikes. |
+| GAP-004 | Q-021–Q-030 | AGRO-DIS-004 cerró contrato base y matriz técnica; siguen abiertos horizontes, umbrales, canales, plan Open-Meteo, tolerancia y autorización/presupuesto WRF. | Configuración productiva de alertas y WRF; no bloquea contrato base. | Sponsor/productor + Weather Lead; decidir con `tasks/evidence/AGRO-DIS-004/validation-report.md`. |
 | GAP-005 | Q-031–Q-042 | Parámetros, recursos, restricciones, perfiles y aprobadores ganaderos. | `ESPECIALIZADA_VALIDADA` de pastoreo y recomendaciones; sin cierre solo flujo genérico/abstención. | Agrónomo + veterinario; perfiles versionados firmados. |
 | GAP-006 | Q-043–Q-047 | Perfiles agrícolas y jurisdicciones iniciales; receta oficial, precisión y almacenaje avanzado. | Especialización agrícola; no bloquea ciclo/labor genéricos. | Agrónomo + sponsor; matriz perfil/jurisdicción. |
 | GAP-007 | Q-048–Q-051 | Caja/devengado, moneda funcional, cotización, valuación, cierre y prorrateos. | KPI/valuaciones y cierre económico definitivo. | Contador + sponsor; política contable de gestión aprobada. |

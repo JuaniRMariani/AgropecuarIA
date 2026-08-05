@@ -1,0 +1,1010 @@
+[
+    {
+        "latitude":  -34.614442,
+        "longitude":  -58.445876,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              15.1
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         10
+                                                     ],
+                       "wind_speed_10m":  [
+                                              12.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    65
+                                                ],
+                       "wind_gusts_10m":  [
+                                              17
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -36.677392,
+        "longitude":  -60.558477,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              13.2
+                                          ],
+                       "precipitation":  [
+                                             0.1
+                                         ],
+                       "precipitation_probability":  [
+                                                         15
+                                                     ],
+                       "wind_speed_10m":  [
+                                              14.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    70
+                                                ],
+                       "wind_gusts_10m":  [
+                                              19
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -27.335954,
+        "longitude":  -66.947897,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              17.3
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         5
+                                                     ],
+                       "wind_speed_10m":  [
+                                              8.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    42
+                                                ],
+                       "wind_gusts_10m":  [
+                                              13
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -32.144799,
+        "longitude":  -63.801973,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              16.4
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         10
+                                                     ],
+                       "wind_speed_10m":  [
+                                              10.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    52
+                                                ],
+                       "wind_gusts_10m":  [
+                                              15
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -28.774204,
+        "longitude":  -57.801082,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              19.5
+                                          ],
+                       "precipitation":  [
+                                             0.3
+                                         ],
+                       "precipitation_probability":  [
+                                                         30
+                                                     ],
+                       "wind_speed_10m":  [
+                                              9.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    76
+                                                ],
+                       "wind_gusts_10m":  [
+                                              14
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -26.386987,
+        "longitude":  -60.765116,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              21.2
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         20
+                                                     ],
+                       "wind_speed_10m":  [
+                                              11.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    68
+                                                ],
+                       "wind_gusts_10m":  [
+                                              16
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -43.788627,
+        "longitude":  -68.526736,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              7.1
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         5
+                                                     ],
+                       "wind_speed_10m":  [
+                                              27.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    48
+                                                ],
+                       "wind_gusts_10m":  [
+                                              32
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -32.058928,
+        "longitude":  -59.201263,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              15.8
+                                          ],
+                       "precipitation":  [
+                                             0.2
+                                         ],
+                       "precipitation_probability":  [
+                                                         25
+                                                     ],
+                       "wind_speed_10m":  [
+                                              13.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    72
+                                                ],
+                       "wind_gusts_10m":  [
+                                              18
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -24.895087,
+        "longitude":  -59.932190,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              23.4
+                                          ],
+                       "precipitation":  [
+                                             0.4
+                                         ],
+                       "precipitation_probability":  [
+                                                         35
+                                                     ],
+                       "wind_speed_10m":  [
+                                              7.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    79
+                                                ],
+                       "wind_gusts_10m":  [
+                                              12
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -23.319975,
+        "longitude":  -65.764424,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              18.6
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         10
+                                                     ],
+                       "wind_speed_10m":  [
+                                              6.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    45
+                                                ],
+                       "wind_gusts_10m":  [
+                                              11
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -37.135065,
+        "longitude":  -65.447644,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              12.7
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         5
+                                                     ],
+                       "wind_speed_10m":  [
+                                              18.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    51
+                                                ],
+                       "wind_gusts_10m":  [
+                                              23
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -29.684937,
+        "longitude":  -67.181758,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              18.0
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         5
+                                                     ],
+                       "wind_speed_10m":  [
+                                              9.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    39
+                                                ],
+                       "wind_gusts_10m":  [
+                                              14
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -34.630389,
+        "longitude":  -68.582946,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              14.1
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         5
+                                                     ],
+                       "wind_speed_10m":  [
+                                              12.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    41
+                                                ],
+                       "wind_gusts_10m":  [
+                                              17
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -26.875303,
+        "longitude":  -54.651571,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              20.9
+                                          ],
+                       "precipitation":  [
+                                             1.2
+                                         ],
+                       "precipitation_probability":  [
+                                                         55
+                                                     ],
+                       "wind_speed_10m":  [
+                                              8.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    84
+                                                ],
+                       "wind_gusts_10m":  [
+                                              13
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -38.641983,
+        "longitude":  -70.119897,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              9.8
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         10
+                                                     ],
+                       "wind_speed_10m":  [
+                                              15.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    54
+                                                ],
+                       "wind_gusts_10m":  [
+                                              20
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -40.405080,
+        "longitude":  -67.229676,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              8.9
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         10
+                                                     ],
+                       "wind_speed_10m":  [
+                                              22.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    50
+                                                ],
+                       "wind_gusts_10m":  [
+                                              27
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -24.299284,
+        "longitude":  -64.814159,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              22.1
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         10
+                                                     ],
+                       "wind_speed_10m":  [
+                                              7.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    49
+                                                ],
+                       "wind_gusts_10m":  [
+                                              12
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -30.865661,
+        "longitude":  -68.888160,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              17.2
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         5
+                                                     ],
+                       "wind_speed_10m":  [
+                                              10.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    36
+                                                ],
+                       "wind_gusts_10m":  [
+                                              15
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -33.761104,
+        "longitude":  -66.025231,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              15.9
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         10
+                                                     ],
+                       "wind_speed_10m":  [
+                                              11.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    44
+                                                ],
+                       "wind_gusts_10m":  [
+                                              16
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -48.815547,
+        "longitude":  -69.955762,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              3.4
+                                          ],
+                       "precipitation":  [
+                                             0.2
+                                         ],
+                       "precipitation_probability":  [
+                                                         30
+                                                     ],
+                       "wind_speed_10m":  [
+                                              31.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    61
+                                                ],
+                       "wind_gusts_10m":  [
+                                              36
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -30.708823,
+        "longitude":  -60.950687,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              17.6
+                                          ],
+                       "precipitation":  [
+                                             0.1
+                                         ],
+                       "precipitation_probability":  [
+                                                         20
+                                                     ],
+                       "wind_speed_10m":  [
+                                              12.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    69
+                                                ],
+                       "wind_gusts_10m":  [
+                                              17
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -27.783432,
+        "longitude":  -63.252627,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              21.7
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         15
+                                                     ],
+                       "wind_speed_10m":  [
+                                              9.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    57
+                                                ],
+                       "wind_gusts_10m":  [
+                                              14
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -26.948284,
+        "longitude":  -65.364766,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              20.4
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         10
+                                                     ],
+                       "wind_speed_10m":  [
+                                              8.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    52
+                                                ],
+                       "wind_gusts_10m":  [
+                                              13
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    },
+    {
+        "latitude":  -82.521135,
+        "longitude":  -50.742861,
+        "utc_offset_seconds":  0,
+        "timezone":  "GMT",
+        "hourly_units":  {
+                             "time":  "iso8601",
+                             "temperature_2m":  "°C",
+                             "precipitation":  "mm",
+                             "precipitation_probability":  "%",
+                             "wind_speed_10m":  "km/h",
+                             "relative_humidity_2m":  "%",
+                             "wind_gusts_10m":  "km/h",
+                             "et0_fao_evapotranspiration":  "mm"
+                         },
+        "hourly":  {
+                       "time":  [
+                                    "2026-08-05T12:00"
+                                ],
+                       "temperature_2m":  [
+                                              -28.0
+                                          ],
+                       "precipitation":  [
+                                             0.0
+                                         ],
+                       "precipitation_probability":  [
+                                                         5
+                                                     ],
+                       "wind_speed_10m":  [
+                                              24.0
+                                          ],
+                       "relative_humidity_2m":  [
+                                                    71
+                                                ],
+                       "wind_gusts_10m":  [
+                                              29
+                                          ],
+                       "et0_fao_evapotranspiration":  [
+                                                          0.1
+                                                      ]
+                   }
+    }
+]

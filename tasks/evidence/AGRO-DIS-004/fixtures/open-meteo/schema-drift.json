@@ -1,0 +1,21 @@
+{
+  "latitude": -34.61,
+  "longitude": -58.44,
+  "utc_offset_seconds": 0,
+  "hourly_units": {
+    "time": "iso8601",
+    "temperature_2m": "K",
+    "precipitation": "mm",
+    "precipitation_probability": "%",
+    "wind_speed_10m": "km/h",
+    "relative_humidity_2m": "%"
+  },
+  "hourly": {
+    "time": ["2026-08-05T12:00"],
+    "temperature_2m": [290.15],
+    "precipitation": [0.0],
+    "precipitation_probability": [10],
+    "wind_speed_10m": [15.0],
+    "relative_humidity_2m": [65]
+  }
+}

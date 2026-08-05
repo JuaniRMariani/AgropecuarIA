@@ -1,0 +1,32 @@
+{
+  "fixtureVersion": "1.0.0",
+  "capturedAt": "2026-08-05T16:33:00Z",
+  "source": "https://apis.datos.gob.ar/georef/api/provincias?campos=id,nombre,centroide&max=24",
+  "purpose": "Cobertura contractual nacional con centroides administrativos públicos; no representa campos ni precisión agronómica.",
+  "points": [
+    { "id": "02", "name": "Ciudad Autónoma de Buenos Aires", "latitude": -34.6144420654301, "longitude": -58.4458763250916 },
+    { "id": "06", "name": "Buenos Aires", "latitude": -36.6773920760823, "longitude": -60.5584771084959 },
+    { "id": "10", "name": "Catamarca", "latitude": -27.3359537960762, "longitude": -66.9478972451295 },
+    { "id": "14", "name": "Córdoba", "latitude": -32.1447993873859, "longitude": -63.801973466573 },
+    { "id": "18", "name": "Corrientes", "latitude": -28.7742044813623, "longitude": -57.8010818603331 },
+    { "id": "22", "name": "Chaco", "latitude": -26.3869871835867, "longitude": -60.765116260356 },
+    { "id": "26", "name": "Chubut", "latitude": -43.7886271389083, "longitude": -68.5267363339818 },
+    { "id": "30", "name": "Entre Ríos", "latitude": -32.0589278938558, "longitude": -59.201262616496 },
+    { "id": "34", "name": "Formosa", "latitude": -24.8950871761481, "longitude": -59.9321901121647 },
+    { "id": "38", "name": "Jujuy", "latitude": -23.3199750616583, "longitude": -65.764423919292 },
+    { "id": "42", "name": "La Pampa", "latitude": -37.1350652212898, "longitude": -65.4476439990213 },
+    { "id": "46", "name": "La Rioja", "latitude": -29.6849372775783, "longitude": -67.1817575814487 },
+    { "id": "50", "name": "Mendoza", "latitude": -34.6303887067166, "longitude": -68.5829456019867 },
+    { "id": "54", "name": "Misiones", "latitude": -26.8753025989034, "longitude": -54.6515705627219 },
+    { "id": "58", "name": "Neuquén", "latitude": -38.6419828626673, "longitude": -70.1198972237318 },
+    { "id": "62", "name": "Río Negro", "latitude": -40.4050796306359, "longitude": -67.2296757996036 },
+    { "id": "66", "name": "Salta", "latitude": -24.2992838957201, "longitude": -64.8141586574346 },
+    { "id": "70", "name": "San Juan", "latitude": -30.8656607015096, "longitude": -68.8881597071776 },
+    { "id": "74", "name": "San Luis", "latitude": -33.7611035381154, "longitude": -66.0252312714021 },
+    { "id": "78", "name": "Santa Cruz", "latitude": -48.8155471830527, "longitude": -69.9557619144913 },
+    { "id": "82", "name": "Santa Fe", "latitude": -30.7088227091528, "longitude": -60.9506872769706 },
+    { "id": "86", "name": "Santiago del Estero", "latitude": -27.7834318817521, "longitude": -63.2526268856462 },
+    { "id": "90", "name": "Tucumán", "latitude": -26.948283501723, "longitude": -65.3647655803683 },
+    { "id": "94", "name": "Tierra del Fuego, Antártida e Islas del Atlántico Sur", "latitude": -82.5211345211545, "longitude": -50.7428606764691 }
+  ]
+}

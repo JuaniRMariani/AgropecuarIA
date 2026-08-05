@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.local/contracts/discovery/weather-snapshot.v1.schema.json",
+  "title": "WeatherSnapshotV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "snapshotId", "provider", "model", "requestedPoint", "spatialResolutionMetres", "retrievedAt", "validFrom", "validTo", "granularity", "variable", "nature", "availability", "confidence", "confidenceBasis", "attribution"],
+  "properties": {
+    "contractVersion": { "const": "1.0" },
+    "snapshotId": { "type": "string", "format": "uuid" },
+    "provider": { "type": "string", "minLength": 1 },
+    "model": { "type": "string", "minLength": 1 },
+    "runId": { "type": ["string", "null"] },
+    "requestedPoint": { "$ref": "#/$defs/point" },
+    "resolvedGridPoint": { "oneOf": [{ "$ref": "#/$defs/point" }, { "type": "null" }] },
+    "spatialResolutionMetres": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+    "issuedAt": { "type": ["string", "null"], "format": "date-time" },
+    "retrievedAt": { "type": "string", "format": "date-time" },
+    "validFrom": { "type": "string", "format": "date-time" },
+    "validTo": { "type": "string", "format": "date-time" },
+    "granularity": { "enum": ["hourly", "daily"] },
+    "variable": { "enum": ["temperature_2m", "precipitation", "precipitation_probability", "wind_speed_10m", "relative_humidity_2m", "wind_gusts_10m", "et0_fao_evapotranspiration"] },
+    "nature": { "enum": ["observed", "estimated", "forecast"] },
+    "availability": { "enum": ["fresh", "stale", "unavailable"] },
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "confidenceBasis": { "type": ["string", "null"], "minLength": 1 },
+    "value": { "type": ["number", "null"] },
+    "unit": { "type": ["string", "null"] },
+    "error": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code"],
+          "properties": {
+            "code": { "enum": ["timeout", "rate_limited", "provider_error", "schema_invalid", "run_missing", "unavailable"] },
+            "retryAfterSeconds": { "type": ["integer", "null"], "minimum": 0 }
+          }
+        }
+      ]
+    },
+    "limitation": { "type": ["string", "null"] },
+    "attribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "url", "licence"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri" },
+        "licence": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "availability": { "const": "unavailable" } } },
+      "then": { "required": ["error"], "properties": { "value": { "type": "null" }, "unit": { "type": "null" }, "error": { "not": { "type": "null" } } } },
+      "else": { "required": ["value", "unit"], "properties": { "value": { "type": "number" }, "unit": { "type": "string", "minLength": 1 }, "error": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "confidence": { "type": "number" } } },
+      "then": { "properties": { "confidenceBasis": { "type": "string", "minLength": 1 } } },
+      "else": { "properties": { "confidenceBasis": { "type": "null" } } }
+    }
+  ],
+  "$defs": {
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["latitude", "longitude"],
+      "properties": {
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": { "type": "number", "minimum": -180, "maximum": 180 }
+      }
+    }
+  }
+}

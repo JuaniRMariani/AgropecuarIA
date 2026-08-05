@@ -43,3 +43,15 @@ Este archivo se actualizará después de cada corrección del sponsor o de un ha
 - Disparador: el sponsor corrigió el ciclo de pedir un ID exacto después de haber delegado explícitamente la priorización y ejecución agéntica.
 - Regla: cuando termina una tarea o una candidata está bloqueada, el líder audita readiness, elige la mejor siguiente tarea dentro del orden/dependencias y avanza informando el ID; no traslada al sponsor una decisión operativa ya delegada.
 - Prevención: reservar preguntas para datos, credenciales, firmas profesionales o cambios de alcance realmente no delegables. La selección del ID y los defaults técnicos reversibles son responsabilidad del orquestador mientras se mantenga el límite de una tarea por vez.
+
+## Regla: publicar el baseline autorizado antes de continuar el backlog
+
+- Disparador: el sponsor aportó el repositorio Git vacío y pidió publicar frontend, backend y documentación antes de seguir con la siguiente tarea.
+- Regla: cuando existe autorización explícita para Git y un remoto vacío verificado, preparar exclusiones de artefactos generados, revisar secretos y whitespace, crear un commit convencional y comprobar el hash remoto antes de iniciar el siguiente slice.
+- Prevención: no dejar código funcional solamente en el workspace cuando el sponsor ya habilitó su publicación; tampoco mezclar la publicación inicial con una tarea nueva todavía no verificada.
+
+## Regla: pnpm es el package manager del nuevo frontend
+
+- Disparador: el sponsor pidió reemplazar npm por pnpm antes de iniciar la implementación frontend de `AGRO-DIS-004`.
+- Regla: todo frontend nuevo usa pnpm y conserva `pnpm-lock.yaml`; no generar ni mantener `package-lock.json` en esos proyectos.
+- Prevención: fijar `packageManager` en `package.json`, crear el lock con la versión disponible y ejecutar instalaciones verificables con `pnpm install --frozen-lockfile`.

@@ -20,6 +20,8 @@
 
 # Ephemeral services and local configuration
 **/.runtime/
+**/__pycache__/
+**/*.py[cod]
 **/.env
 **/.env.*
 !**/.env.example

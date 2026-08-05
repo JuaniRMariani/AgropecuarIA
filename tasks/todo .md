@@ -435,3 +435,87 @@ Estado inicial: `Propuesto`; seleccionada autónomamente por el líder tras la d
 - Pendientes exactos: IdP real OIDC/PKCE y failover; contrato/región/DPA/plan/SLA/exportabilidad; persistencia one-to-many de identidades externas y discovery productivo de membresías.
 - N/A justificados: Docker/Compose/CI/deploy, migración/rollback productivo y telemetría productiva no pertenecen a este spike R0; Docker no estaba instalado.
 - Autoevaluación informativa: 94/100 (contexto 15, arquitectura 19, multiagente 10, full-stack/datos 14, tests/seguridad 19, preservación/cierre 17). No compensa los gates externos; por eso no se marca `Completada`.
+
+## Iteración 10 — AGRO-DIS-004 GIS, mapas y meteorología multifuente (2026-08-05)
+
+Estado inicial: `Propuesto`; seleccionada por el líder con la delegación explícita del sponsor. Transiciones registradas: `Propuesto → Ready` al cerrar esta DoR y `Ready → En curso` al publicar el plan. Clasificación: spike R0 Must/L aislado y descartable; no es pipeline productivo, migración R2 ni autorización de gasto.
+
+### DoR, evidencia y decisiones reversibles
+
+- [x] Confirmar ID único, outcome, exclusiones, requisitos, riesgos y dependencias futuras.
+- [x] Usar el endpoint oficial Georef para generar un fixture versionado de las 23 provincias y CABA; sus centroides públicos no representan campos ni coordenadas privadas.
+- [x] Verificar términos públicos: Georef/Argenmap oficiales, Open-Meteo pricing/terms/licence, SMN CAP CC BY 4.0 y WRF SMN CC BY 2.5 Argentina.
+- [x] Separar el contrato base de las decisiones productivas abiertas: `GAP-004`/Q-021–030 no bloquean el spike, pero sí alertas agronómicas, contratación Open-Meteo y adopción WRF.
+- [x] Fijar targets ya aprobados: mapa ≤3 s p75 y clima cacheado ≤2 s p75; medir sin convertir una corrida local en SLA.
+- [x] Definir una matriz go/no-go por cobertura nacional, contrato/schema, licencia/atribución, latencia, cuota/SLA, costo, privacidad y degradación.
+- [x] Confirmar toolchain: .NET SDK 10.0.201, Node 22.19.0, npm 11.11.1 y PostgreSQL 17. PostGIS no está instalado y Docker/WSL no están disponibles.
+- [x] Resolver PostGIS sin mutar el sistema: runtime efímero ignorado que copia PostgreSQL 17 y superpone el bundle oficial PostGIS 3.6.2 fijado y verificado; el harness falla cerrado si no puede ejecutar `CREATE EXTENSION postgis`.
+
+### Umbrales técnicos del spike — no son reglas agronómicas
+
+- Geometría de entrada: GeoJSON `Polygon`/`MultiPolygon` 2D en WGS84, coordenadas finitas, anillos cerrados, no vacía, SRID 4326 y `ST_IsValid`; sin `ST_MakeValid` silencioso.
+- Guardas reversibles para medir abuso: payload ≤1 MiB y ≤10.000 vértices. Probar 4, 100, 1.000, 10.000 y exceso; el límite productivo se revisará con telemetría R2.
+- Área canónica: `ST_Area(geography)` sobre esferoide en m²/ha. Comparar con EPSG:6933 como control independiente y exigir delta relativo ≤0,5 % en fixtures técnicos; superficie declarada y calculada nunca se sustituyen ni se aceptan/rechazan entre sí sin umbral de producto aprobado.
+- Georef: exactamente 24 IDs únicos, coordenadas finitas y respuesta live ≤2 s; el fixture estable, no la red, gobierna tests.
+- Tiles Argenmap: 24 smoke points, HTTP 2xx, atribución visible y p75 ≤3 s. Fallo de tiles conserva tabla y geometría; MapLibre no se presenta como proveedor.
+- Open-Meteo: 24 puntos en WGS84, schema/unidades/tiempos estrictos, live ≤2 s como probe y fixtures para 429/500/timeout/drift. `freshnessThreshold` es dato de política configurable; tests usan 2 h como hipótesis reversible y nunca convierten error en cero.
+- CAP: XML máximo 2 MiB, DTD/entidades externas deshabilitadas, ciclo `Alert/Update/Cancel/expired`, orden CAP `lat,lon` convertido explícitamente a GeoJSON `lon,lat`, sin dereferenciar recursos.
+- WRF: procesar solo una muestra oficial ≤25 MiB en un venv aislado y con SHA-256 fijado; medir contra 512 MiB RAM y 10 s de parse/subset, sin presentarlo como sandbox o límite preventivo. El sandbox/kill preventivo queda como gate productivo. Medir volumen de 73 plazos y, si supera 1 GiB o no hay presupuesto/operación aprobados, decidir `POSTPONER`, no adopción implícita.
+
+### Alcance verificable
+
+- [x] Publicar contratos JSON Schema para referencia espacial, snapshot meteorológico, corrida de proveedor y lifecycle CAP.
+- [x] Generar fixtures versionados: 24 jurisdicciones, geometrías válidas/inválidas/extremas, Open-Meteo, CAP real+sintéticos y metadata WRF.
+- [x] Implementar harness .NET 10 para validación de límites, unidades, frescura/degradación, CAP seguro y telemetría local estructurada.
+- [x] Implementar y ejecutar SQL PostGIS real para SRID, validez, área, límites, intersección CAP y plan GiST.
+- [x] Implementar probes live reproducibles para Georef, Argenmap, Open-Meteo, CAP y WRF, conservando hashes/resultados sin volver tests dependientes de red.
+- [x] Implementar prototipo Next.js/React + MapLibre con mapa y alternativa tabular, estados `observed/estimated/forecast` y `fresh/stale/unavailable`, atribución, teclado, foco y pantalla angosta.
+- [x] Medir WRF NetCDF, documentar contradicción de cadencia oficial y emitir decisión explícita incorporar/postergar/rechazar.
+- [x] Ejecutar restore/build/analyzers/tests .NET, PostGIS real, frozen install/lint/typecheck/unit/build/E2E frontend, scans y revisión final independiente.
+- [x] Actualizar ADR-002/005, gaps, reporte de decisión y estado sin afirmar precisión agronómica ni contrato productivo.
+
+### Contratos y límites fijados antes de editar código
+
+- Puertos conceptuales separados: `TerritoryReferenceProvider`, `MapStyleProvider`, `WeatherProvider` y `OfficialAlertProvider`; MapLibre renderiza, Argenmap entrega tiles, Georef normaliza territorio, Open-Meteo pronostica y CAP conserva autoridad oficial.
+- `WeatherSnapshot` es inmutable y conserva proveedor, modelo/corrida, coordenada solicitada y celda resuelta, emisión, ingesta, vigencia, variable, valor, unidad, naturaleza, frescura, confianza/limitación y atribución.
+- Errores tipados: `timeout`, `rate_limited`, `provider_error`, `schema_invalid`, `run_missing`, `unavailable`; stale se rotula y una alerta CAP cancelada/expirada nunca queda activa.
+- Proveedores meteorológicos se invocan solo backend. URLs/modelos/variables se obtienen de allow-lists; sin URLs aportadas por usuario, sin secretos en query/log y sin coordenadas privadas en fixtures.
+- El spike no simula tenancy porque usa exclusivamente coordenadas públicas; la futura persistencia debe incorporar tenant, autorización por recurso, RLS defensiva y auditoría append-only.
+
+### Ownership disjunto — olas 2 y 3
+
+- Principal: contratos compartidos, `.slnx`/manifiestos/lockfiles, scripts de orquestación, documentación, estados, integración y publicación Git.
+- Database/GIS: `tasks/evidence/AGRO-DIS-004/spike/postgis/**` y `fixtures/geometry/**`.
+- Backend/Weather: `tasks/evidence/AGRO-DIS-004/spike/src/**`, `spike/tests/**` y fixtures `open-meteo/**`, `cap/**`, `wrf/**` asignados.
+- Frontend: `tasks/evidence/AGRO-DIS-004/spike/web/app/**`, `features/**`, `lib/**`, estilos y tests frontend; no editar manifiestos compartidos.
+- Principal QA y AppSec/Arquitectura revisan el estado combinado en modo read-only; ningún implementador aprueba su propio cambio.
+
+### Baseline y comandos previstos
+
+- Baseline Git limpio en `main`, commit inicial publicado `66ea2f25ac5fbe738425be6677d20499e0730510` y remoto verificado.
+- .NET: `dotnet restore`, `dotnet build --no-restore`, comando MTP detectado por la skill `run-tests`, analyzers/format y suite contractual.
+- PostGIS: bootstrap efímero local, `CREATE EXTENSION postgis`, probes SQL, teardown validado; nunca tocar el servicio PostgreSQL del sistema.
+- Frontend: `pnpm install --frozen-lockfile`, format/lint/typecheck/unit/build y navegador real con Playwright; comprobar teclado, axe, consola y 390 px.
+- Docker/Compose, cloud, deploy, migración/rollback productivo y telemetría productiva: N/A por alcance R0; el spike documenta reemplazo y no se reutiliza como bootstrap.
+
+### Fuentes primarias que alteran decisiones
+
+- PostGIS: `ST_Area(geography)` usa esferoide y metros; `ST_IsValid` valida geometría 2D. <https://postgis.net/docs/ST_Area.html> y <https://postgis.net/docs/ST_IsValid.html>.
+- Georef es el servicio oficial abierto para unidades territoriales y publica OpenAPI. <https://www.argentina.gob.ar/georef/referencia-completa-de-la-api>.
+- IGN publica Argenmap por XYZ/TMS y WMTS como mapa base oficial. <https://www.ign.gob.ar/NuestrasActividades/InformacionGeoespacial/ServiciosOGC>.
+- Open-Meteo exige plan comercial para productos comerciales, atribución CC BY 4.0 y ofrece 99,9 % como target pago, no garantía del free endpoint. <https://open-meteo.com/en/pricing>, <https://open-meteo.com/en/terms> y <https://open-meteo.com/en/license>.
+- CAP 1.2 define `Alert/Update/Cancel`, referencias, expiración y polígonos WGS84. <https://docs.oasis-open.org/emergency/cap/v1.2/CAP-v1.2-os.html>.
+- WRF SMN publica NetCDF 4 km/72 h en AWS Open Data; Registry dice 00/12 y documentación 00/06/12/18, por lo que la cadencia se descubre por corrida. <https://registry.opendata.aws/smn-ar-wrf-dataset/> y <https://odp-aws-smn.github.io/documentation_wrf_det/>.
+
+### Revisión
+
+- Resultado técnico interno e independiente: `PASS`. AppSec/Arquitectura no encontró vulnerabilidades críticas, altas o medias explotables en el alcance R0; Principal QA aprobó el artefacto condicionado a mantenerlo en `En revisión`, no producción.
+- .NET SDK 10.0.201/MTP: restore locked, build 0 warnings/errores, format y scan NuGet PASS; 29/29 tests PASS. Cubre Open-Meteo (7 variables, drift, null, 429/500/timeout, ingesta futura), lifecycle CAP append-only/terminal/offset/XXE y shapes WRF.
+- Contratos: Ajv 2020 validó 3 instancias canónicas y 5 provider runs. PostgreSQL 17/PostGIS 3.6.2 real: 6/6 PASS; delta máximo área `0,000024 %`, límites 4/100/1.000/10.000, rechazos 10.001/>1 MiB, CAP espacial y uso GiST; teardown dejó 55434 libre.
+- WRF oficial SHA-256 `d2283cbe5b6aa68d1595806f0f39e27da28ff3df1b2158d605b94ee1d4a2879c`: 14.758.413 bytes, 1.249×999, 5/5 negativos PASS, 179,488 ms, 49.925.315 bytes Python y 112.431.104 bytes working set; budgets observados PASS. No hay sandbox/kill preventivo y 73 plazos estimados superan 1 GiB: `POSTPONER`.
+- Frontend pnpm 10.33.0: frozen install, Prettier, ESLint, TypeScript, build y audit PASS; Vitest 7/7 y Playwright 4/4 PASS con 24 referencias observed/fresh, demo climática sintética separada, axe, teclado/retry, degradación de tiles y 390 px.
+- Probe live persistido final: Georef `success` 120,066 ms; Open-Meteo `degraded` 2.149,274 ms porque el único batch smoke superó 2 s (no es p75); CAP `success` 223,24 ms; Argenmap `success` p75 141,201 ms; WRF `postpone` 755,651 ms. QA observó CAP degradado/HTML en otra corrida, confirmando que el canal/frescura requiere gate productivo.
+- Hallazgos resueltos: límites GIS/2D, carrera del harness, NetCDF shape bomb, CAP spoof/replay/orden/cancel/offset y XML del probe, redirects SSRF, contrato ejecutable, BOM/URI template, variables ráfagas/ET0, confianza/granularidad y evidencia UI no fabricada.
+- N/A: Docker/Compose/CI/deploy, migración/rollback y telemetría productiva; la tarea es un spike R0 aislado y no autoriza infraestructura ni pipeline productivo.
+- Estado final: `En revisión`. Pendientes externos exactos: plan/DPA/región/cuota/SLA y p75 cacheado Open-Meteo; canal/autenticidad/frescura durable CAP; presupuesto/operación/sandbox WRF; precisión local y `VAL-AGR`; tenant/authz/RLS/auditoría antes de R2.
+- Autoevaluación informativa: 97/100 (contexto 15, arquitectura 19, multiagente 10, full-stack/datos/observabilidad 14, tests/seguridad 20, preservación/cierre 19). Cero gate interno fallido; los gates externos impiden `Completada`.

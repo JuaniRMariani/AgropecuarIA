@@ -1,0 +1,13 @@
+{
+  "dataModel": "NETCDF4",
+  "fileBytes": 9223372036854775807,
+  "dimensions": {
+    "time": 2147483647,
+    "y": 2147483647,
+    "x": 2147483647
+  },
+  "variables": {
+    "PP": {}, "T2": {}, "HR2": {}, "dirViento10": {}, "magViento10": {},
+    "lat": {}, "lon": {}, "time": {}
+  }
+}

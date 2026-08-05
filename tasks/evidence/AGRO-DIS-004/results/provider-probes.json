@@ -1,0 +1,109 @@
+{
+    "evidenceVersion":  "1.0.0",
+    "observedAt":  "2026-08-05T17:12:00.2025785+00:00",
+    "fixtureVersion":  "1.0.0",
+    "fixtureSource":  "https://apis.datos.gob.ar/georef/api/provincias?campos=id,nombre,centroide\u0026max=24",
+    "providerRuns":  [
+                         {
+                             "contractVersion":  "1.0",
+                             "provider":  "georef",
+                             "sourceUrl":  "https://apis.datos.gob.ar/georef/api/provincias?campos=id,nombre,centroide\u0026max=24",
+                             "observedAt":  "2026-08-05T17:12:00.2025785+00:00",
+                             "status":  "success",
+                             "durationMs":  120.066,
+                             "responseBytes":  2468,
+                             "contentHash":  "5aa32cb19c6e9ae44d837a3866a65beae8c2111a252f619783fe659470e253b0",
+                             "coverage":  {
+                                              "total":  24,
+                                              "successful":  24
+                                          },
+                             "decision":  "conditional-go",
+                             "limitations":  [
+                                                 "No contractual SLA; keep a versioned snapshot and manual-coordinate fallback."
+                                             ]
+                         },
+                         {
+                             "contractVersion":  "1.0",
+                             "provider":  "open-meteo",
+                             "sourceUrl":  "https://api.open-meteo.com/v1/forecast",
+                             "observedAt":  "2026-08-05T17:12:00.2025785+00:00",
+                             "status":  "degraded",
+                             "durationMs":  2149.274,
+                             "responseBytes":  41862,
+                             "contentHash":  "26dcf0078472b172295fa1cdc543f7cf6bec9bd7a4b4392503fd7957e4257886",
+                             "coverage":  {
+                                              "measuredBatchMs":  2149.274,
+                                              "smokeTargetMs":  2000,
+                                              "successful":  24,
+                                              "total":  24,
+                                              "sampleCount":  1
+                                          },
+                             "decision":  "conditional-go",
+                             "limitations":  [
+                                                 "Free endpoint is evaluation-only for this SaaS; production requires a commercial plan and backend-only key handling.",
+                                                 "A 24-point live probe is coverage evidence, not local forecast accuracy.",
+                                                 "The observed 24-point batch took 2149.274 ms and missed the 2000 ms spike target; caching/batching and a paid endpoint require validation."
+                                             ]
+                         },
+                         {
+                             "contractVersion":  "1.0",
+                             "provider":  "smn-cap",
+                             "sourceUrl":  "https://ssl.smn.gob.ar/CAP/AR.php",
+                             "observedAt":  "2026-08-05T17:12:00.2025785+00:00",
+                             "status":  "success",
+                             "durationMs":  223.24,
+                             "responseBytes":  142230,
+                             "contentHash":  "b530ceb1b5c60e7882b5eac1521fed50c8b81115746f53b62a1c1e7802a7ca9e",
+                             "coverage":  {
+                                              "alert":  1,
+                                              "feed":  1
+                                          },
+                             "decision":  "conditional-go",
+                             "limitations":  [
+                                                 "Official and authoritative for alerts, but no contractual SLA was evidenced; detect stale feed and preserve lifecycle."
+                                             ]
+                         },
+                         {
+                             "contractVersion":  "1.0",
+                             "provider":  "argenmap",
+                             "sourceUrl":  "https://wms.ign.gob.ar/geoserver/gwc/service/tms/1.0.0/",
+                             "observedAt":  "2026-08-05T17:12:00.2025785+00:00",
+                             "status":  "success",
+                             "durationMs":  141.201,
+                             "responseBytes":  622235,
+                             "contentHash":  "21a6a0cf27cb0bd5c18f8a54c61a6afddd03801d583d04ea8e15b746e857fa29",
+                             "coverage":  {
+                                              "p75Ms":  141.201,
+                                              "p75TargetMs":  3000,
+                                              "successful":  24,
+                                              "total":  24,
+                                              "tileTemplate":  "capabaseargenmap@EPSG:3857@png/{z}/{x}/{-y}.png"
+                                          },
+                             "decision":  "conditional-go",
+                             "limitations":  [
+                                                 "Official free map service; no contractual SLA evidenced. UI must keep attribution and tabular fallback."
+                                             ]
+                         },
+                         {
+                             "contractVersion":  "1.0",
+                             "provider":  "smn-wrf",
+                             "sourceUrl":  "https://smn-ar-wrf.s3.us-west-2.amazonaws.com/?list-type=2\u0026max-keys=3",
+                             "observedAt":  "2026-08-05T17:12:00.2025785+00:00",
+                             "status":  "success",
+                             "durationMs":  755.651,
+                             "responseBytes":  1206,
+                             "contentHash":  "21501c1f591abb136c9c7ccfca0400f74e64cfe327a009fe3f7f38e5dea8a519",
+                             "coverage":  {
+                                              "sampleBytes":  14758413,
+                                              "listedObjects":  3,
+                                              "estimated73LeadBytes":  1077364149
+                                          },
+                             "decision":  "postpone",
+                             "limitations":  [
+                                                 "Estimated 73 hourly lead files exceed 1 GiB per run before daily/10-minute products.",
+                                                 "Official sources disagree on 00/12 versus 00/06/12/18 cadence; discover run identity from inventory.",
+                                                 "No approved operating budget or production authorization."
+                                             ]
+                         }
+                     ]
+}

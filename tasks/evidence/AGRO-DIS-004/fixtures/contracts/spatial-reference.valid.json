@@ -1,0 +1,24 @@
+{
+  "contractVersion": "1.0",
+  "crs": "EPSG:4326",
+  "axisOrder": "longitude-latitude",
+  "geometryType": "Polygon",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[[-60, -35], [-59.9, -35], [-59.9, -34.9], [-60, -35]]]
+  },
+  "limits": {
+    "payloadBytes": 128,
+    "vertexCount": 4,
+    "maxPayloadBytes": 1048576,
+    "maxVertexCount": 10000
+  },
+  "declaredArea": null,
+  "calculatedArea": {
+    "squareMeters": 101336338.194,
+    "hectares": 10133.6338,
+    "method": "postgis-geography-spheroid",
+    "equalAreaControlRelativeDelta": 0.00000024
+  },
+  "validity": { "isValid": true, "reason": null }
+}

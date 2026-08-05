@@ -1,0 +1,176 @@
+{
+  "fixtureVersion": "1.0.0",
+  "sourceFile": "WRFDETAR_01H_20220101_00_000.nc",
+  "sha256": "d2283cbe5b6aa68d1595806f0f39e27da28ff3df1b2158d605b94ee1d4a2879c",
+  "fileBytes": 14758413,
+  "dataModel": "NETCDF4",
+  "dimensions": {
+    "time": 1,
+    "y": 1249,
+    "x": 999
+  },
+  "projection": {
+    "name": "Lambert conformal",
+    "mapProj": 1,
+    "dxMeters": 4000.0,
+    "dyMeters": 4000.0,
+    "centerLatitude": -34.9999885559082,
+    "centerLongitude": -65.0
+  },
+  "startDate": "2022-01-01_00:00:00",
+  "coordinateBounds": {
+    "latitude": [
+      -56.853172302246094,
+      -11.645957946777344
+    ],
+    "longitude": [
+      -94.330810546875,
+      -35.669189453125
+    ]
+  },
+  "variables": {
+    "PP": {
+      "dimensions": [
+        "time",
+        "y",
+        "x"
+      ],
+      "shape": [
+        1,
+        1249,
+        999
+      ],
+      "units": "millimeter",
+      "standardName": "precipitation_amount",
+      "gridMapping": "Lambert_Conformal"
+    },
+    "T2": {
+      "dimensions": [
+        "time",
+        "y",
+        "x"
+      ],
+      "shape": [
+        1,
+        1249,
+        999
+      ],
+      "units": "degree_Celsius",
+      "standardName": "air_temperature",
+      "gridMapping": "Lambert_Conformal"
+    },
+    "HR2": {
+      "dimensions": [
+        "time",
+        "y",
+        "x"
+      ],
+      "shape": [
+        1,
+        1249,
+        999
+      ],
+      "units": "percent",
+      "standardName": "relative_humidity",
+      "gridMapping": "Lambert_Conformal"
+    },
+    "dirViento10": {
+      "dimensions": [
+        "time",
+        "y",
+        "x"
+      ],
+      "shape": [
+        1,
+        1249,
+        999
+      ],
+      "units": "degree",
+      "standardName": "wind_from_direction",
+      "gridMapping": "Lambert_Conformal"
+    },
+    "magViento10": {
+      "dimensions": [
+        "time",
+        "y",
+        "x"
+      ],
+      "shape": [
+        1,
+        1249,
+        999
+      ],
+      "units": "meter / second",
+      "standardName": "wind_speed",
+      "gridMapping": "Lambert_Conformal"
+    },
+    "lat": {
+      "dimensions": [
+        "y",
+        "x"
+      ],
+      "shape": [
+        1249,
+        999
+      ],
+      "units": "degrees_north",
+      "standardName": "latitude",
+      "gridMapping": null
+    },
+    "lon": {
+      "dimensions": [
+        "y",
+        "x"
+      ],
+      "shape": [
+        1249,
+        999
+      ],
+      "units": "degrees_east",
+      "standardName": "longitude",
+      "gridMapping": null
+    },
+    "time": {
+      "dimensions": [
+        "time"
+      ],
+      "shape": [
+        1
+      ],
+      "units": "hours since 2022-01-01",
+      "standardName": "time",
+      "gridMapping": null
+    }
+  },
+  "sample": {
+    "requestedPoint": {
+      "latitude": -34.6144420654301,
+      "longitude": -58.4458763250916
+    },
+    "resolvedPoint": {
+      "latitude": -34.60681915283203,
+      "longitude": -58.43853759765625
+    },
+    "gridIndex": {
+      "x": 649,
+      "y": 630
+    },
+    "values": {
+      "PP": 0.0,
+      "T2": 26.2349853515625,
+      "HR2": 71.2318344116211,
+      "dirViento10": 84.5396728515625,
+      "magViento10": 4.571691989898682
+    }
+  },
+  "peakPythonBytes": 49925315,
+  "peakWorkingSetBytes": 112431104,
+  "durationMs": 179.488,
+  "withinSpikeBudgets": {
+    "fileBytes": true,
+    "gridCells": true,
+    "parseDuration": true,
+    "pythonMemory": true,
+    "processWorkingSet": true
+  }
+}

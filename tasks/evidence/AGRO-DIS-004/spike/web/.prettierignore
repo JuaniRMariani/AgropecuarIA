@@ -1,0 +1,6 @@
+.next
+node_modules
+output
+next-env.d.ts
+package-lock.json
+pnpm-lock.yaml

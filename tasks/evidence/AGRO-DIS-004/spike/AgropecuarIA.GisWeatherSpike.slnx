@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgropecuarIA.GisWeatherSpike/AgropecuarIA.GisWeatherSpike.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgropecuarIA.GisWeatherSpike.Tests/AgropecuarIA.GisWeatherSpike.Tests.csproj" />
+  </Folder>
+</Solution>

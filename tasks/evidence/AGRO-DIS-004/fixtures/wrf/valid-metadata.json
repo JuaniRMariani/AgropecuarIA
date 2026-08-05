@@ -1,0 +1,19 @@
+{
+  "dataModel": "NETCDF4",
+  "fileBytes": 14758413,
+  "dimensions": {
+    "time": 1,
+    "y": 1249,
+    "x": 999
+  },
+  "variables": {
+    "PP": { "dimensions": ["time", "y", "x"], "shape": [1, 1249, 999] },
+    "T2": { "dimensions": ["time", "y", "x"], "shape": [1, 1249, 999] },
+    "HR2": { "dimensions": ["time", "y", "x"], "shape": [1, 1249, 999] },
+    "dirViento10": { "dimensions": ["time", "y", "x"], "shape": [1, 1249, 999] },
+    "magViento10": { "dimensions": ["time", "y", "x"], "shape": [1, 1249, 999] },
+    "lat": { "dimensions": ["y", "x"], "shape": [1249, 999] },
+    "lon": { "dimensions": ["y", "x"], "shape": [1249, 999] },
+    "time": { "dimensions": ["time"], "shape": [1] }
+  }
+}

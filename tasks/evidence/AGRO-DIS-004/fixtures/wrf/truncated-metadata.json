@@ -1,0 +1,6 @@
+{
+  "dataModel": "NETCDF4",
+  "fileBytes": 14758413,
+  "dimensions": {
+    "time": 1,
+    "y": 1249,

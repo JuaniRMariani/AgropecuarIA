@@ -1,0 +1,29 @@
+{
+  "contractVersion": "1.0",
+  "snapshotId": "ba8cb069-c02d-4d72-bb32-bd17b9db07e5",
+  "provider": "open-meteo",
+  "model": "ecmwf_ifs025",
+  "runId": null,
+  "requestedPoint": { "latitude": -34.614442, "longitude": -58.445876 },
+  "resolvedGridPoint": { "latitude": -34.625, "longitude": -58.4375 },
+  "spatialResolutionMetres": null,
+  "issuedAt": null,
+  "retrievedAt": "2026-08-05T11:30:00Z",
+  "validFrom": "2026-08-05T12:00:00Z",
+  "validTo": "2026-08-05T13:00:00Z",
+  "granularity": "hourly",
+  "variable": "precipitation_probability",
+  "nature": "forecast",
+  "availability": "fresh",
+  "confidence": null,
+  "confidenceBasis": null,
+  "value": 10,
+  "unit": "%",
+  "error": null,
+  "limitation": "Provider confidence and grid resolution are not supplied by this endpoint; both remain explicit nulls.",
+  "attribution": {
+    "label": "Open-Meteo",
+    "url": "https://open-meteo.com/",
+    "licence": "CC BY 4.0 for weather data; commercial plan terms apply in production"
+  }
+}

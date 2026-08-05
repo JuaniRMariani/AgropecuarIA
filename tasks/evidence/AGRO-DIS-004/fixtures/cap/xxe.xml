@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE alert [<!ENTITY xxe SYSTEM "file:///C:/Windows/win.ini">]>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>&xxe;</identifier><sender>fixtures@agropecuaria.invalid</sender>
+  <sent>2026-08-05T10:00:00-03:00</sent><status>Test</status><msgType>Alert</msgType><scope>Public</scope>
+  <info><effective>2026-08-05T10:00:00-03:00</effective><expires>2026-08-05T18:00:00-03:00</expires>
+    <area><areaDesc>Área sintética</areaDesc><polygon>-34,-59 -34,-58 -35,-58 -34,-59</polygon></area>
+  </info>
+</alert>

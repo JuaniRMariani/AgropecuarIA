@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.local/contracts/discovery/provider-run.v1.schema.json",
+  "title": "ProviderRunEvidenceV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "provider", "sourceUrl", "observedAt", "status", "durationMs", "responseBytes", "contentHash", "coverage", "decision"],
+  "properties": {
+    "contractVersion": { "const": "1.0" },
+    "provider": { "enum": ["georef", "argenmap", "open-meteo", "smn-cap", "smn-wrf"] },
+    "sourceUrl": { "type": "string", "format": "uri" },
+    "observedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["success", "degraded", "failed", "not-authorized"] },
+    "durationMs": { "type": "number", "minimum": 0 },
+    "responseBytes": { "type": "integer", "minimum": 0 },
+    "contentHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "coverage": { "type": "object" },
+    "decision": { "enum": ["go", "conditional-go", "postpone", "no-go"] },
+    "limitations": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  }
+}

@@ -40,3 +40,9 @@ En cada release se revisan riesgos `Crítica/Alta`, evidencia de mitigación, ri
 ### Evidencia R0 AGRO-DIS-007 — 2026-08-05
 
 El modelo reproducible, error budget, FinOps fail-closed, cardinalidad cerrada y laboratorio online reducen supuestos invisibles de RSK-022/024/027, pero no cambian su probabilidad ni severidad sin datos reales. Los tres riesgos permanecen abiertos: Sponsor/Delivery debe nominar equipo/presupuesto/fecha; Product/UX debe medir red de campo; SRE/FinOps debe medir carga/costo y fijar budgets antes de cualquier rollout.
+
+### Evidencia R0 AGRO-SEC-001 — 2026-08-05
+
+El threat model central registra 14 rutas `TM-001`–`TM-014`, con owner, control, prueba, detección, riesgo residual y gate por capacidad. Traza explícitamente RSK-001/002/007/009/010/012/013/016–021/024/026/027 y cubre además abuso privilegiado. La validación fail-closed confirma 7 amenazas críticas y 7 altas, sin críticos huérfanos; no reduce su severidad porque todavía no existe runtime productivo integrado. Q-054/055/058/060, `VAL-LEG`, proveedor/región/DPA/retención, pipeline y restore administrado siguen abiertos y bloquean únicamente las capacidades afectadas.
+
+Evidencia: `tasks/evidence/AGRO-SEC-001/AgropecuarIA-threat-model.md`, `threat-register.json`, `data-classification-and-privacy.md`, `provider-processing-inventory.md` y `release-security-gates.md`.

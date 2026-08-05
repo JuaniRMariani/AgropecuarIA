@@ -108,3 +108,12 @@ Versión: 1.0 — 2026-08-04. Los rangos son inclusivos y representan cada ID in
 | ADR | 9 | 9 | 0 | 0 |
 
 Cobertura total RF/RN/RNF: 216/216 trazados a tarea+prueba o excepción justificada; 207 con tarea/prueba y 9 excepciones (`RF-GIS-010`, `RF-FIN-009`, `RN-FIS-001–007`). Ningún faltante.
+
+## Evidencia R0 de AGRO-SEC-001 — 2026-08-05
+
+| Alcance | Tarea | Evidencia | Gate actual | Release siguiente |
+|---|---|---|---|---|
+| RNF-SEC-001–003 | AGRO-SEC-001/002/003 | `tasks/evidence/AGRO-SEC-001/AgropecuarIA-threat-model.md`, `threat-register.json`, `release-security-gates.md`; validador + 7 mutation tests | PASS documental R0: 14 amenazas, 7 críticas/7 altas, 0 críticas sin owner/prueba/gate | Reproducir controles y abuse tests en cada slice R1–R6; `TST-SEC-GATES` productivo pendiente |
+| RNF-PRI-001 | AGRO-SEC-001/004 | `data-classification-and-privacy.md`, `provider-processing-inventory.md` | Baseline condicional; Q-054/055/058/060 y `VAL-LEG` permanecen NO-GO productivo | Rights/hold/purge/restore, DPA/región/retención y revisión humana en R1–R6 |
+
+Esta evidencia no modifica los conteos de requisitos: agrega el baseline verificable de la tarea ya trazada. Los spikes `AGRO-DIS-*` siguen siendo evidencia descartable y no controles productivos.

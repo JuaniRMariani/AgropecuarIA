@@ -692,3 +692,53 @@ Estado inicial: `Propuesto`; seleccionada por el líder con la delegación expl�
 - Estado final: `En curso`. El gate R0 está aprobado, pero por ser tarea multirelease R0/R1 la tarea padre no pasa a `Completada` hasta demostrar el ensayo operativo R1.
 - Evidencia: `tasks/evidence/AGRO-FND-001/validation-report.md`.
 - Autoevaluación informativa: 96/100 (contexto 15, arquitectura 20, multiagente 10, full-stack/datos/observabilidad 12, tests/seguridad 20, preservación/cierre 19). Cero gate aplicable fallido; los N/A corresponden al alcance R0.
+
+## Iteración 14 — AGRO-SEC-001 modelo de amenazas y clasificación por release (2026-08-05)
+
+Estado inicial: `Propuesto`; seleccionada por el líder con la delegación explícita del sponsor. Transiciones registradas: `Propuesto → Ready` al verificar arquitectura, flujos, activos e inventarios candidatos; `Ready → En curso` al publicar este plan. Clasificación: gate documental R0 de una tarea continua R0–R6; no es certificación legal, pentest, implementación de controles productivos ni autorización de proveedor.
+
+### DoR, supuestos y límites
+
+- [x] Confirmar ID único, outcome, criterios, requisitos, riesgos y exclusiones.
+- [x] Confirmar arquitectura y fronteras en `docs/05-arquitectura.md`, actores/flujos en `docs/02-dominio-actores-y-flujos.md` y seguridad base en `docs/07-seguridad-y-privacidad.md`.
+- [x] Confirmar inventarios candidatos de identidad, GIS/clima y archivos en las evidencias de `AGRO-DIS-003/004/005`, sin tratarlos como proveedores contratados o superficies productivas.
+- [x] Acotar la fase actual a R0 y mantener Q-054/055/058/060 como supuestos condicionales con owner y NO-GO productivo.
+- [x] Registrar que los spikes son locales/descartables y que no existe todavía runtime, CI o despliegue productivo que escanear.
+- [x] Descartar `AGRO-FND-003`: no está Ready por falta de agregado productivo, estados/campos inmutables, identidad/auditoría productivas y retención aprobada; no se mutó su estado.
+
+### Contrato de evidencia y plan verificable
+
+- [x] Publicar un threat model central, repo-grounded y versionado con componentes, fronteras, activos, atacante, superficies, abuso y calibración explícita.
+- [x] Publicar clasificación de datos/privacidad e inventario de proveedores/procesamiento, distinguiendo presente, candidato y futuro fuera del MVP.
+- [x] Publicar un registro machine-readable `threat → control → prueba → owner → riesgo residual → capability/release`, sin críticos huérfanos.
+- [x] Publicar gates por release y plantilla para revisar una nueva frontera/proveedor durante DoR.
+- [x] Implementar un validador reproducible de estructura, IDs, referencias, owners, criticidad y gates fail-closed; cubrir mutaciones negativas.
+- [x] Ejecutar validación documental, JSON, enlaces/rutas, secretos dirigidos y revisión independiente AppSec/Arquitectura/Product.
+- [x] Actualizar riesgos, trazabilidad, reporte y estado final preservando los gates Legal/Privacy/Sponsor.
+
+### Ownership disjunto — olas 2 y 3
+
+- Principal: estructura/README, contrato y validador compartidos, integración, backlog/todo/riesgos/trazabilidad, reporte, gates finales y Git.
+- Architecture Lead: `tasks/evidence/AGRO-SEC-001/AgropecuarIA-threat-model.md`; no edita registros, scripts ni documentación global.
+- Product/Domain/UX: `tasks/evidence/AGRO-SEC-001/data-classification-and-privacy.md`; no edita threat model, registros ni scripts.
+- Security/Data: `tasks/evidence/AGRO-SEC-001/provider-processing-inventory.md` y borrador de amenazas para integración; no edita archivos de otros owners.
+- Ola 3 cruza revisores sobre archivos ajenos y permanece read-only; ningún autor aprueba su propio artefacto.
+
+### Baseline y comandos previstos
+
+- Baseline Git limpio en `main`, commit publicado `f86e2d4434a6670abc024ea248d8443dd54f1a9e`; no existía `tasks/evidence/AGRO-SEC-001` ni runtime productivo raíz.
+- PowerShell: validador propio con casos positivo/negativos, parseo JSON estricto, chequeo de rutas Markdown, IDs estables y secretos dirigidos.
+- Revisión manual: cobertura de todas las fronteras y superficies, separación runtime futuro/spikes/build, owners de amenazas críticas y Q-054/055/058/060 explícitas.
+- .NET, pnpm/frontend, API, PostgreSQL/PostGIS, Docker/Compose, SAST/SCA/DAST, migración, telemetría emitida, CI/CD y deploy: N/A para este gate R0 documental sin runtime productivo; no se fabricará infraestructura para aparentar controles.
+
+### Revisión
+
+- Resultado R0: `PASS`. Registro con 14 amenazas (7 críticas/7 altas), 4 preguntas abiertas, 16 `RSK-*` únicos y 12 superficies `PI-01`–`PI-12`; 0 críticas sin owner/prueba/gate.
+- Validador: 7/7 mutation tests PASS — owner, test, valor blanco, ID duplicado, riesgo inválido, pregunta omitida y drift JSON↔tabla. JSON, rutas/evidence, enlaces Markdown y `git diff --check`: PASS.
+- Scan dirigido: 0 patrones de credenciales. No se agregaron secretos, datos personales, proveedor, cuenta cloud ni runtime.
+- Revisión independiente final: AppSec/Data, Architecture y Product/UX/Privacy `PASS`; 0 críticos, altos o medios. Los hallazgos iniciales sobre edge/web, browser→storage/tiles, email, telemetría/CI/backup, trazabilidad de riesgos, owner e integridad del validador fueron corregidos; las observaciones bajas de índices `PI-09/PI-12` también quedaron resueltas.
+- N/A: build/test .NET, pnpm/frontend, API, DB/PostGIS, Docker, migraciones, SAST/SCA/DAST runtime, observabilidad emitida, CI/CD y deploy. No existe producto ejecutable y este gate documental no autoriza crearlo.
+- Riesgo residual: las 14 amenazas permanecen abiertas para producción. Q-054/055/058/060, `GAP-003`, `GAP-008`, `VAL-LEG`, IdP/proveedores/regiones/DPA/retención, pipeline y restore administrado siguen como NO-GO de cada capacidad afectada.
+- Estado final: `En curso`. El baseline R0 está aprobado, pero `AGRO-SEC-001` es continua R0–R6 y debe actualizarse/revalidarse por slice y release.
+- Evidencia: `tasks/evidence/AGRO-SEC-001/validation-report.md`.
+- Autoevaluación informativa: 96/100 (contexto 15, arquitectura 19, multiagente 10, full-stack/datos/observabilidad 13, tests/seguridad 20, preservación/cierre 19). Cero gate aplicable fallido; los N/A y NO-GO no son aprobaciones implícitas.

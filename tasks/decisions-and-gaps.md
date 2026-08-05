@@ -164,3 +164,9 @@ Estos rangos satisfacen la DoR del artefacto R0 porque tienen owner, fuente sint
 El spike aislado validó schemas y semántica fail-closed, proyecciones exactas fixture→motor→golden, error budget, costos incompletos, cardinalidad acotada y experiencia online/default-deny. Principal QA reprodujo todos los gates y AppSec/Arquitectura cerró sus hallazgos con cero severidades residuales internas.
 
 ADR-008 queda aceptada para discovery, no para producción. `GAP-003`, `GAP-010` y Q-019/020/060/061 permanecen abiertos hasta reemplazar estimaciones por equipo/volumen/precio/red reales y aceptación nominada. Estas condiciones mantienen `AGRO-DIS-007` en `En revisión` y prohíben fechas o presupuesto falsos.
+
+## Baseline de amenazas AGRO-SEC-001 — 2026-08-05
+
+El gate R0 centraliza 14 amenazas `TM-001`–`TM-014`, clasificación de datos, doce superficies de proveedor/procesamiento y gates incrementales R0–R6. El artefacto sirve para evaluar la DoR de una frontera o proveedor; no selecciona tecnología, región, contrato ni base legal y no presenta los controles de spikes como desplegados.
+
+Q-054/055/058/060, `GAP-003`, `GAP-008` y `VAL-LEG` permanecen abiertos. Todo campo desconocido de controlador/titularidad, región, DPA, subencargados, retención, soporte o SLA produce `NO-GO` para la capacidad afectada. El modelo se revisa por release, por lo que `AGRO-SEC-001` continúa `En curso` después de aprobar su baseline R0.

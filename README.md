@@ -1,10 +1,21 @@
-# AgropecuarIA — paquete de discovery
+# AgropecuarIA
 
 Plataforma SaaS integral para productores, ingenieros agrónomos y equipos rurales de Argentina. El primer usuario de referencia es un ingeniero agrónomo que también trabaja como productor.
 
 ## Estado
 
-El repositorio contiene la especificación inicial y spikes R0 aislados bajo `tasks/evidence/`. Actualmente existen prototipos Next.js/React, una Minimal API .NET y pruebas PostgreSQL/RLS para validar decisiones antes del bootstrap productivo. Estos artefactos son descartables y no constituyen todavía la aplicación MVP desplegable.
+El repositorio contiene la especificación, spikes R0 aislados bajo `tasks/evidence/` y el bootstrap productivo iniciado por `AGRO-ID-001`: API ASP.NET Core/.NET 10, módulo de identidad, PostgreSQL y aplicación Next.js/React con pnpm. Los spikes continúan siendo descartables y no se reutilizan como runtime del producto.
+
+## Aplicación productiva
+
+- Solución: `AgropecuarIA.slnx`.
+- API: `apps/AgropecuarIA.Api`.
+- Módulo de identidad: `src/AgropecuarIA.Identity`.
+- Web: `apps/web` (Next.js App Router, React y TypeScript estricto).
+- Contrato: `contracts/identity.openapi.yaml`.
+- Operación local y configuración Auth0: `docs/runbooks/identity-local-and-test.md`.
+
+Los secretos reales se cargan únicamente al publicar un ambiente compartido. El proveedor sintético está limitado a `Development`/`Test`; la aplicación falla cerrada fuera de esos ambientes si OIDC no está configurado.
 
 Las decisiones marcadas como **pendientes** requieren validación del sponsor, usuarios de campo, contador y, según el alcance, asesores legales o regulatorios.
 

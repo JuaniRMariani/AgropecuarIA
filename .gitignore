@@ -12,6 +12,7 @@
 **/output/playwright/
 **/*.tsbuildinfo
 **/next-env.d.ts
+!apps/web/next-env.d.ts
 
 # .NET generated files
 **/bin/

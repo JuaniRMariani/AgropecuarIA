@@ -742,3 +742,46 @@ Estado inicial: `Propuesto`; seleccionada por el líder con la delegación expl�
 - Estado final: `En curso`. El baseline R0 está aprobado, pero `AGRO-SEC-001` es continua R0–R6 y debe actualizarse/revalidarse por slice y release.
 - Evidencia: `tasks/evidence/AGRO-SEC-001/validation-report.md`.
 - Autoevaluación informativa: 96/100 (contexto 15, arquitectura 19, multiagente 10, full-stack/datos/observabilidad 13, tests/seguridad 20, preservación/cierre 19). Cero gate aplicable fallido; los N/A y NO-GO no son aprobaciones implícitas.
+
+## Iteración 15 — AGRO-ID-001 registro y vinculación de identidades (2026-08-05)
+
+Estado inicial: `Propuesto`. El sponsor seleccionó y delegó explícitamente la ejecución. Transiciones: `Propuesto → Ready` al fijar Auth0 como IdP objetivo, email OTP + Google OIDC como mecanismos y separar las credenciales reales como gate del servidor de prueba; `Ready → En curso` al publicar este plan. Clasificación: capacidad R1 y primer bootstrap productivo.
+
+### DoR, alcance y contrato
+
+- [x] Verificar ID, outcome, criterios, dependencias `AGRO-DIS-003`/`AGRO-FND-001`, amenazas y contratos previos.
+- [x] Fijar Auth0 como adaptador OIDC objetivo y proveedor sintético exclusivamente para `Development`/`Test`; los ambientes no locales fallan cerrados sin configuración.
+- [x] Mantener Q-054/Q-055 como decisiones contractuales no bloqueantes: `User` es platform-scoped y las membresías no transfieren propiedad ni mezclan organizaciones.
+- [x] Definir sesión cookie, reautenticación de ambas credenciales, replay protection, CSRF, revocación, auditoría sin PII y migración aditiva.
+- [x] Crear bootstrap mínimo productivo .NET 10 + Next.js 16/React/pnpm sin reutilizar los spikes descartables.
+- [x] Implementar dominio/aplicación, PostgreSQL, API y telemetría de login, linking, unlink y revocación.
+- [x] Implementar experiencia frontend accesible y responsive con estados loading, error, conflicto, proveedor caído y sesión revocada.
+- [x] Agregar pruebas unitarias, integración PostgreSQL, API/seguridad, frontend, accesibilidad y E2E en navegador real.
+- [x] Ejecutar restore/build/format/tests/lint/typecheck/unit/e2e, migración aislada, scans y revisión independiente.
+- [x] Documentar operación local, configuración del servidor de prueba, rollback, evidencia y estado final.
+
+### Ownership disjunto
+
+- Principal: `.slnx`, `global.json`, props/paquetes raíz, contratos compartidos, `apps/web/package.json`, lockfile, configuración transversal, integración, documentación, estados y Git.
+- Backend .NET: `src/Identity/**`, `apps/api/**` y tests backend asignados; no edita manifiestos raíz ni frontend.
+- Frontend Next.js: `apps/web/app/**`, `apps/web/features/**`, `apps/web/lib/**`, estilos y tests frontend; no edita `package.json`, lockfile ni backend.
+- Database/QA: migraciones/fixtures PostgreSQL y harness de integración/E2E asignados; no comparte migraciones ni implementación con otro owner.
+- Revisión final: QA y AppSec/Arquitectura read-only sobre el estado combinado; ningún autor aprueba su propio cambio.
+
+### Baseline y gates previstos
+
+- Baseline Git limpio en `main`, sincronizado con `origin/main`; no existen aplicación productiva raíz, solución, lockfile raíz ni migraciones productivas.
+- Antes del bootstrap, gates .NET/frontend/product DB son N/A por ausencia verificable. Después del bootstrap pasan a ser obligatorios.
+- Comandos objetivo: `dotnet restore`, `dotnet build --no-restore`, tests MTP, `dotnet format --verify-no-changes`; `pnpm install --frozen-lockfile`, format/lint/typecheck/unit/build/E2E; migración PostgreSQL efímera y scans dirigidos.
+- No incluye deploy, aprovisionamiento Auth0, credenciales reales, MFA/passkeys (`AGRO-ID-002`) ni organizaciones/roles (`AGRO-ID-003`).
+
+### Revisión
+
+- Resultado integrado local: `PASS`. API y módulo .NET compilan sin warnings; 21/21 pruebas MTP pasan contra PostgreSQL 17 efímero, incluida migración rollback/roll-forward, unicidad concurrente, aislamiento por recurso, replay, CSRF, rate limit preautenticación por IP/sesión, cookies, revocación y auditoría append-only.
+- Frontend: pnpm frozen, format, lint, TypeScript estricto, 18/18 Vitest y build Next.js productivo `PASS`; Playwright Chromium desktop/móvil 4/4 con Axe WCAG 2.2 AA, teclado real, viewport angosto y loader limitado a la región.
+- Seguridad/operación: sesión opaca hasheada, OIDC code+PKCE same-origin, provider sintético físicamente local, límites preautenticación por IP/sesión, proxies explícitos, `no-store`, headers defensivos, Problem Details, métricas/logs sin secretos y outbox `IdentityLinked` exactamente una vez.
+- Migración: aditiva, aplicada/retirada/reaplicada sobre DB efímera. En ambiente compartido el rollback es funcional por flags y roll-forward; no se elimina historia ni auditoría.
+- Revisión independiente: hallazgos internos de QA/AppSec corregidos y revalidados; el único gate externo es ejecutar Auth0 real en el servidor de prueba con secretos fuera del repositorio, callback/state/nonce/claims, email/Google, provider-down y logout.
+- Estado final: `En revisión`. La implementación local está terminada; no se marca `Completada` hasta obtener evidencia del IdP real en el ambiente compartido solicitado por el sponsor.
+- Evidencia: `tasks/evidence/AGRO-ID-001/validation-report.md`.
+- Autoevaluación informativa: 96/100 (contexto 15, arquitectura 20, multiagente 10, full-stack/datos/observabilidad 14, tests/seguridad 19, preservación/cierre 18). Cero gate interno fallido; el gate Auth0 externo no se compensa con la puntuación.

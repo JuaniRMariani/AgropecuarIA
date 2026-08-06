@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/apps/">
+    <Project Path="apps/AgropecuarIA.Api/AgropecuarIA.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/AgropecuarIA.Identity/AgropecuarIA.Identity.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgropecuarIA.Identity.Tests/AgropecuarIA.Identity.Tests.csproj" />
+  </Folder>
+</Solution>

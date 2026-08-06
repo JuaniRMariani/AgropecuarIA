@@ -30,7 +30,7 @@ Se aplica: instrucciones de sesión → `AGENTS.md` → decisiones explícitas d
 |---|---|---|---|
 | ADR-001 | Aceptado | Monolito modular y reglas de dependencia ratificados por ADR-009 y `AGRO-FND-001`. | Reabrir solo con evidencia medible de extracción. |
 | ADR-002 | Aceptado para contrato de discovery; pendiente R2 | WGS84/SRID 4326, `ST_Area(geography)`, superficie declarada separada, validez y GiST demostrados por AGRO-DIS-004. | Revisar límites y tolerancias con telemetría/casos productivos. |
-| ADR-003 | Propuesto | Elegir IdP y validar account linking/recovery antes del slice de identidad. | Spike contra tenant de prueba, sin credenciales reales. |
+| ADR-003 | Aceptado para desarrollo R1; despliegue condicionado | Auth0 es el adaptador objetivo; email OTP + Google entran en ID-001 y el proveedor sintético queda físicamente limitado a Development/Test. | Servidor de prueba exige tenant/secretos, PKCE/callback/revocación/provider-down reales y gates de plan/región/DPA/SLA/exportabilidad. |
 | ADR-004 | Propuesto | Ratificar gateway, control humano, retención y proveedor luego de threat model/evals. | Dataset y kill switch aprobados. |
 | ADR-005 | Aceptado para contrato base; WRF postergado | Open-Meteo queda candidato condicionado, CAP autoridad fail-closed y WRF fuera del camino MVP hasta aprobar presupuesto/operación. | Plan/DPA/región/cuota y validación local siguen abiertos. |
 | ADR-006 | Aceptado para discovery | Elevar a aceptado de implementación al aprobar baseline, gobierno y perfiles iniciales. | Comité editorial y especialistas firman matriz de soporte. |
@@ -82,6 +82,7 @@ Se aplica: instrucciones de sesión → `AGENTS.md` → decisiones explícitas d
 - El roadmap ubica el núcleo de catálogo en R1 y exige en R3 probar el 100 % del baseline. El plan mantiene publicación/flujo mínimo en R1 y reserva certificación paramétrica completa e integración económica para R3.
 - R2 pretende registrar una labor sin duplicar inventario/costo antes del desarrollo completo de inventario/economía. Se planifica un ledger mínimo transaccional en R2 y se amplía en R3/R5; no se posterga idempotencia.
 - SMN WRF aparece en la matriz como “MVP tras spike”, pero su viabilidad está pendiente. R0 decide si entra al MVP; Open-Meteo + CAP y degradación cubren el contrato obligatorio mientras tanto.
+- ADR-003 estaba propuesto a la espera de secretos reales. El sponsor aclaró que las credenciales se cargarán recién en el servidor de prueba: se acepta el contrato Auth0 para desarrollo, sin convertir el gate de despliegue compartido en un `PASS` productivo.
 
 ## Política de supuestos
 
@@ -123,7 +124,7 @@ Estos defaults cierran la Definition of Ready del spike, no ADR-003 ni ADR-PEND-
 
 La implementación aislada confirmó contexto tenant server-side, autorización default-deny, `FORCE RLS`, pool/job fail-closed, linking con doble reautenticación/step-up y recovery con challenge one-shot. Principal QA y AppSec/Arquitectura aprobaron los gates internos sin hallazgos altos/críticos.
 
-ADR-003 y ADR-PEND-007 no se cierran: persisten sandbox OIDC/PKCE y failover reales, contrato/región/DPA/plan/SLA/exportabilidad, identidad externa one-to-many persistida con unicidad concurrente y discovery productivo seguro de membresías. Estas condiciones mantienen `AGRO-DIS-003` en `En revisión` y no impiden usar el resultado para diseñar el siguiente sandbox; sí impiden producción.
+ADR-003 queda aceptado para desarrollo R1 por decisión posterior del sponsor; `AGRO-DIS-003` conserva su resultado histórico `En revisión`. Persisten como gates del servidor de prueba OIDC/PKCE y failover reales, contrato/región/DPA/plan/SLA/exportabilidad y discovery productivo seguro de membresías. La identidad externa one-to-many y su unicidad concurrente pasan a `AGRO-ID-001`; las condiciones externas no bloquean código local, pero sí cualquier despliegue compartido.
 
 ## Defaults operativos para AGRO-DIS-005 — 2026-08-05
 

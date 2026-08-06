@@ -84,7 +84,7 @@ Versión: 1.0 — 2026-08-04. Los rangos son inclusivos y representan cada ID in
 |---|---|---|---|---|
 | ADR-001 | Aceptado | EPIC-01/16 · AGRO-FND-001, AGRO-PLT-001 | TST-ARCH-MODULES, TST-DEPLOY-COMPAT | R0/R1 |
 | ADR-002 | Aceptado para contrato de discovery; pendiente R2 | EPIC-04 · AGRO-DIS-004, AGRO-GIS-001–003 | TST-GIS-POSTGIS | R0/R2 |
-| ADR-003 | Propuesto | EPIC-02 · AGRO-DIS-003, AGRO-ID-001–004 | TST-ID-AUTH | R0/R1 |
+| ADR-003 | Aceptado para desarrollo R1; despliegue condicionado | EPIC-02 · AGRO-DIS-003, AGRO-ID-001–004 | TST-ID-AUTH | R0/R1 |
 | ADR-004 | Propuesto | EPIC-08/12 · AGRO-FOR-003/004, AGRO-IA-003–005 | TST-AI-EVAL, TST-FOR-3LEVELS | R4/R6 |
 | ADR-005 | Aceptado para contrato base; WRF postergado | EPIC-05 · AGRO-DIS-004, AGRO-CLI-001–005 | TST-WEATHER-CONTRACT, TST-CAP-LIFECYCLE | R0/R2 |
 | ADR-006 | Aceptado discovery | EPIC-03 · AGRO-DIS-001/002, AGRO-CAT-001–005 | TST-CAT-BASELINE, TST-PROFILE-ISOLATION | R0/R3 |

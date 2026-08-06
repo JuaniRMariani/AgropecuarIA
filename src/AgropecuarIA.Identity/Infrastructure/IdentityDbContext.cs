@@ -1,0 +1,123 @@
+using AgropecuarIA.Identity.Domain;
+using Microsoft.EntityFrameworkCore;
+
+namespace AgropecuarIA.Identity.Infrastructure;
+
+public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : DbContext(options)
+{
+    public DbSet<PlatformUser> Users => Set<PlatformUser>();
+
+    public DbSet<ExternalIdentity> ExternalIdentities => Set<ExternalIdentity>();
+
+    public DbSet<OrganizationMembership> Memberships => Set<OrganizationMembership>();
+
+    public DbSet<UserSession> Sessions => Set<UserSession>();
+
+    public DbSet<LinkAttempt> LinkAttempts => Set<LinkAttempt>();
+
+    public DbSet<IdentityAuditEvent> AuditEvents => Set<IdentityAuditEvent>();
+
+    public DbSet<IdentityOutboxMessage> OutboxMessages => Set<IdentityOutboxMessage>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasDefaultSchema("identity");
+
+        modelBuilder.Entity<PlatformUser>(entity =>
+        {
+            entity.ToTable("users");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.DisplayName).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.CreatedAtUtc).IsRequired();
+        });
+
+        modelBuilder.Entity<ExternalIdentity>(entity =>
+        {
+            entity.ToTable("external_identities");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Connection).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.Issuer).HasMaxLength(512).IsRequired();
+            entity.Property(item => item.Subject).HasMaxLength(512).IsRequired();
+            entity.Property(item => item.Label).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.VerifiedAtUtc).IsRequired();
+            entity.HasIndex(item => new { item.Issuer, item.Subject }).IsUnique();
+            entity.HasIndex(item => new { item.UserId, item.Connection }).IsUnique();
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OrganizationMembership>(entity =>
+        {
+            entity.ToTable("organization_memberships");
+            entity.HasKey(item => new { item.UserId, item.OrganizationId });
+            entity.Property(item => item.OrganizationName).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.Role).HasMaxLength(64).IsRequired();
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserSession>(entity =>
+        {
+            entity.ToTable("sessions");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.TokenHash).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.AuthenticatedAtUtc).IsRequired();
+            entity.Property(item => item.ExpiresAtUtc).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.HasIndex(item => item.TokenHash).IsUnique();
+            entity.HasIndex(item => new { item.UserId, item.ExpiresAtUtc });
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<LinkAttempt>(entity =>
+        {
+            entity.ToTable("link_attempts");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Connection).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.CandidateIssuer).HasMaxLength(512);
+            entity.Property(item => item.CandidateSubject).HasMaxLength(512);
+            entity.Property(item => item.CandidateLabel).HasMaxLength(160);
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.HasIndex(item => new { item.UserId, item.ExpiresAtUtc });
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<UserSession>()
+                .WithMany()
+                .HasForeignKey(item => item.InitiatingSessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<IdentityAuditEvent>(entity =>
+        {
+            entity.ToTable("audit_events");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Action).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Outcome).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.Connection).HasMaxLength(32);
+            entity.Property(item => item.CorrelationId).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.OccurredAtUtc).IsRequired();
+            entity.HasIndex(item => new { item.UserId, item.OccurredAtUtc });
+        });
+
+        modelBuilder.Entity<IdentityOutboxMessage>(entity =>
+        {
+            entity.ToTable("outbox_messages");
+            entity.HasKey(item => item.EventId);
+            entity.Property(item => item.Type).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.Version).IsRequired();
+            entity.Property(item => item.OccurredAtUtc).IsRequired();
+            entity.Property(item => item.AggregateId).IsRequired();
+            entity.Property(item => item.Payload).HasColumnType("jsonb").IsRequired();
+            entity.HasIndex(item => new { item.DispatchedAtUtc, item.OccurredAtUtc });
+        });
+    }
+}

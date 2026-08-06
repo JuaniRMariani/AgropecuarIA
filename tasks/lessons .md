@@ -61,3 +61,9 @@ Este archivo se actualizará después de cada corrección del sponsor o de un ha
 - Disparador: el sponsor pidió eliminar la lupa/aplicación manual al filtrar por texto, fecha u otros campos, limitar el loader a la tabla y evitar que el scroll horizontal solo sea accesible al final de listados largos.
 - Regla: los filtros de tablas aplican automáticamente con debounce/cancelación cuando corresponda; el estado de carga conserva shell y controles utilizables y actualiza solo la región de resultados con estado accesible.
 - Prevención: el componente de tabla debe ofrecer desplazamiento horizontal accesible desde el viewport visible —mediante contenedor sticky/sincronizado o layout equivalente—, conservar foco/posición y probar teclado, pantalla angosta, requests obsoletos y resultados vacíos. No crear un filtro global ni re-renderizar toda la página por cada cambio.
+
+## Regla: los secretos del entorno compartido no bloquean el desarrollo local
+
+- Disparador: el sponsor aclaró que las credenciales y secretos reales se configurarán al publicar un servidor de prueba y pidió iniciar el desarrollo sin esperarlos.
+- Regla: implementar puertos y configuración production-ready con un proveedor sintético exclusivamente habilitable en `Development`/`Test`; ningún secreto real se guarda en el repositorio y los ambientes compartidos fallan cerrados si falta OIDC.
+- Prevención: separar en la DoR la decisión reversible de contrato/proveedor del aprovisionamiento de credenciales; registrar este último como gate de despliegue y probar que el adaptador local no puede activarse fuera de entornos locales.

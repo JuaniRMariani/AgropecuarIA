@@ -785,3 +785,42 @@ Estado inicial: `Propuesto`. El sponsor seleccionó y delegó explícitamente la
 - Estado final: `En revisión`. La implementación local está terminada; no se marca `Completada` hasta obtener evidencia del IdP real en el ambiente compartido solicitado por el sponsor.
 - Evidencia: `tasks/evidence/AGRO-ID-001/validation-report.md`.
 - Autoevaluación informativa: 96/100 (contexto 15, arquitectura 20, multiagente 10, full-stack/datos/observabilidad 14, tests/seguridad 19, preservación/cierre 18). Cero gate interno fallido; el gate Auth0 externo no se compensa con la puntuación.
+
+## Iteración 16 — AGRO-FND-001 enforcement R1 sobre el runtime (2026-08-05)
+
+Estado inicial: `En curso`. La fase R0 tiene ADR y fitness aprobados, pero el gate quedó aislado y no inspecciona la solución productiva creada por `AGRO-ID-001`. Este sub-slice R1 permanece dentro de la misma tarea y no incorpora `AGRO-FND-002`, `AGRO-FND-003` ni `AGRO-PLT-004`.
+
+### DoR, alcance y aceptación
+
+- [x] Revalidar ID, outcome, dependencias, ADR-009, mapa de consumidores y evidencia R0.
+- [x] Identificar drift real en scope, Problem Details, outbox, auditoría local y telemetría de contrato.
+- [x] Integrar el fitness arquitectónico en `AgropecuarIA.slnx` para que el gate normal inspeccione el runtime actual.
+- [x] Incorporar scope discriminado derivado por servidor y distinguir el journal de seguridad local del agregado central de Audit/Compliance.
+- [x] Alinear status/media type/schema de Problem Details con la política FND.
+- [x] Evolucionar aditivamente el outbox Identity al envelope canónico sin implementar delivery/retry de `FND-002`.
+- [x] Emitir versión de contrato/consumidor con cardinalidad acotada y probar su emisión sin PII.
+- [x] Agregar pruebas contra referencias reales, ownership EF/schema, OpenAPI y contrato N/N-1 del producto.
+- [x] Ejecutar restore/build/format/tests, migración PostgreSQL aislada, scans y revisión independiente.
+- [x] Actualizar ADR/evidencia/backlog y cerrar solo si todos los gates propios de FND-001 quedan demostrados.
+
+### Ownership disjunto
+
+- Principal: `AgropecuarIA.slnx`, contratos/manifestos compartidos, migración, integración, documentación, estados y Git.
+- Backend: `src/AgropecuarIA.Identity/**`, `apps/AgropecuarIA.Api/**` y tests backend asignados; no edita manifests ni evidencia FND.
+- Architecture Fitness: `tasks/evidence/AGRO-FND-001/fitness/**`; no edita runtime ni manifiestos raíz.
+- QA/AppSec: revisión final read-only del estado combinado; ningún implementador aprueba su propio cambio.
+
+### No objetivos y gates
+
+- No crear módulos vacíos, multi-CUIT, ARCA, broker, delivery de outbox, idempotencia genérica, ETag/backfill ni backup/restore.
+- Baseline y gates objetivo: solución .NET 10/MTP, PostgreSQL efímero, contrato OpenAPI, `dotnet format`, NuGet vulnerable scan, secrets scan dirigido y `git diff --check`.
+
+### Revisión
+
+- Resultado del sub-slice R1: `PASS` local. Restore locked, build Release 0 warnings/0 errors, format y modelo EF sin drift; suite raíz 77/77 (27 Identity + 50 Architecture Fitness).
+- PostgreSQL efímero: initial→expand, preservación/backfill, escritor N-1 después del upgrade y rollback/roll-forward `PASS`. La expansión conserva `identity.audit_events` y nullability física para N-1; el modelo/escritor N exige actor y envelope canónico.
+- Problem Details runtime/OpenAPI cerrado y sin `traceId` duplicado; 403/429, autorización por actor/scope, telemetría de contrato sin PII y outbox monotónico cubiertos.
+- Frontend sin cambios: pnpm frozen, format, lint, typecheck, Vitest 18/18 y build Next.js `PASS`; E2E navegador N/A porque no cambió UI ni contrato consumido por UI.
+- NuGet vulnerable scan, JSON, secrets scan dirigido y `git diff --check`: `PASS`; cero vulnerabilidades altas/críticas nuevas o credenciales.
+- Revisión independiente inicial bloqueó correctamente `traceId`, falta de `ActorId` y migración contract prematura; las tres causas se corrigieron. Revalidación final QA y AppSec/Arquitectura: `PASS`, 0 hallazgos críticos/altos/medios.
+- Estado: `En curso`. El enforcement runtime quedó integrado, pero la tarea multirelease no puede cerrarse hasta `AGRO-FND-003`/`AGRO-PLT-004`; delivery del outbox sigue en `AGRO-FND-002`.

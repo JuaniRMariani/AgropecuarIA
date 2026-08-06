@@ -111,7 +111,7 @@ public static class IdentityEndpoints
             StartedLinkAttempt attempt = await service.StartLinkAttemptAsync(
                 current,
                 request.Connection,
-                RequestContext(context),
+                RequestContext(context, current),
                 cancellationToken);
             return Results.Created(
                 $"/api/identity/link-attempts/{attempt.AttemptId:D}",
@@ -134,7 +134,7 @@ public static class IdentityEndpoints
             IdentitySessionResult session = await service.CompleteLinkAttemptAsync(
                 attemptId,
                 current,
-                RequestContext(context),
+                RequestContext(context, current),
                 cancellationToken);
             return Results.Ok(ToResponse(session));
         }).RequireAuthorization();
@@ -151,7 +151,7 @@ public static class IdentityEndpoints
             await service.UnlinkIdentityAsync(
                 identityId,
                 current,
-                RequestContext(context),
+                RequestContext(context, current),
                 cancellationToken);
             return Results.NoContent();
         }).RequireAuthorization();
@@ -164,7 +164,10 @@ public static class IdentityEndpoints
         {
             await antiforgery.ValidateRequestAsync(context);
             AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
-            await service.RevokeSessionAsync(current, RequestContext(context), cancellationToken);
+            await service.RevokeSessionAsync(
+                current,
+                RequestContext(context, current),
+                cancellationToken);
             DeleteSessionCookie(context);
             return Results.NoContent();
         }).RequireAuthorization();
@@ -252,7 +255,10 @@ public static class IdentityEndpoints
         {
             await antiforgery.ValidateRequestAsync(context);
             VerifiedExternalIdentity identity = IdentityFixtures.Resolve(request.Fixture, timeProvider.GetUtcNow());
-            IssuedSession issued = await service.SignInAsync(identity, RequestContext(context), cancellationToken);
+            IssuedSession issued = await service.SignInAsync(
+                identity,
+                RequestContext(context),
+                cancellationToken);
             await IdentityFixtures.EnsureOwnerMembershipAsync(
                 request.Fixture,
                 issued.UserId,
@@ -278,7 +284,7 @@ public static class IdentityEndpoints
                 attemptId,
                 current,
                 identity,
-                RequestContext(context),
+                RequestContext(context, current),
                 cancellationToken);
             return Results.NoContent();
         }).RequireAuthorization();
@@ -323,8 +329,6 @@ public static class IdentityEndpoints
             now);
         IdentityApplicationService service = context.HttpContext.RequestServices
             .GetRequiredService<IdentityApplicationService>();
-        IdentityRequestContext requestContext = RequestContext(context.HttpContext);
-
         if (context.Properties?.Items.TryGetValue(LinkAttemptProperty, out string? attemptValue) is true &&
             Guid.TryParse(attemptValue, out Guid attemptId))
         {
@@ -336,6 +340,7 @@ public static class IdentityEndpoints
             }
 
             AuthenticatedSession current = AuthenticatedSessionClaims.Read(applicationAuthentication.Principal);
+            IdentityRequestContext requestContext = RequestContext(context.HttpContext, current);
             await service.AttachCandidateProofAsync(
                 attemptId,
                 current,
@@ -353,7 +358,7 @@ public static class IdentityEndpoints
         {
             IssuedSession issued = await service.SignInAsync(
                 externalIdentity,
-                requestContext,
+                RequestContext(context.HttpContext),
                 context.HttpContext.RequestAborted);
             AppendSessionCookie(context.HttpContext, issued);
             context.Response.Redirect("/");
@@ -405,8 +410,10 @@ public static class IdentityEndpoints
                 IsEssential = true,
             });
 
-    private static IdentityRequestContext RequestContext(HttpContext context) =>
-        new(context.TraceIdentifier);
+    private static IdentityRequestContext RequestContext(
+        HttpContext context,
+        AuthenticatedSession? session = null) =>
+        IdentityRequestContext.ForPlatform(context.TraceIdentifier, session?.UserId);
 
     private static bool IsDevelopmentOrTest(IHostEnvironment environment) =>
         environment.IsDevelopment() || environment.IsEnvironment("Test");

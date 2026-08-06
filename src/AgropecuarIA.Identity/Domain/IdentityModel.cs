@@ -27,6 +27,14 @@ public sealed class PlatformUser
     public string DisplayName { get; private set; } = string.Empty;
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
+
+    public long Version { get; private set; }
+
+    public long NextVersion()
+    {
+        Version = checked(Version + 1);
+        return Version;
+    }
 }
 
 public sealed class ExternalIdentity
@@ -192,13 +200,13 @@ public sealed class LinkAttempt
     }
 }
 
-public sealed class IdentityAuditEvent
+public sealed class IdentitySecurityJournalEntry
 {
-    private IdentityAuditEvent()
+    private IdentitySecurityJournalEntry()
     {
     }
 
-    public IdentityAuditEvent(
+    public IdentitySecurityJournalEntry(
         Guid id,
         Guid? userId,
         Guid? sessionId,
@@ -237,6 +245,9 @@ public sealed class IdentityAuditEvent
 
 public sealed class IdentityOutboxMessage
 {
+    public const string CurrentSchemaVersion = "1.0.0";
+    public const string IdentitySource = "identity-tenancy";
+
     private IdentityOutboxMessage()
     {
     }
@@ -245,15 +256,62 @@ public sealed class IdentityOutboxMessage
         Guid eventId,
         string type,
         int version,
+        string schemaVersion,
+        string source,
+        RequestScope scope,
         DateTimeOffset occurredAtUtc,
+        DateTimeOffset? effectiveAtUtc,
+        DateTimeOffset recordedAtUtc,
+        Guid actorId,
+        string correlationId,
+        Guid? causationId,
+        string aggregateType,
         Guid aggregateId,
+        long aggregateVersion,
         string payload)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(type);
+        ArgumentException.ThrowIfNullOrWhiteSpace(schemaVersion);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(payload);
+        ArgumentNullException.ThrowIfNull(scope);
+        if (eventId == Guid.Empty || actorId == Guid.Empty || aggregateId == Guid.Empty)
+        {
+            throw new ArgumentException("Event, actor, and aggregate IDs are required.");
+        }
+
+        if (version <= 0 || aggregateVersion <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(version),
+                "Schema major and aggregate versions must be positive.");
+        }
+
+        if (recordedAtUtc < occurredAtUtc)
+        {
+            throw new ArgumentException(
+                "Recorded time cannot precede occurred time.",
+                nameof(recordedAtUtc));
+        }
+
         EventId = eventId;
         Type = type;
         Version = version;
+        SchemaVersion = schemaVersion;
+        Source = source;
+        ScopeKind = scope.Kind;
+        TenantId = scope.TenantId;
         OccurredAtUtc = occurredAtUtc;
+        EffectiveAtUtc = effectiveAtUtc;
+        RecordedAtUtc = recordedAtUtc;
+        ActorId = actorId;
+        CorrelationId = correlationId;
+        CausationId = causationId;
+        AggregateType = aggregateType;
         AggregateId = aggregateId;
+        AggregateVersion = aggregateVersion;
         Payload = payload;
     }
 
@@ -263,9 +321,31 @@ public sealed class IdentityOutboxMessage
 
     public int Version { get; private set; }
 
+    public string SchemaVersion { get; private set; } = string.Empty;
+
+    public string Source { get; private set; } = string.Empty;
+
+    public string ScopeKind { get; private set; } = string.Empty;
+
+    public Guid? TenantId { get; private set; }
+
     public DateTimeOffset OccurredAtUtc { get; private set; }
 
+    public DateTimeOffset? EffectiveAtUtc { get; private set; }
+
+    public DateTimeOffset RecordedAtUtc { get; private set; }
+
+    public Guid ActorId { get; private set; }
+
+    public string CorrelationId { get; private set; } = string.Empty;
+
+    public Guid? CausationId { get; private set; }
+
+    public string AggregateType { get; private set; } = string.Empty;
+
     public Guid AggregateId { get; private set; }
+
+    public long AggregateVersion { get; private set; }
 
     public string Payload { get; private set; } = string.Empty;
 

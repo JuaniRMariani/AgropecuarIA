@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "modules": [
+    {
+      "moduleId": "identity-tenancy",
+      "projectPath": "src/AgropecuarIA.Identity/AgropecuarIA.Identity.csproj",
+      "databaseSchema": "identity",
+      "contracts": [
+        {
+          "path": "contracts/identity.openapi.yaml",
+          "version": "1.0.0"
+        }
+      ]
+    }
+  ],
+  "compositionRoots": [
+    {
+      "projectPath": "apps/AgropecuarIA.Api/AgropecuarIA.Api.csproj",
+      "allowedModuleIds": ["identity-tenancy"]
+    }
+  ]
+}

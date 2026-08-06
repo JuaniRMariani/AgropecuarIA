@@ -90,6 +90,21 @@ public sealed class IdentityLinkingIntegrationTests
         CollectionAssert.AreEqual(
             memberships,
             IdentityApiTestActions.Memberships(signedInThroughGoogle.RootElement));
+
+        IdentityLinkedEnvelope envelope = await ReadIdentityLinkedEnvelopeAsync(
+            scenario.ConnectionString);
+        Assert.AreEqual("1.0.0", envelope.SchemaVersion);
+        Assert.AreEqual("identity-tenancy", envelope.Source);
+        Assert.AreEqual("platform", envelope.ScopeKind);
+        Assert.IsNull(envelope.TenantId);
+        Assert.AreEqual(envelope.OccurredAtUtc, envelope.EffectiveAtUtc);
+        Assert.AreEqual(envelope.OccurredAtUtc, envelope.RecordedAtUtc);
+        Assert.AreEqual(userId, envelope.ActorId);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(envelope.CorrelationId));
+        Assert.AreEqual(attemptId, envelope.CausationId);
+        Assert.AreEqual("PlatformUser", envelope.AggregateType);
+        Assert.AreEqual(userId, envelope.AggregateId);
+        Assert.AreEqual(1L, envelope.AggregateVersion);
     }
 
     [TestMethod]
@@ -120,7 +135,7 @@ public sealed class IdentityLinkingIntegrationTests
         Assert.AreEqual(1L, await CountIdentityLinkedOutboxMessagesAsync(scenario.ConnectionString));
         Assert.AreEqual(
             1L,
-            await CountAuditEventsAsync(
+            await CountSecurityJournalEntriesAsync(
                 scenario.ConnectionString,
                 "identity_linked",
                 "rejected"),
@@ -225,7 +240,39 @@ public sealed class IdentityLinkingIntegrationTests
             ?? throw new InvalidOperationException("The row count returned null."));
     }
 
-    private static async Task<long> CountAuditEventsAsync(
+    private static async Task<IdentityLinkedEnvelope> ReadIdentityLinkedEnvelopeAsync(
+        string connectionString)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT "SchemaVersion", "Source", "ScopeKind", "TenantId", "OccurredAtUtc",
+                   "EffectiveAtUtc", "RecordedAtUtc", "ActorId", "CorrelationId", "CausationId",
+                   "AggregateType", "AggregateId", "AggregateVersion"
+            FROM identity.outbox_messages
+            WHERE "Type" = 'IdentityLinked'
+            """,
+            connection);
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.IsTrue(await reader.ReadAsync());
+        return new IdentityLinkedEnvelope(
+            reader.GetString(0),
+            reader.GetString(1),
+            reader.GetString(2),
+            reader.IsDBNull(3) ? null : reader.GetGuid(3),
+            reader.GetFieldValue<DateTimeOffset>(4),
+            reader.IsDBNull(5) ? null : reader.GetFieldValue<DateTimeOffset>(5),
+            reader.GetFieldValue<DateTimeOffset>(6),
+            reader.GetGuid(7),
+            reader.GetString(8),
+            reader.IsDBNull(9) ? null : reader.GetGuid(9),
+            reader.GetString(10),
+            reader.GetGuid(11),
+            reader.GetInt64(12));
+    }
+
+    private static async Task<long> CountSecurityJournalEntriesAsync(
         string connectionString,
         string action,
         string outcome)
@@ -244,4 +291,19 @@ public sealed class IdentityLinkingIntegrationTests
         return (long)(await command.ExecuteScalarAsync()
             ?? throw new InvalidOperationException("The audit count returned null."));
     }
+
+    private sealed record IdentityLinkedEnvelope(
+        string SchemaVersion,
+        string Source,
+        string ScopeKind,
+        Guid? TenantId,
+        DateTimeOffset OccurredAtUtc,
+        DateTimeOffset? EffectiveAtUtc,
+        DateTimeOffset RecordedAtUtc,
+        Guid ActorId,
+        string CorrelationId,
+        Guid? CausationId,
+        string AggregateType,
+        Guid AggregateId,
+        long AggregateVersion);
 }

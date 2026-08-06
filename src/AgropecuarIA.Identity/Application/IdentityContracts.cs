@@ -1,3 +1,5 @@
+using AgropecuarIA.Identity.Domain;
+
 namespace AgropecuarIA.Identity.Application;
 
 public sealed record IdentitySessionResult(
@@ -27,7 +29,70 @@ public sealed record StartedLinkAttempt(
     DateTimeOffset ExpiresAtUtc,
     string AuthorizationUrl);
 
-public sealed record IdentityRequestContext(string CorrelationId);
+public sealed record IdentityRequestContext
+{
+    private IdentityRequestContext(string correlationId, Guid? actorId, RequestScope scope)
+    {
+        if (string.IsNullOrWhiteSpace(correlationId) || correlationId.Length > 128)
+        {
+            throw new ArgumentException(
+                "Correlation ID must contain between 1 and 128 characters.",
+                nameof(correlationId));
+        }
+
+        if (actorId == Guid.Empty)
+        {
+            throw new ArgumentException("Actor ID cannot be empty.", nameof(actorId));
+        }
+
+        CorrelationId = correlationId;
+        ActorId = actorId;
+        Scope = scope ?? throw new ArgumentNullException(nameof(scope));
+    }
+
+    public string CorrelationId { get; }
+
+    public Guid? ActorId { get; }
+
+    public RequestScope Scope { get; }
+
+    public static IdentityRequestContext ForPlatform(string correlationId, Guid? actorId = null) =>
+        new(correlationId, actorId, RequestScope.Platform);
+
+    public static IdentityRequestContext ForTenant(
+        string correlationId,
+        Guid actorId,
+        Guid tenantId)
+    {
+        if (actorId == Guid.Empty)
+        {
+            throw new ArgumentException("Actor ID is required for tenant scope.", nameof(actorId));
+        }
+
+        return new IdentityRequestContext(
+            correlationId,
+            actorId,
+            RequestScope.ForTenant(tenantId));
+    }
+
+    public void RequirePlatform()
+    {
+        if (Scope is not RequestScope.PlatformRequestScope)
+        {
+            throw new InvalidOperationException("The identity operation requires platform scope.");
+        }
+    }
+
+    public void RequirePlatformActor(Guid expectedActorId)
+    {
+        RequirePlatform();
+        if (expectedActorId == Guid.Empty || ActorId != expectedActorId)
+        {
+            throw new InvalidOperationException(
+                "The identity operation requires the authenticated platform actor.");
+        }
+    }
+}
 
 public sealed class IdentityOperationException : Exception
 {
@@ -58,7 +123,7 @@ public static class IdentityErrors
         new("identity.session_required", 401, "A valid session is required.");
 
     public static IdentityOperationException RecentAuthenticationRequired() =>
-        new("identity.reauthentication_required", 409, "Recent authentication is required.");
+        new("identity.reauthentication_required", 403, "Recent authentication is required.");
 
     public static IdentityOperationException LinkAttemptConflict() =>
         new("identity.link_attempt_conflict", 409, "The link attempt is invalid, expired, consumed, or incomplete.");

@@ -12,6 +12,10 @@ Los datos se clasifican explícitamente:
 
 CUIT es dato fiscal/personal y no aparece en scope, cache key, métricas o autorización. `CorrelationId` tampoco concede autoridad.
 
+El directorio global que asigna un identificador opaco a `Organization` es platform-scoped y solo admite capacidades de bootstrap acotadas. La configuración y los recursos de esa organización son tenant-scoped; ser owner de una organización nunca concede autoridad platform. Esta distinción no resuelve ni presupone cardinalidad Organization↔CUIT.
+
+Cada módulo puede conservar un journal técnico append-only con hechos de seguridad propios para sostener la transacción local y la investigación de fallos. Ese journal permanece en el schema del módulo, no reemplaza `PlatformAuditEvent`/`TenantAuditEvent` ni permite consultar persistencia de Audit/Compliance. La proyección central futura cruza exclusivamente el puerto `AuditEventWriter`.
+
 ## HTTP
 
 - `401`: no existe una sesión autenticada válida.
@@ -31,6 +35,8 @@ Cada cambio revisa el mapa de consumidores y declara rango soportado. Primero se
 ## Eventos
 
 El envelope lleva `eventId`, tipo, versión, fuente, scope discriminado, tiempos `occurred/effective/recorded`, correlación/causación, agregado y versión monotónica. Un duplicado es no-op idempotente. Una versión anterior/repetida o un gap se cuarentena/ignora de forma observable sin mutación parcial. Un tipo/major desconocido no se reintenta indefinidamente.
+
+Todo contrato implementado se registra en `runtime-map.json` junto con su proyecto owner y versión. El build raíz ejecuta el fitness contra proyectos, modelo EF y OpenAPI reales; los fixtures R0 ya no son una aprobación suficiente por sí solos.
 
 ## Extracción futura
 

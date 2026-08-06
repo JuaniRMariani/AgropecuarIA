@@ -24,7 +24,11 @@ if (applyIdentityMigrations &&
         "Identity:ApplyMigrations can only be enabled in Development/Test. Use an explicit migrator in shared environments.");
 }
 
-builder.Services.AddProblemDetails();
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+        context.ProblemDetails.Extensions.Remove("traceId");
+});
 builder.Services.AddExceptionHandler<IdentityExceptionHandler>();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -124,6 +128,7 @@ builder.Services.AddRateLimiter(options =>
             .GetRequiredService<IdentityTelemetry>()
             .Record("request", "rate_limited");
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/problem+json";
         await context.HttpContext.Response.WriteAsJsonAsync(
             new
             {
@@ -133,6 +138,8 @@ builder.Services.AddRateLimiter(options =>
                 code = "request.rate_limited",
                 correlationId = context.HttpContext.TraceIdentifier,
             },
+            options: null,
+            contentType: "application/problem+json",
             cancellationToken);
     };
 });

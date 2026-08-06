@@ -10,10 +10,17 @@ internal static class EvidenceFixture
     internal static ConsumerMapDocument ConsumerMap() =>
         EvidenceLoader.LoadConsumerMap(PathFor("consumer-map.json"));
 
+    internal static RuntimeMapDocument RuntimeMap() =>
+        RuntimeMapLoader.Load(PathFor("runtime-map.json"));
+
     internal static ContractSnapshot Contract(string fileName) =>
         EvidenceLoader.LoadContractSnapshot(PathFor("fixtures", "contracts", fileName));
 
     internal static string ContractsDirectory() => PathFor("contracts");
+
+    internal static string IdentityOpenApiPath() => PathFor("contracts", "identity.openapi.yaml");
+
+    internal static string RepositoryRoot() => RepositoryLocator.FindRoot(AppContext.BaseDirectory);
 
     private static string PathFor(params string[] segments) =>
         segments.Aggregate(

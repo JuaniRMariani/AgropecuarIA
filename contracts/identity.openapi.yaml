@@ -95,6 +95,7 @@ paths:
               schema: { $ref: '#/components/schemas/LinkAttempt' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/ProviderUnavailable' }
@@ -114,6 +115,7 @@ paths:
               schema: { $ref: '#/components/schemas/IdentitySession' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
   /api/identity/identities/{identityId}:
@@ -131,6 +133,7 @@ paths:
         '204': { description: Identity unlinked }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
   /api/identity/session/revoke:
@@ -177,6 +180,7 @@ paths:
         '204': { description: Candidate proof attached to the attempt }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '404': { description: Endpoint absent outside Development/Test }
@@ -198,6 +202,11 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Authenticated session lacks the recent authentication required for this action
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     Conflict:
       description: Replay, stale authentication, ownership or concurrency conflict
       content:
@@ -206,7 +215,7 @@ components:
     RateLimited:
       description: Per-IP or per-session request limit exceeded
       content:
-        application/json:
+        application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     ProviderUnavailable:
       description: Configured OIDC provider or connection unavailable
@@ -227,7 +236,7 @@ components:
   schemas:
     Problem:
       type: object
-      additionalProperties: true
+      additionalProperties: false
       required: [type, title, status, code, correlationId]
       properties:
         type: { type: string, format: uri }
@@ -235,6 +244,7 @@ components:
         status: { type: integer, minimum: 400, maximum: 599 }
         code: { type: string }
         correlationId: { type: string }
+        retryable: { type: boolean }
     IdentityCapabilities:
       type: object
       additionalProperties: false

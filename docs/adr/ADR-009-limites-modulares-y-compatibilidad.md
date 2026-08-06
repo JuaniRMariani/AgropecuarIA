@@ -36,6 +36,8 @@ Productive Core posee la identidad y el ciclo de vida de `ManagementUnit`. Terri
 
 `Organization` permanece como tenant. CUIT no selecciona contexto ni concede permisos. La cardinalidad y titularidad legal Organization↔CUIT siguen bajo Product/Legal y pueden agregarse aditivamente; esta ADR no afirma soporte multi-CUIT ni habilita ARCA.
 
+El registro platform-scoped es solamente la entrada de directorio y bootstrap de `Organization`; configuración y recursos operativos permanecen tenant-scoped. Un owner tenant no obtiene capacidades platform. Los journals de seguridad locales append-only pertenecen al módulo que origina el hecho y no sustituyen los agregados ni el puerto de Audit/Compliance.
+
 El contexto interno es una unión discriminada `platform | tenant`. El servidor deriva tenant, actor y permisos de la sesión; correlation solo vincula diagnóstico. Operaciones platform usan permisos separados y nunca heredan privilegios tenant. Los errores de recurso ausente, ajeno o no autorizado convergen en `404`; `403` queda para capacidades no enumerantes, `409` para conflicto de dominio/idempotencia y `412` para `If-Match` fallido después de reautorizar.
 
 HTTP usa OpenAPI 3.1.x, JSON Schema 2020-12 y Problem Details RFC 9457. Mutaciones concurrentes usan ETag fuerte/`If-Match` según RFC 9110. Las colecciones usan cursor opaco y límite máximo 200. Respuestas y eventos son tolerantes a campos aditivos; requests siguen validación estricta.
@@ -51,6 +53,8 @@ Los eventos incluyen ID, tipo, versión, fuente, scope, tiempos, correlación/ca
 - Los clientes N-1 deben ignorar campos desconocidos; los schemas cerrados de los spikes no se promueven como contratos canónicos.
 - El shared contract kernel se limita a IDs, scope, correlación y versionado; no contiene dominio ni persistencia.
 - Cualquier nuevo edge, schema o contrato requiere actualizar registro, mapa y tests antes de integrar.
+- Desde el primer runtime R1, `runtime-map.json` vincula módulos implementados, composition roots y contratos reales. El fitness forma parte de la solución raíz e inspecciona referencias de proyecto, ownership EF/schema y OpenAPI; validar solo fixtures R0 no evita drift productivo.
+- La primera migración R1 es únicamente `expand`: mantiene nombres físicos y nullability compatibles con escritores N-1, mientras el escritor N y su modelo exigen el envelope completo. Índices/constraints contractuales y renombres físicos se difieren hasta retirar N-1 y demostrar el backfill en `AGRO-FND-003`.
 
 ## Evidencia y fuentes
 

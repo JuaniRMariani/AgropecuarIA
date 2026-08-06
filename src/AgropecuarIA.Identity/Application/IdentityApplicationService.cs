@@ -47,6 +47,7 @@ public sealed class IdentityApplicationService(
         IdentityRequestContext requestContext,
         CancellationToken cancellationToken)
     {
+        requestContext.RequirePlatform();
         try
         {
             ValidateVerifiedIdentity(verifiedIdentity);
@@ -86,7 +87,7 @@ public sealed class IdentityApplicationService(
         }
 
         IssuedSession issuedSession = IssueSession(userId);
-        dbContext.AuditEvents.Add(CreateAudit(
+        dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
             userId,
             issuedSession.SessionId,
             "sign_in",
@@ -108,7 +109,7 @@ public sealed class IdentityApplicationService(
                         identity.Subject == verifiedIdentity.Subject,
                     cancellationToken);
             IssuedSession concurrentSession = IssueSession(concurrentIdentity.UserId);
-            dbContext.AuditEvents.Add(CreateAudit(
+            dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
                 concurrentIdentity.UserId,
                 concurrentSession.SessionId,
                 "sign_in",
@@ -170,6 +171,7 @@ public sealed class IdentityApplicationService(
         IdentityRequestContext requestContext,
         CancellationToken cancellationToken)
     {
+        requestContext.RequirePlatformActor(session.UserId);
         ValidateConnection(connection);
         if (!IsRecentAuthentication(session))
         {
@@ -191,7 +193,7 @@ public sealed class IdentityApplicationService(
         DateTimeOffset expiresAtUtc = timeProvider.GetUtcNow().Add(runtimeOptions.LinkAttemptLifetime);
         LinkAttempt attempt = new(Guid.NewGuid(), session.UserId, session.SessionId, connection, expiresAtUtc);
         dbContext.LinkAttempts.Add(attempt);
-        dbContext.AuditEvents.Add(CreateAudit(
+        dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
             session.UserId,
             session.SessionId,
             "link_started",
@@ -215,6 +217,7 @@ public sealed class IdentityApplicationService(
         IdentityRequestContext requestContext,
         CancellationToken cancellationToken)
     {
+        requestContext.RequirePlatformActor(currentSession.UserId);
         try
         {
             ValidateVerifiedIdentity(candidate);
@@ -260,7 +263,7 @@ public sealed class IdentityApplicationService(
         }
 
         attempt.AttachCandidateProof(candidate);
-        dbContext.AuditEvents.Add(CreateAudit(
+        dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
             attempt.UserId,
             attempt.InitiatingSessionId,
             "link_proof_attached",
@@ -277,6 +280,7 @@ public sealed class IdentityApplicationService(
         IdentityRequestContext requestContext,
         CancellationToken cancellationToken)
     {
+        requestContext.RequirePlatformActor(currentSession.UserId);
         if (!IsRecentAuthentication(currentSession))
         {
             await AuditFailureAsync(
@@ -341,6 +345,9 @@ public sealed class IdentityApplicationService(
         }
 
         Guid linkedIdentityId = Guid.NewGuid();
+        PlatformUser user = await dbContext.Users
+            .SingleAsync(item => item.Id == currentSession.UserId, cancellationToken);
+        long aggregateVersion = user.NextVersion();
         dbContext.ExternalIdentities.Add(new ExternalIdentity(
             linkedIdentityId,
             currentSession.UserId,
@@ -354,8 +361,18 @@ public sealed class IdentityApplicationService(
             Guid.NewGuid(),
             "IdentityLinked",
             1,
+            IdentityOutboxMessage.CurrentSchemaVersion,
+            IdentityOutboxMessage.IdentitySource,
+            requestContext.Scope,
             now,
+            now,
+            now,
+            requestContext.ActorId!.Value,
+            requestContext.CorrelationId,
+            attempt.Id,
+            nameof(PlatformUser),
             currentSession.UserId,
+            aggregateVersion,
             JsonSerializer.Serialize(
                 new IdentityLinkedEvent(
                     currentSession.UserId,
@@ -363,7 +380,7 @@ public sealed class IdentityApplicationService(
                     attempt.Connection,
                     now),
                 EventSerializerOptions)));
-        dbContext.AuditEvents.Add(CreateAudit(
+        dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
             currentSession.UserId,
             currentSession.SessionId,
             "identity_linked",
@@ -376,7 +393,8 @@ public sealed class IdentityApplicationService(
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
-        catch (DbUpdateException)
+        catch (Exception exception) when (
+            exception is DbUpdateException or DbUpdateConcurrencyException)
         {
             await transaction.RollbackAsync(cancellationToken);
             dbContext.ChangeTracker.Clear();
@@ -399,6 +417,7 @@ public sealed class IdentityApplicationService(
         IdentityRequestContext requestContext,
         CancellationToken cancellationToken)
     {
+        requestContext.RequirePlatformActor(currentSession.UserId);
         if (!IsRecentAuthentication(currentSession))
         {
             await AuditFailureAsync(
@@ -444,7 +463,7 @@ public sealed class IdentityApplicationService(
         }
 
         dbContext.ExternalIdentities.Remove(identity);
-        dbContext.AuditEvents.Add(CreateAudit(
+        dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
             currentSession.UserId,
             currentSession.SessionId,
             "identity_unlinked",
@@ -478,6 +497,7 @@ public sealed class IdentityApplicationService(
         IdentityRequestContext requestContext,
         CancellationToken cancellationToken)
     {
+        requestContext.RequirePlatformActor(currentSession.UserId);
         UserSession session = await dbContext.Sessions
             .SingleOrDefaultAsync(
                 item => item.Id == currentSession.SessionId && item.UserId == currentSession.UserId,
@@ -485,7 +505,7 @@ public sealed class IdentityApplicationService(
             ?? throw IdentityErrors.SessionRequired();
 
         session.Revoke(timeProvider.GetUtcNow());
-        dbContext.AuditEvents.Add(CreateAudit(
+        dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
             currentSession.UserId,
             currentSession.SessionId,
             "session_revoked",
@@ -520,7 +540,7 @@ public sealed class IdentityApplicationService(
         IdentityRequestContext requestContext,
         CancellationToken cancellationToken)
     {
-        dbContext.AuditEvents.Add(CreateAudit(
+        dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
             session.UserId,
             session.SessionId,
             action,
@@ -531,7 +551,7 @@ public sealed class IdentityApplicationService(
         telemetry.Record(action, "rejected", connection);
     }
 
-    private IdentityAuditEvent CreateAudit(
+    private IdentitySecurityJournalEntry CreateSecurityJournalEntry(
         Guid? userId,
         Guid? sessionId,
         string action,
@@ -540,7 +560,7 @@ public sealed class IdentityApplicationService(
         IdentityRequestContext requestContext) =>
         new(
             Guid.NewGuid(),
-            userId,
+            requestContext.ActorId ?? userId,
             sessionId,
             action,
             outcome,

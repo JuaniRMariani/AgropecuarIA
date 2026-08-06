@@ -4,6 +4,7 @@ using System.Diagnostics.Metrics;
 using System.Security.Cryptography;
 using AgropecuarIA.Identity.Delivery;
 using AgropecuarIA.Identity.Tests.Infrastructure;
+using Npgsql;
 using System.Text.Json;
 
 namespace AgropecuarIA.Identity.Tests;
@@ -97,6 +98,10 @@ public sealed class IdentitySessionSecurityTests
         {
             using var response = await browser.GetAsync("/api/identity/session");
             statuses.Add(response.StatusCode);
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                await AssertRateLimitProblemAsync(response);
+            }
         }
 
         Assert.IsTrue(statuses.Contains(HttpStatusCode.TooManyRequests));
@@ -118,10 +123,51 @@ public sealed class IdentitySessionSecurityTests
             using var response = await browser.GetAsync("/api/identity/session");
             statuses.Add(response.StatusCode);
             Assert.IsTrue(response.Headers.CacheControl?.NoStore);
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                await AssertRateLimitProblemAsync(response);
+            }
         }
 
         Assert.IsTrue(statuses.Contains(HttpStatusCode.Unauthorized));
         Assert.IsTrue(statuses.Contains(HttpStatusCode.TooManyRequests));
+    }
+
+    [TestMethod]
+    public async Task SensitiveIdentityMutationWithStaleAuthenticationReturnsForbiddenProblem()
+    {
+        await using var scenario = await IdentityApiScenario.CreateAsync();
+        using var browser = scenario.CreateBrowser();
+        var antiforgeryToken = await IdentityApiTestActions.SignInAsync(browser, "email-owner");
+        using var session = await IdentityApiTestActions.GetSessionAsync(browser);
+        var userId = session.RootElement.GetProperty("userId").GetGuid();
+
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var command = new NpgsqlCommand(
+                """
+                UPDATE identity.sessions
+                SET "AuthenticatedAtUtc" = now() - interval '2 days'
+                WHERE "UserId" = @userId
+                """,
+                connection);
+            command.Parameters.AddWithValue("userId", userId);
+            Assert.AreEqual(1, await command.ExecuteNonQueryAsync());
+        }
+
+        using var response = await browser.PostAsync(
+            "/api/identity/link-attempts",
+            new Dictionary<string, string> { ["connection"] = "google" },
+            antiforgeryToken);
+
+        Assert.AreEqual(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.AreEqual("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        using var problem = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        AssertClosedProblemContract(problem.RootElement);
+        Assert.AreEqual(
+            "identity.reauthentication_required",
+            problem.RootElement.GetProperty("code").GetString());
     }
 
     [TestMethod]
@@ -228,7 +274,7 @@ public sealed class IdentitySessionSecurityTests
     [TestMethod]
     public async Task LogsDoNotContainTokensCookiesOrIdentityLabels()
     {
-        var telemetryTags = new ConcurrentQueue<string>();
+        var telemetryMeasurements = new ConcurrentQueue<IReadOnlyDictionary<string, object?>>();
         using var meterListener = new MeterListener();
         meterListener.InstrumentPublished = (instrument, listener) =>
         {
@@ -239,10 +285,13 @@ public sealed class IdentitySessionSecurityTests
         };
         meterListener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
         {
+            var measurementTags = new Dictionary<string, object?>(StringComparer.Ordinal);
             foreach (var tag in tags)
             {
-                telemetryTags.Enqueue($"{tag.Key}={tag.Value}");
+                measurementTags[tag.Key] = tag.Value;
             }
+
+            telemetryMeasurements.Enqueue(measurementTags);
         });
         meterListener.Start();
 
@@ -266,7 +315,9 @@ public sealed class IdentitySessionSecurityTests
         }
 
         var logs = string.Join(Environment.NewLine, scenario.Logs.Entries);
-        var metrics = string.Join(Environment.NewLine, telemetryTags);
+        var metrics = string.Join(
+            Environment.NewLine,
+            telemetryMeasurements.SelectMany(tags => tags.Select(tag => $"{tag.Key}={tag.Value}")));
         foreach (var sensitiveValue in sensitiveValues.Where(value => value.Length >= 4))
         {
             Assert.IsFalse(
@@ -277,6 +328,34 @@ public sealed class IdentitySessionSecurityTests
                 "A sensitive value was attached to an identity metric.");
         }
 
-        Assert.IsNotEmpty(telemetryTags, "Identity operations must emit diagnostic metrics.");
+        Assert.IsNotEmpty(telemetryMeasurements, "Identity operations must emit diagnostic metrics.");
+        foreach (IReadOnlyDictionary<string, object?> measurement in telemetryMeasurements)
+        {
+            Assert.AreEqual("1.0.0", measurement["contract.version"]);
+            Assert.AreEqual("identity-api", measurement["contract.consumer"]);
+        }
+    }
+
+    private static async Task AssertRateLimitProblemAsync(HttpResponseMessage response)
+    {
+        Assert.AreEqual("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        using var problem = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        AssertClosedProblemContract(problem.RootElement);
+        Assert.AreEqual("request.rate_limited", problem.RootElement.GetProperty("code").GetString());
+        Assert.AreEqual(429, problem.RootElement.GetProperty("status").GetInt32());
+    }
+
+    private static void AssertClosedProblemContract(JsonElement problem)
+    {
+        string[] allowedProperties = ["type", "title", "status", "code", "correlationId"];
+        string[] actualProperties = problem.EnumerateObject()
+            .Select(property => property.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        CollectionAssert.AreEquivalent(
+            allowedProperties,
+            actualProperties,
+            $"Unexpected Problem Details fields: {string.Join(", ", actualProperties)}");
     }
 }

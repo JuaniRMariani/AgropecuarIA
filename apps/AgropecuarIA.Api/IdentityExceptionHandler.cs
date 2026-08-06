@@ -56,7 +56,6 @@ public sealed class IdentityExceptionHandler(
             Status = statusCode,
             Title = title,
             Type = $"https://agropecuaria.local/problems/{code}",
-            Instance = httpContext.Request.Path,
         };
         problem.Extensions["code"] = code;
         problem.Extensions["correlationId"] = httpContext.TraceIdentifier;

@@ -15,7 +15,8 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
     public DbSet<LinkAttempt> LinkAttempts => Set<LinkAttempt>();
 
-    public DbSet<IdentityAuditEvent> AuditEvents => Set<IdentityAuditEvent>();
+    public DbSet<IdentitySecurityJournalEntry> SecurityJournalEntries =>
+        Set<IdentitySecurityJournalEntry>();
 
     public DbSet<IdentityOutboxMessage> OutboxMessages => Set<IdentityOutboxMessage>();
 
@@ -29,6 +30,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.HasKey(item => item.Id);
             entity.Property(item => item.DisplayName).HasMaxLength(160).IsRequired();
             entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
         });
 
         modelBuilder.Entity<ExternalIdentity>(entity =>
@@ -96,8 +98,9 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<IdentityAuditEvent>(entity =>
+        modelBuilder.Entity<IdentitySecurityJournalEntry>(entity =>
         {
+            // Keep the original physical table during the N/N-1 expansion window.
             entity.ToTable("audit_events");
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Action).HasMaxLength(64).IsRequired();
@@ -110,14 +113,41 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
         modelBuilder.Entity<IdentityOutboxMessage>(entity =>
         {
-            entity.ToTable("outbox_messages");
+            entity.ToTable(
+                "outbox_messages",
+                table => table.HasCheckConstraint(
+                    "CK_outbox_messages_Scope",
+                    "(\"ScopeKind\" = 'platform' AND \"TenantId\" IS NULL) OR " +
+                    "(\"ScopeKind\" = 'tenant' AND \"TenantId\" IS NOT NULL)"));
             entity.HasKey(item => item.EventId);
             entity.Property(item => item.Type).HasMaxLength(128).IsRequired();
             entity.Property(item => item.Version).IsRequired();
+            entity.Property(item => item.SchemaVersion).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.Source).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.ScopeKind).HasMaxLength(16).IsRequired();
             entity.Property(item => item.OccurredAtUtc).IsRequired();
+            entity.Property(item => item.RecordedAtUtc).IsRequired();
+            entity.Property(item => item.ActorId).IsRequired();
+            entity.Property(item => item.CorrelationId).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.AggregateType).HasMaxLength(128).IsRequired();
             entity.Property(item => item.AggregateId).IsRequired();
+            entity.Property(item => item.AggregateVersion).IsRequired();
             entity.Property(item => item.Payload).HasColumnType("jsonb").IsRequired();
             entity.HasIndex(item => new { item.DispatchedAtUtc, item.OccurredAtUtc });
+            entity.HasIndex(item => new
+            {
+                item.Source,
+                item.ScopeKind,
+                item.TenantId,
+                item.AggregateType,
+                item.AggregateId,
+                item.AggregateVersion,
+            })
+                .IsUnique()
+                .HasFilter(
+                    "\"Source\" IS NOT NULL AND \"ScopeKind\" IS NOT NULL AND " +
+                    "\"AggregateType\" IS NOT NULL AND \"AggregateVersion\" IS NOT NULL")
+                .AreNullsDistinct(false);
         });
     }
 }

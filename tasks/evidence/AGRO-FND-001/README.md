@@ -1,6 +1,6 @@
 # AGRO-FND-001 — límites modulares y contratos compatibles
 
-Evidencia ejecutable R0 que ratifica 15 bounded contexts, ownership de datos, dependencias permitidas y la política N/N-1. No es código productivo, no contiene API/UI ni promueve los spikes `AGRO-DIS-003/004`.
+Evidencia ejecutable R0/R1 que ratifica 15 bounded contexts, ownership de datos, dependencias permitidas y la política N/N-1. Desde R1 el fitness está integrado en la solución raíz e inspecciona el runtime Identity real; no promueve los spikes `AGRO-DIS-003/004` ni implementa otros módulos.
 
 ## Decisiones centrales
 
@@ -14,15 +14,15 @@ Evidencia ejecutable R0 que ratifica 15 bounded contexts, ownership de datos, de
 
 ## Verificación
 
-Desde `fitness`:
+Desde la raíz del repositorio:
 
 ```powershell
-dotnet restore AgropecuarIA.ArchitectureFitness.slnx --locked-mode
-dotnet build AgropecuarIA.ArchitectureFitness.slnx --no-restore
-dotnet test --solution AgropecuarIA.ArchitectureFitness.slnx --no-build --minimum-expected-tests 42
-dotnet format AgropecuarIA.ArchitectureFitness.slnx --verify-no-changes --no-restore
+dotnet restore AgropecuarIA.slnx --locked-mode
+dotnet build AgropecuarIA.slnx --configuration Release --no-restore
+dotnet test --solution AgropecuarIA.slnx --configuration Release --no-build --minimum-expected-tests 77
+dotnet format AgropecuarIA.slnx --verify-no-changes --no-restore
 ```
 
-El ensayo real `expand → backfill → contract` sobre staging, backup/restore y roll-forward pertenece a `AGRO-FND-003`/`AGRO-PLT-004`; no se simula aquí.
+`runtime-map.json` registra los proyectos y composition roots productivos. La migración R1 aplica solo la fase `expand`: conserva la tabla física `identity.audit_events` para N-1, permite temporalmente escritores N-1 en el outbox y exige el envelope completo en el modelo/aplicación N. El `contract` de columnas/tablas, backfill reanudable sobre volumen y ensayo staging/backup/restore pertenecen a `AGRO-FND-003`/`AGRO-PLT-004`.
 
 Resultados completos y revisión independiente: [`validation-report.md`](validation-report.md).

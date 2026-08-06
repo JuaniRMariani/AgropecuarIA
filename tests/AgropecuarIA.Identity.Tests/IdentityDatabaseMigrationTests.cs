@@ -82,7 +82,7 @@ public sealed class IdentityDatabaseMigrationTests
             )
             """), "Identity-owned rows must retain database-enforced user relationships.");
 
-        Guid auditId = Guid.NewGuid();
+        Guid journalEntryId = Guid.NewGuid();
         await using (var insert = new NpgsqlCommand(
             """
             INSERT INTO identity.audit_events
@@ -92,17 +92,137 @@ public sealed class IdentityDatabaseMigrationTests
             """,
             connection))
         {
-            insert.Parameters.AddWithValue("id", auditId);
+            insert.Parameters.AddWithValue("id", journalEntryId);
             await insert.ExecuteNonQueryAsync();
         }
 
         await using var mutation = new NpgsqlCommand(
             "UPDATE identity.audit_events SET \"Outcome\" = 'changed' WHERE \"Id\" = @id",
             connection);
-        mutation.Parameters.AddWithValue("id", auditId);
+        mutation.Parameters.AddWithValue("id", journalEntryId);
         PostgresException rejection = await Assert.ThrowsExactlyAsync<PostgresException>(
             () => mutation.ExecuteNonQueryAsync());
         Assert.AreEqual(PostgresErrorCodes.ObjectNotInPrerequisiteState, rejection.SqlState);
+
+        Assert.IsTrue(await ScalarBooleanAsync(
+            connection,
+            "SELECT to_regclass('identity.audit_events') IS NOT NULL"));
+        Assert.IsFalse(await ScalarBooleanAsync(
+            connection,
+            "SELECT to_regclass('identity.security_journal_entries') IS NOT NULL"));
+        Assert.IsTrue(await ScalarBooleanAsync(
+            connection,
+            "SELECT to_regclass('identity.\"IX_audit_events_UserId_OccurredAtUtc\"') IS NOT NULL"));
+    }
+
+    [TestMethod]
+    public async Task FoundationMigrationPreservesJournalAndBackfillsLegacyOutboxEnvelope()
+    {
+        await using var scenario = await IdentityApiScenario.CreateAsync();
+        var options = new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseNpgsql(scenario.ConnectionString)
+            .Options;
+        await using var dbContext = new IdentityDbContext(options);
+        IMigrator migrator = dbContext.Database.GetService<IMigrator>();
+        await migrator.MigrateAsync("20260806002243_InitialIdentity");
+
+        var userId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        var journalEntryId = Guid.NewGuid();
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var insert = new NpgsqlCommand(
+                """
+                INSERT INTO identity.users ("Id", "DisplayName", "CreatedAtUtc")
+                VALUES (@userId, 'Legacy user', '2026-01-02T03:04:05Z');
+
+                INSERT INTO identity.outbox_messages
+                    ("EventId", "Type", "Version", "OccurredAtUtc", "AggregateId", "Payload", "DispatchedAtUtc")
+                VALUES
+                    (@eventId, 'IdentityLinked', 1, '2026-01-02T03:05:00Z', @userId, '{}'::jsonb, NULL);
+
+                INSERT INTO identity.audit_events
+                    ("Id", "UserId", "SessionId", "Action", "Outcome", "Connection", "CorrelationId", "OccurredAtUtc")
+                VALUES
+                    (@journalEntryId, @userId, NULL, 'identity_linked', 'succeeded', 'google', 'legacy-correlation', '2026-01-02T03:05:00Z');
+                """,
+                connection);
+            insert.Parameters.AddWithValue("userId", userId);
+            insert.Parameters.AddWithValue("eventId", eventId);
+            insert.Parameters.AddWithValue("journalEntryId", journalEntryId);
+            await insert.ExecuteNonQueryAsync();
+        }
+
+        await migrator.MigrateAsync();
+
+        var nMinusOneEventId = Guid.NewGuid();
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var legacyWriter = new NpgsqlCommand(
+                """
+                INSERT INTO identity.outbox_messages
+                    ("EventId", "Type", "Version", "OccurredAtUtc", "AggregateId", "Payload", "DispatchedAtUtc")
+                VALUES
+                    (@eventId, 'IdentityLinked', 1, '2026-01-02T03:06:00Z', @userId, '{}'::jsonb, NULL);
+
+                INSERT INTO identity.audit_events
+                    ("Id", "UserId", "SessionId", "Action", "Outcome", "Connection", "CorrelationId", "OccurredAtUtc")
+                VALUES
+                    (@journalEntryId, @userId, NULL, 'n_minus_one_probe', 'succeeded', NULL, 'n-minus-one', '2026-01-02T03:06:00Z');
+                """,
+                connection);
+            legacyWriter.Parameters.AddWithValue("eventId", nMinusOneEventId);
+            legacyWriter.Parameters.AddWithValue("userId", userId);
+            legacyWriter.Parameters.AddWithValue("journalEntryId", Guid.NewGuid());
+            await legacyWriter.ExecuteNonQueryAsync();
+        }
+
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var envelope = new NpgsqlCommand(
+                """
+                SELECT "SchemaVersion", "Source", "ScopeKind", "TenantId", "EffectiveAtUtc",
+                       "RecordedAtUtc", "ActorId", "CorrelationId", "AggregateType", "AggregateVersion"
+                FROM identity.outbox_messages
+                WHERE "EventId" = @eventId
+                """,
+                connection);
+            envelope.Parameters.AddWithValue("eventId", eventId);
+            await using var reader = await envelope.ExecuteReaderAsync();
+            Assert.IsTrue(await reader.ReadAsync());
+            Assert.AreEqual("1.0.0", reader.GetString(0));
+            Assert.AreEqual("identity-tenancy", reader.GetString(1));
+            Assert.AreEqual("platform", reader.GetString(2));
+            Assert.IsTrue(reader.IsDBNull(3));
+            Assert.AreEqual(reader.GetFieldValue<DateTimeOffset>(4), reader.GetFieldValue<DateTimeOffset>(5));
+            Assert.AreEqual(userId, reader.GetGuid(6));
+            StringAssert.StartsWith(reader.GetString(7), "legacy-");
+            Assert.AreEqual("PlatformUser", reader.GetString(8));
+            Assert.AreEqual(1L, reader.GetInt64(9));
+        }
+
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var verify = new NpgsqlCommand(
+                """
+                SELECT
+                    (SELECT "Version" FROM identity.users WHERE "Id" = @userId) = 1
+                    AND EXISTS (
+                        SELECT 1
+                        FROM identity.audit_events
+                        WHERE "Id" = @journalEntryId)
+                    AND to_regclass('identity.audit_events') IS NOT NULL
+                """,
+                connection);
+            verify.Parameters.AddWithValue("userId", userId);
+            verify.Parameters.AddWithValue("journalEntryId", journalEntryId);
+            Assert.IsTrue((bool)(await verify.ExecuteScalarAsync()
+                ?? throw new InvalidOperationException("The migration verification returned null.")));
+        }
     }
 
     [TestMethod]

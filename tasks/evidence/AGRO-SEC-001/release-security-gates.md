@@ -8,6 +8,8 @@ Una frontera o proveedor nuevo entra a la Definition of Ready únicamente cuando
 
 Los gates conservan explícitas las preguntas abiertas: Q-054/Q-055 para modelo comercial, controlador, titularidad y delegación; Q-058 para proveedor/región de IA y clima; Q-060 para SLA, soporte y retención. Ningún default técnico R0 responde esas preguntas ni habilita producción.
 
+`ADR-PEND-007` está aceptada para desarrollo R1 con implementación runtime pendiente. El spike `AGRO-DIS-003` demuestra que un principal de discovery read-only/no privilegiado, actor transaccional y policies separadas son viables; el gate R1 exige reimplementar esa decisión en migraciones, configuración y pruebas del runtime. Referenciar o ejecutar el spike no satisface el gate.
+
 | Gate | Evidencia mínima | Go | No-go | Owner accountable |
 |---|---|---|---|---|
 | R0 — arquitectura y discovery | Fronteras, activos, proveedores candidatos, clases de datos, abuso, owner, prueba futura y gaps explícitos | Registro válido y ningún crítico sin owner | Supuesto presentado como control, proveedor aprobado o dictamen legal | AppSec/Privacy + Architecture |
@@ -26,11 +28,12 @@ El gate agregado no declara R1 completa: evita que una capacidad ya integrada si
 |---|---|---|
 | Identity/OIDC y sesiones | API/configuración fail-closed, cookie/CSRF/rate limit/no-store, reauth `max_age/auth_time`, sesión revocada y ausencia de endpoints sintéticos en Production | Auth0 real, edge/TLS, email, DPA/región, logout y provider-down en ambiente compartido |
 | Linking y step-up | Binding usuario+sesión+identidad+purpose, TTL, one-shot, replay/concurrencia, ACR/AMR y rotación de sesión contra PostgreSQL real | Lifecycle passkey/TOTP/recovery, notificación y enforcement por roles |
+| Discovery de membresías — evidencia R0 previa | PostgreSQL real demuestra principal exacto read-only, `NOINHERIT`/`NOBYPASSRLS`, sin ownership, actor server-side con `SET LOCAL`, policies actor-scoped, 0/1/N, revocación, límite y limpieza de pool; harness local con SCRAM-SHA-256 y ACL owner-only | No es parte del runtime ni autoriza deploy: faltan migración forward-safe R1, migrator separado, secretos administrados, grants por capacidad, roles/alcances definitivos y revalidación A/B/sin contexto/pool/jobs en la solución integrada |
 | Persistencia y contratos FND | Migraciones aditivas N/N-1, trigger local que bloquea UPDATE/DELETE del journal, outbox tipado, schema/mapa/fitness y modelo EF sin drift | WORM/principal separado, RLS tenant, dispatcher/inbox/idempotency genérica, backfill contract, backup/restore compartido |
 | Web Identity | pnpm frozen, TypeScript estricto, estados accesibles, loader regional y E2E desktop/mobile | Matriz de navegador/dispositivo aprobada, CSP/edge real y contextos tenant |
 | Supply chain local | SDK/tools/dependencias fijados, restore locked/frozen, SCA y secrets scan | CI protegida, workload identity, SBOM, provenance, firma y registro |
 
-Para registrar `GO local`, el validador SEC, las pruebas de abuso afectadas y los gates build/format/SCA deben pasar desde el estado combinado. Un test omitido, un endpoint runtime sin amenaza/control o una declaración que degrade runtime a “futuro” falla el incremento.
+Para registrar `GO local`, el validador SEC, las pruebas de abuso afectadas y los gates build/format/SCA deben pasar desde el estado combinado. Un test omitido, un endpoint runtime sin amenaza/control, una declaración que degrade runtime a “futuro” o la atribución de un control R0 descartable al runtime falla el incremento.
 
 ## Revisión de una nueva frontera
 

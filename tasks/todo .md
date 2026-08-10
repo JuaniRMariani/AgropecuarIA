@@ -1034,3 +1034,49 @@ Estado inicial: `En revisión`. El sponsor aprobó continuar con la candidata re
 - Contratos/documentación: 4 JSON válidos y UTF-8; discovery es contrato conceptual interno, no endpoint independiente; cero memberships conserva estado interno pero el HTTP histórico responde 403.
 - Estado: `AGRO-DIS-003` continúa `En revisión` por Auth0/Legal/runtime productivo. `ADR-PEND-007` queda aceptada para desarrollo R1, no implementada en producción.
 - No hubo cambios en `src/**`, `apps/**`, `tests/**`, frontend, migraciones EF, CI o deploy. Autoevaluación: 96/100; cero gate obligatorio fallido.
+
+## Iteración 22 — AGRO-SEC-001 refresh de tenancy/RLS R0 (2026-08-10)
+
+Estado inicial: `En curso`. El líder seleccionó la única tarea activa con un incremento local legítimo después de `AGRO-DIS-003`; clasificación R0/R1 de threat modeling y gate continuo. No implementa `AGRO-FND-002`, runtime tenant ni controles productivos.
+
+### DoR, outcome y alcance
+
+- [x] Confirmar repositorio limpio y `main` sincronizado en `014fb48`.
+- [x] Confirmar que `ADR-PEND-007` ahora está aceptada para desarrollo R1 y que el discovery actor-scoped pasó PostgreSQL/SCRAM/RLS, pero sigue siendo spike descartable.
+- [x] Detectar drift factual: `TM-001`, clasificación e inventario aún dicen que ADR/discovery están abiertos y que el harness usa `trust`.
+- [x] Mantener el riesgo tenant como crítico hasta repetir el patrón en runtime productivo; no promover el spike a `integrated-local` ni inventar una nueva superficie HTTP.
+- [x] Fijar contexto: SaaS online multiempresa argentino, `Organization` tenant técnico, runtime local no desplegado, Auth0/hosting/Legal externos y sin datos reales.
+
+### Plan verificable
+
+- [x] Reconciliar `TM-001` y documentos humanos con la decisión RLS/discovery aceptada, separando evidencia R0 de controles runtime.
+- [x] Actualizar clasificación/inventario: SCRAM, secretos efímeros/ACL, principal discovery fail-fast y gates productivos restantes.
+- [x] Endurecer el validador para rechazar declaraciones obsoletas sobre `ADR-PEND-007`, discovery pendiente o harness `trust`, con mutation self-test.
+- [x] Anexar evidencia reproducible al validation report sin reescribir el historial R0/R1 previo.
+- [x] Ejecutar validator/self-tests, JSON/UTF-8/secrets/diff-check y gates documentales aplicables.
+- [x] Obtener revisión independiente QA y AppSec/Arquitectura, resolver hallazgos y conservar `AGRO-SEC-001` `En curso`.
+- [x] Commit/push autorizado; detenerse sin iniciar `AGRO-FND-002`.
+
+### Ownership disjunto
+
+- Principal: selección, `tasks/todo .md`, validation report, integración, gates y Git.
+- AppSec/Data: `threat-register.json`, clasificación, inventario y validador; no edita informe principal.
+- Architecture: threat model humano y release gates; no edita registros JSON/validador.
+- Principal QA: revisión final read-only y reproducción de gates.
+
+### Baseline
+
+- `validate-threat-model.ps1 -SelfTest`: `PASS`, 15/15 mutations; 14 amenazas, 7 críticas y 7 altas, ninguna crítica sin owner/test/gate.
+- JSON parse: `PASS` para threat register y runtime surface register.
+- Git: worktree limpio; no se cambia backlog ni código productivo.
+
+### Review final
+
+- Resultado: `PASS` del refresh R0/R1. El modelo, registro, clasificación e inventario reconocen `ADR-PEND-007` y las 29/29 pruebas del spike descartable sin atribuir RLS/discovery al runtime productivo.
+- Gate afectado: `validate-threat-model.ps1 -SelfTest` `PASS`, 24/24 mutation tests; 14 amenazas (7 críticas/7 altas), ninguna crítica sin owner/test/gate. Las seis mutations positivas impiden perder silenciosamente ADR aceptada, 29/29, SCRAM, secretos distintos, ACL owner-only o fail-fast del principal; otras tres impiden reintroducir los claims obsoletos.
+- Calidad documental: ambos JSON válidos; UTF-8 estricto, parser PowerShell, secret scan dirigido y `git diff --check` `PASS`.
+- Revisión independiente QA y AppSec/Arquitectura: `PASS`, cero hallazgos críticos, altos o medios después de corregir la falta de mutations positivas. La simplificación del diagrama R0 queda como observación informativa; las fronteras sintética y de bootstrap están descritas en narrativa, tabla y gates.
+- Gates .NET/frontend/EF/PostgreSQL/E2E/SCA: `N/A` para este diff exclusivamente documental; no se reutilizan resultados previos como sustituto del validador modificado.
+- Estado: `AGRO-SEC-001` continúa `En curso` por ser gate multirelease. Tenant/RLS productivo, Auth0/hosting, CI/provenance, auditoría central, backup y decisiones Legal/retención siguen `NO-GO`.
+- Siguiente candidato: `AGRO-FND-002`, sin iniciar. Antes necesita un consumidor tenant real y semánticas aprobadas de auditoría, orden, retry/poison e idempotencia/retención.
+- Autoevaluación: 95/100; cero gate obligatorio fallido, sin cambios de producto, contrato, migración, configuración, manifiestos o lockfiles.

@@ -134,3 +134,38 @@ La reauditoría final QA y AppSec/Arquitectura fue `PASS`: 0 hallazgos críticos
 Permanecen `NO-GO` para ambiente compartido/Internet: Auth0 real y lifecycle de factores; tenant/RLS/roles/grants DB; edge, HSTS, allow-list de hosts/proxy, key ring compartido y limiter distribuido; collector/retención OTLP; CI/SBOM/provenance/firma; auditoría central, backup/restore administrado, región/DPA/retención y canales de notificación. Los endpoints sintéticos deben estar físicamente ausentes fuera de Development/Test.
 
 `AGRO-SEC-001` permanece `En curso`: este incremento demuestra el gate local Identity/FND, pero la tarea multirelease exige reevaluación por slice y conserva gates externos R1–R6.
+
+## Refresh R0/R1 de tenancy y discovery — 2026-08-10
+
+### Resultado y alcance
+
+El registro se reconcilió después del incremento técnico de `AGRO-DIS-003`. `ADR-PEND-007` está aceptada para desarrollo R1 y el spike descartable demuestra discovery actor-scoped con PostgreSQL real, `FORCE RLS`, principal read-only/no privilegiado, contexto transaccional, SCRAM-SHA-256, secretos efímeros separados y ACL owner-only. Esa evidencia reduce incertidumbre de diseño, pero no forma parte de `AgropecuarIA.slnx`, `src/` o `apps/` y no se atribuye al runtime productivo.
+
+`TM-001` conserva prioridad `critical`: Identity integrado sigue platform-scoped y todavía no existen recurso tenant productivo, migraciones RLS, principals app/job/migrator separados, `SET LOCAL`, suite A/B/sin contexto/pool/jobs/grants, cache, archivos, exporte o retrieval tenant-safe.
+
+### Gate de drift
+
+El validador ahora exige que `TM-001` conserve explícitos los seis controles R0 aceptados y rechaza tres declaraciones obsoletas: ADR/discovery todavía abiertos, tenant/RLS esperando ADR y autenticación `trust`. Nueve mutation self-tests nuevos demuestran que la pérdida de cada evidencia positiva o la reintroducción de cada declaración obsoleta rompe el gate. Se preservaron los 14 IDs, 7 prioridades críticas, 7 altas y Q-054/055/058/060.
+
+```text
+validate-threat-model.ps1 -SelfTest
+PASS — 24/24 mutations; 14 threats; 7 critical; 7 high; 0 critical without owner/test/gate.
+
+Threat/runtime JSON parse
+PASS — 2/2.
+
+UTF-8 strict
+PASS — 7 changed SEC artifacts.
+
+PowerShell parser
+PASS — validate-threat-model.ps1.
+
+git diff --check
+PASS.
+```
+
+Build, tests .NET/frontend, EF y SCA quedan `N/A` para este refresh: no cambia código productivo, proyectos, contratos runtime, migraciones, manifiestos ni lockfiles. Los gates funcionales 114/114, Vitest 23/23 y E2E 4/4 permanecen como evidencia del incremento local anterior, no se reutilizan como sustituto del validador SEC afectado.
+
+### Estado y riesgos residuales
+
+`AGRO-SEC-001` continúa `En curso` por ser un gate R0–R6. Permanecen `NO-GO` tenant runtime, Auth0/hosting compartido, CI/provenance, auditoría central, backup administrado y las decisiones Legal/retención. Este refresh no inicia `AGRO-FND-002` ni resuelve su consumidor tenant, retry/poison, idempotencia o auditoría.

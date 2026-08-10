@@ -499,6 +499,22 @@ function Test-R1Evidence {
         }
     }
 
+    $tm001 = @($Register.threats | Where-Object { $_.id -eq 'TM-001' }) | Select-Object -First 1
+    if ($null -ne $tm001) {
+        $tm001Controls = @($tm001.existingControls) -join ' '
+        foreach ($requiredRlsEvidence in @(
+            'Accepted ADR-PEND-007',
+            '29/29 internal tests',
+            'SCRAM-SHA-256',
+            'four distinct ephemeral passwords',
+            'owner-only ACLs',
+            'discovery fails fast')) {
+            if (-not $tm001Controls.Contains($requiredRlsEvidence)) {
+                $errors.Add("TM-001 must keep accepted disposable RLS evidence explicit: $requiredRlsEvidence.")
+            }
+        }
+    }
+
     $surfaceExpectations = [ordered]@{
         'RS-001' = 'integrated-local'
         'RS-002' = 'integrated-local'
@@ -532,7 +548,10 @@ function Test-ObsoleteDeclarations {
         'No production SDK, collector, backend access or retention policy exists',
         'No root product lockfiles, CI identity, provenance or artifact signing exists',
         'los lockfiles actuales pertenecen a spikes aislados',
-        'No production mutation, outbox/inbox or N/N-1 migration drill exists'
+        'No production mutation, outbox/inbox or N/N-1 migration drill exists',
+        'ADR-PEND-007 and safe membership discovery remain open',
+        'NO-GO tenant/RLS hasta ADR-PEND-007',
+        'Los probes loopback con `trust` no se promueven.'
     )
     foreach ($declaration in $obsoleteDeclarations) {
         if (@($Contents | Where-Object { $_.Contains($declaration) }).Count -gt 0) {
@@ -606,6 +625,27 @@ function Invoke-MutationTests {
     $missingThreatGateTest.threats[1].requiredTests = @('Only a generic test')
     $cases['missing-r1-gate-test'] = (Test-R1Evidence -Register $missingThreatGateTest -SurfaceRegister $SurfaceRegister).Count -gt 0
 
+    $rlsEvidenceMutations = [ordered]@{
+        'accepted-adr' = 'Accepted ADR-PEND-007'
+        'internal-tests' = '29/29 internal tests'
+        'scram' = 'SCRAM-SHA-256'
+        'distinct-passwords' = 'four distinct ephemeral passwords'
+        'owner-only-acl' = 'owner-only ACLs'
+        'principal-fail-fast' = 'discovery fails fast'
+    }
+    foreach ($mutationName in $rlsEvidenceMutations.Keys) {
+        $missingRlsEvidence = Copy-Register $Register
+        $token = $rlsEvidenceMutations[$mutationName]
+        $missingRlsEvidence.threats[0].existingControls = @(
+            $missingRlsEvidence.threats[0].existingControls | ForEach-Object {
+                ([string] $_).Replace($token, '[removed positive RLS evidence]')
+            }
+        )
+        $cases["missing-r1-rls-evidence-$mutationName"] = (Test-R1Evidence `
+            -Register $missingRlsEvidence `
+            -SurfaceRegister $SurfaceRegister).Count -gt 0
+    }
+
     $unsafeDevelopmentSurface = Copy-Register $SurfaceRegister
     $unsafeDevelopmentSurface.surfaces[3].control = 'Synthetic provider is available.'
     $unsafeDevelopmentSurface.surfaces[3].gate = 'Environment boundary is unspecified.'
@@ -616,6 +656,18 @@ function Invoke-MutationTests {
     $cases['external-no-go-gate'] = (Test-RuntimeSurfaceRegister -SurfaceRegister $missingExternalGate -ThreatRegister $Register).Count -gt 0
 
     $cases['obsolete-r0-declaration'] = (Test-ObsoleteDeclarations -Contents @('No root product lockfiles, CI identity, provenance or artifact signing exists')).Count -gt 0
+
+    $staleAcceptedRlsDecision = Copy-Register $Register
+    $staleAcceptedRlsDecision.threats[0].gaps += 'ADR-PEND-007 and safe membership discovery remain open'
+    $cases['obsolete-accepted-rls-decision'] = (Test-ObsoleteDeclarations -Contents @(
+        ($staleAcceptedRlsDecision | ConvertTo-Json -Depth 100)
+    )).Count -gt 0
+    $cases['obsolete-tenant-gate-awaits-adr'] = (Test-ObsoleteDeclarations -Contents @(
+        'NO-GO tenant/RLS hasta ADR-PEND-007'
+    )).Count -gt 0
+    $cases['obsolete-trust-authentication'] = (Test-ObsoleteDeclarations -Contents @(
+        'Los probes loopback con `trust` no se promueven.'
+    )).Count -gt 0
 
     $failed = @($cases.GetEnumerator() | Where-Object { -not $_.Value })
     foreach ($case in $cases.GetEnumerator()) {

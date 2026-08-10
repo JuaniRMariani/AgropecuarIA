@@ -8,7 +8,7 @@
 
 - **Runtime R1 local integrado:** `apps/AgropecuarIA.Api`, `src/AgropecuarIA.Identity`, `apps/web` y sus pruebas ejecutan autenticación/sesión, linking y step-up contra PostgreSQL local. Es código de producto ejecutable, no evidencia de un entorno compartido.
 - **Solo Development/Test:** el proveedor OIDC sintético, endpoints de autenticación sintética y configuración local existen únicamente para desarrollo/pruebas; no constituyen un IdP externo ni pueden habilitarse en otro ambiente.
-- **Evidencia R0 descartable:** `tasks/evidence/AGRO-DIS-*` demuestra contratos o mecánica con fixtures sintéticos. No es runtime integrado ni se promueve como scaffold.
+- **Evidencia R0 descartable:** `tasks/evidence/AGRO-DIS-*` demuestra contratos o mecánica con fixtures sintéticos. En particular, `AGRO-DIS-003` aprobó internamente la decisión RLS/discovery con SCRAM-SHA-256 local/TCP, cuatro secretos efímeros distintos, archivos con ACL exclusiva del usuario actual y validación fail-fast del principal discovery exacto. No es runtime integrado ni se promueve como scaffold.
 - **Externo/compartido/productivo:** Auth0, hosting, edge, collector OTLP, PostgreSQL administrado, regiones, DPA, retención y credenciales reales siguen ausentes o sin aprobación.
 - **CI/release:** existen lockfiles de NuGet y pnpm para el producto, pero no pipeline, identidad de workload, SBOM, provenance, firma ni registro de artefactos.
 
@@ -90,7 +90,7 @@ El drill sintético de `AGRO-DIS-005` demuestra mecánica local de hold/purga/re
 
 | Superficie | Datos/riesgo principal | Evidencia actual | Decisión R0 / gate pendiente |
 |---|---|---|---|
-| Identidad/tenancy | personal, sesión, account linking y acceso cruzado | runtime R1 local API/web/PostgreSQL con OIDC/PKCE, CSRF, rate limit, step-up, replay y concurrencia; RLS tenant solo en spike `AGRO-DIS-003` | GO para desarrollo local del slice platform; NO-GO tenant/RLS hasta ADR-PEND-007 y pruebas runtime; NO-GO IdP externo/entorno compartido hasta sandbox, DPA/región/retención/subprocesadores/exportabilidad |
+| Identidad/tenancy | personal, sesión, account linking y acceso cruzado | runtime R1 local API/web/PostgreSQL con OIDC/PKCE, CSRF, rate limit, step-up, replay y concurrencia; el spike descartable `AGRO-DIS-003` aprobó 29/29 pruebas internas de RLS/discovery con actor derivado, SCRAM, secretos separados, ACL restringida y principal fail-fast | ADR-PEND-007 aceptada para desarrollo R1; GO para el slice platform local y la decisión R0 descartable; NO-GO runtime tenant/RLS hasta migraciones productivas, migrator aislado y pruebas A/B/sin contexto/pool/jobs/grants; NO-GO IdP externo/entorno compartido hasta sandbox, DPA/región/retención/subprocesadores/exportabilidad |
 | Catálogo | baseline global, fuentes, aprobadores; contaminación por extensión tenant | candidato trazable en `tasks/evidence/AGRO-DIS-001/README.md` | GO para revisión; NO-GO publicación hasta acta y firmas nominadas |
 | GIS/clima/mapa | ubicación exacta, historial espacial y envío a terceros | contratos/fixtures sin campos reales en `tasks/evidence/AGRO-DIS-004/README.md` | GO condicional al port; NO-GO proveedor hasta Q-058, DPA/región/cuota y minimización verificada |
 | Archivos/backups/exports | documentos, malware, URL, restauración y fuga masiva | storage local/restore sintético en `tasks/evidence/AGRO-DIS-005/validation-report.md` | GO para contrato; NO-GO cloud/AV/retención/exporte real hasta sandbox, IAM/KMS, región/DPA/hold/purge |

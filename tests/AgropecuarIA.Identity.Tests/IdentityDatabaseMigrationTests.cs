@@ -226,6 +226,91 @@ public sealed class IdentityDatabaseMigrationTests
     }
 
     [TestMethod]
+    public async Task AuthenticationAssuranceMigrationFailsClosedForLegacyRowsAndWriters()
+    {
+        await using var scenario = await IdentityApiScenario.CreateAsync();
+        var options = new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseNpgsql(scenario.ConnectionString)
+            .Options;
+        await using var dbContext = new IdentityDbContext(options);
+        IMigrator migrator = dbContext.Database.GetService<IMigrator>();
+        await migrator.MigrateAsync("20260806013631_EnforceFoundationContracts");
+
+        Guid userId = Guid.NewGuid();
+        Guid preMigrationSessionId = Guid.NewGuid();
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var insert = new NpgsqlCommand(
+                """
+                INSERT INTO identity.users ("Id", "DisplayName", "CreatedAtUtc", "Version")
+                VALUES (@userId, 'Legacy assurance user', now(), 1);
+
+                INSERT INTO identity.sessions
+                    ("Id", "UserId", "TokenHash", "AuthenticatedAtUtc", "ExpiresAtUtc", "RevokedAtUtc", "Version")
+                VALUES
+                    (@sessionId, @userId, @tokenHash, now(), now() + interval '1 hour', NULL, @version);
+                """,
+                connection);
+            insert.Parameters.AddWithValue("userId", userId);
+            insert.Parameters.AddWithValue("sessionId", preMigrationSessionId);
+            insert.Parameters.AddWithValue("tokenHash", Enumerable.Repeat((byte)0x1a, 32).ToArray());
+            insert.Parameters.AddWithValue("version", Guid.NewGuid());
+            await insert.ExecuteNonQueryAsync();
+        }
+
+        await migrator.MigrateAsync();
+
+        Guid nMinusOneSessionId = Guid.NewGuid();
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var legacyWriter = new NpgsqlCommand(
+                """
+                INSERT INTO identity.sessions
+                    ("Id", "UserId", "TokenHash", "AuthenticatedAtUtc", "ExpiresAtUtc", "RevokedAtUtc", "Version")
+                VALUES
+                    (@sessionId, @userId, @tokenHash, now(), now() + interval '1 hour', NULL, @version);
+                """,
+                connection);
+            legacyWriter.Parameters.AddWithValue("sessionId", nMinusOneSessionId);
+            legacyWriter.Parameters.AddWithValue("userId", userId);
+            legacyWriter.Parameters.AddWithValue("tokenHash", Enumerable.Repeat((byte)0x2b, 32).ToArray());
+            legacyWriter.Parameters.AddWithValue("version", Guid.NewGuid());
+            await legacyWriter.ExecuteNonQueryAsync();
+
+            await using var verifyLegacy = new NpgsqlCommand(
+                """
+                SELECT bool_and(NOT "IsAuthenticationAssuranceVerified")
+                FROM identity.sessions
+                WHERE "Id" IN (@preMigrationSessionId, @nMinusOneSessionId)
+                """,
+                connection);
+            verifyLegacy.Parameters.AddWithValue("preMigrationSessionId", preMigrationSessionId);
+            verifyLegacy.Parameters.AddWithValue("nMinusOneSessionId", nMinusOneSessionId);
+            Assert.IsTrue((bool)(await verifyLegacy.ExecuteScalarAsync()
+                ?? throw new InvalidOperationException("The legacy assurance verification returned null.")));
+        }
+
+        using var browser = scenario.CreateBrowser();
+        await IdentityApiTestActions.SignInAsync(browser, "email-owner");
+
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var verifyCurrentWriter = new NpgsqlCommand(
+                """
+                SELECT count(*) = 1
+                FROM identity.sessions
+                WHERE "IsAuthenticationAssuranceVerified"
+                """,
+                connection);
+            Assert.IsTrue((bool)(await verifyCurrentWriter.ExecuteScalarAsync()
+                ?? throw new InvalidOperationException("The current writer verification returned null.")));
+        }
+    }
+
+    [TestMethod]
     public async Task MigrationCanRollbackAndRollForwardOnAnEphemeralDatabase()
     {
         await using var scenario = await IdentityApiScenario.CreateAsync();

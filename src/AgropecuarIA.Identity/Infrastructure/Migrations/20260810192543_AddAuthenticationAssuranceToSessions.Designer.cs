@@ -3,6 +3,7 @@ using System;
 using AgropecuarIA.Identity.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AgropecuarIA.Identity.Infrastructure.Migrations
 {
     [DbContext(typeof(IdentityDbContext))]
-    partial class IdentityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810192543_AddAuthenticationAssuranceToSessions")]
+    partial class AddAuthenticationAssuranceToSessions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -72,10 +75,10 @@ namespace AgropecuarIA.Identity.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("AggregateId")
+                    b.Property<Guid>("ActorId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ActorId")
+                    b.Property<Guid>("AggregateId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("AggregateType")
@@ -141,8 +144,8 @@ namespace AgropecuarIA.Identity.Infrastructure.Migrations
                     b.HasIndex("DispatchedAtUtc", "OccurredAtUtc");
 
                     b.HasIndex("Source", "ScopeKind", "TenantId", "AggregateType", "AggregateId", "AggregateVersion")
-                        .HasFilter("\"Source\" IS NOT NULL AND \"ScopeKind\" IS NOT NULL AND \"AggregateType\" IS NOT NULL AND \"AggregateVersion\" IS NOT NULL")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"Source\" IS NOT NULL AND \"ScopeKind\" IS NOT NULL AND \"AggregateType\" IS NOT NULL AND \"AggregateVersion\" IS NOT NULL");
 
                     NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("Source", "ScopeKind", "TenantId", "AggregateType", "AggregateId", "AggregateVersion"), false);
 

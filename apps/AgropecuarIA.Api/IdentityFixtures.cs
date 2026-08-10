@@ -17,6 +17,7 @@ public static class IdentityFixtures
             "email-owner",
             "o***r@demo.invalid",
             "Productor demo",
+            now,
             now),
         "google-owner" => new(
             IdentityConnections.Google,
@@ -24,6 +25,7 @@ public static class IdentityFixtures
             "google-owner",
             "o***r@google.invalid",
             "Productor demo",
+            now,
             now),
         "identity-owned-by-another-user" => new(
             IdentityConnections.Google,
@@ -31,6 +33,7 @@ public static class IdentityFixtures
             "another-owner",
             "o***r@other.invalid",
             "Otro productor",
+            now,
             now),
         "unverified-email" => throw IdentityErrors.IdentityNotVerified(),
         "provider-down" => throw IdentityErrors.ProviderUnavailable(),

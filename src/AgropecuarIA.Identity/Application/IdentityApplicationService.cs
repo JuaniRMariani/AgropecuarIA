@@ -16,6 +16,7 @@ public sealed class IdentityApplicationService(
     TimeProvider timeProvider,
     IOptions<IdentityRuntimeOptions> options)
 {
+    private static readonly TimeSpan AuthenticationClockSkew = TimeSpan.FromMinutes(1);
     private static readonly JsonSerializerOptions EventSerializerOptions = new(JsonSerializerDefaults.Web);
     private readonly IdentityRuntimeOptions runtimeOptions = options.Value;
 
@@ -38,7 +39,8 @@ public sealed class IdentityApplicationService(
             .Select(session => new AuthenticatedSession(
                 session.Id,
                 session.UserId,
-                session.AuthenticatedAtUtc))
+                session.AuthenticatedAtUtc,
+                session.IsAuthenticationAssuranceVerified))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -86,7 +88,9 @@ public sealed class IdentityApplicationService(
                 verifiedIdentity.VerifiedAtUtc));
         }
 
-        IssuedSession issuedSession = IssueSession(userId);
+        IssuedSession issuedSession = IssueVerifiedSession(
+            userId,
+            verifiedIdentity.AuthenticatedAtUtc);
         dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
             userId,
             issuedSession.SessionId,
@@ -108,7 +112,9 @@ public sealed class IdentityApplicationService(
                     identity => identity.Issuer == verifiedIdentity.Issuer &&
                         identity.Subject == verifiedIdentity.Subject,
                     cancellationToken);
-            IssuedSession concurrentSession = IssueSession(concurrentIdentity.UserId);
+            IssuedSession concurrentSession = IssueVerifiedSession(
+                concurrentIdentity.UserId,
+                verifiedIdentity.AuthenticatedAtUtc);
             dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
                 concurrentIdentity.UserId,
                 concurrentSession.SessionId,
@@ -516,7 +522,7 @@ public sealed class IdentityApplicationService(
         telemetry.Record("session_revoked", "succeeded");
     }
 
-    private IssuedSession IssueSession(Guid userId)
+    private IssuedSession IssueVerifiedSession(Guid userId, DateTimeOffset authenticatedAtUtc)
     {
         DateTimeOffset now = timeProvider.GetUtcNow();
         string token = tokenService.CreateToken();
@@ -524,13 +530,15 @@ public sealed class IdentityApplicationService(
             Guid.NewGuid(),
             userId,
             IdentityTokenService.HashToken(token),
-            now,
-            now.Add(runtimeOptions.SessionLifetime));
+            authenticatedAtUtc,
+            now.Add(runtimeOptions.SessionLifetime),
+            isAuthenticationAssuranceVerified: true);
         dbContext.Sessions.Add(session);
         return new IssuedSession(session.Id, userId, token, session.ExpiresAtUtc);
     }
 
     private bool IsRecentAuthentication(AuthenticatedSession session) =>
+        session.IsAuthenticationAssuranceVerified &&
         session.AuthenticatedAtUtc.Add(runtimeOptions.RecentAuthenticationWindow) > timeProvider.GetUtcNow();
 
     private async Task AuditFailureAsync(
@@ -568,13 +576,15 @@ public sealed class IdentityApplicationService(
             requestContext.CorrelationId,
             timeProvider.GetUtcNow());
 
-    private static void ValidateVerifiedIdentity(VerifiedExternalIdentity identity)
+    private void ValidateVerifiedIdentity(VerifiedExternalIdentity identity)
     {
         ValidateConnection(identity.Connection);
         if (string.IsNullOrWhiteSpace(identity.Issuer) ||
             string.IsNullOrWhiteSpace(identity.Subject) ||
             string.IsNullOrWhiteSpace(identity.Label) ||
-            string.IsNullOrWhiteSpace(identity.DisplayName))
+            string.IsNullOrWhiteSpace(identity.DisplayName) ||
+            identity.AuthenticatedAtUtc == default ||
+            identity.AuthenticatedAtUtc > timeProvider.GetUtcNow().Add(AuthenticationClockSkew))
         {
             throw IdentityErrors.IdentityNotVerified();
         }

@@ -824,3 +824,31 @@ Estado inicial: `En curso`. La fase R0 tiene ADR y fitness aprobados, pero el ga
 - NuGet vulnerable scan, JSON, secrets scan dirigido y `git diff --check`: `PASS`; cero vulnerabilidades altas/críticas nuevas o credenciales.
 - Revisión independiente inicial bloqueó correctamente `traceId`, falta de `ActorId` y migración contract prematura; las tres causas se corrigieron. Revalidación final QA y AppSec/Arquitectura: `PASS`, 0 hallazgos críticos/altos/medios.
 - Estado: `En curso`. El enforcement runtime quedó integrado, pero la tarea multirelease no puede cerrarse hasta `AGRO-FND-003`/`AGRO-PLT-004`; delivery del outbox sigue en `AGRO-FND-002`.
+
+## Iteración 17 — AGRO-ID-001 reautenticación OIDC verificable (2026-08-10)
+
+Estado inicial: `En revisión`. Una auditoría de readiness de `AGRO-ID-002` detectó que la sesión local marcaba `AuthenticatedAtUtc=now` al recibir cualquier callback OIDC. Eso permitía tratar una sesión SSO antigua como reautenticación reciente para vincular o desvincular identidades. La corrección pertenece al alcance y al gate de seguridad de `AGRO-ID-001`; no inicia `AGRO-ID-002` ni implementa MFA.
+
+### Plan, aceptación y ownership
+
+- [x] Capturar el instante del challenge dentro del `AuthenticationProperties` protegido y solicitar `max_age=0` al IdP.
+- [x] Rechazar callbacks sin `auth_time`, con valor inválido, fuera de rango, futuro o anterior al challenge más la tolerancia documentada.
+- [x] Derivar `AuthenticatedAtUtc` del claim validado, nunca de la hora local del callback.
+- [x] Marcar explícitamente la procedencia verificada de la sesión; las sesiones legacy/N-1 fallan cerradas para mutaciones sensibles.
+- [x] Mantener el proveedor sintético limitado a Development/Test con assurance explícita y sin afirmar equivalencia con Auth0.
+- [x] Agregar migración aditiva compatible N/N-1 y pruebas de stale, legacy, malformed, replay y rollback/roll-forward.
+- [x] Ejecutar gates .NET/PostgreSQL/OpenAPI, revisión independiente y actualizar evidencia de `AGRO-ID-001`.
+
+Ownership exclusivo: principal sobre `apps/AgropecuarIA.Api/IdentityEndpoints.cs`, contrato OpenAPI, documentación, backlog y Git; Backend sobre `src/AgropecuarIA.Identity/**`, migración EF y tests .NET asignados; QA/AppSec revisan read-only el estado combinado. No hay cambio frontend salvo que el contrato observable lo exija.
+
+No objetivos: passkeys, TOTP, recovery, roles, contexto tenant, delivery de notificaciones, despliegue ni credenciales Auth0. El gate Auth0 real de `AGRO-ID-001` permanece externo al repositorio.
+
+### Revisión
+
+- Resultado local: `PASS`. Restore locked y build Release 0 warnings/0 errors; suite raíz MTP 81/81, suite Identity posterior al último refuerzo 31/31, format y modelo EF sin drift.
+- Seguridad: el challenge protegido emite `max_age=0`; el callback valida `auth_time` firmado contra el instante protegido con tolerancia acotada. Ausente, malformado, fuera de rango, stale, futuro o sin state falla cerrado.
+- Persistencia: migración `20260810192543_AddAuthenticationAssuranceToSessions` aditiva `NOT NULL DEFAULT false`; filas existentes y writer N-1 permanecen sin assurance, writer N la marca solo tras validación. PostgreSQL real verificó upgrade, writer coexistente y rollback/roll-forward efímero.
+- Revisión independiente QA y AppSec/Arquitectura: `PASS`, 0 críticos/altos/medios. NuGet vulnerable 0, secrets scan 0 y `git diff --check` PASS.
+- Frontend, Playwright, contenedores y CI: N/A; no cambió UI, respuesta consumida, contenedor ni pipeline. El flujo visible conserva el mismo contrato y los fallos usan los estados existentes.
+- Estado final: `En revisión`. El defecto local quedó corregido; Auth0 real aún debe demostrar `state`/nonce/code replay, `max_age=0`, `auth_time` y el comportamiento upstream de Google antes de `Completada` o deploy.
+- Riesgo residual bajo: `OnRemoteFailure` aún agrega la categoría general `provider_unavailable` a rechazos de freshness; el rechazo es seguro pero se recomienda una métrica específica cuando se conecte el sandbox Auth0.

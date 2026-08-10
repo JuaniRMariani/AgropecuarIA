@@ -21,7 +21,11 @@ public sealed record MembershipResult(
 
 public sealed record IssuedSession(Guid SessionId, Guid UserId, string Token, DateTimeOffset ExpiresAtUtc);
 
-public sealed record AuthenticatedSession(Guid SessionId, Guid UserId, DateTimeOffset AuthenticatedAtUtc);
+public sealed record AuthenticatedSession(
+    Guid SessionId,
+    Guid UserId,
+    DateTimeOffset AuthenticatedAtUtc,
+    bool IsAuthenticationAssuranceVerified);
 
 public sealed record StartedLinkAttempt(
     Guid AttemptId,

@@ -67,7 +67,8 @@ public static class IdentityEndpoints
         identity.MapGet("/login/{connection}", (
             string connection,
             Guid? linkAttemptId,
-            IOptions<OidcProviderOptions> configuredOptions) =>
+            IOptions<OidcProviderOptions> configuredOptions,
+            TimeProvider timeProvider) =>
         {
             if (!IdentityConnections.IsSupported(connection))
             {
@@ -84,6 +85,7 @@ public static class IdentityEndpoints
             {
                 RedirectUri = "/",
             };
+            OidcReauthentication.PrepareChallenge(properties, timeProvider.GetUtcNow());
             properties.Items[ConnectionProperty] = connection;
             if (linkAttemptId is not null)
             {
@@ -199,6 +201,9 @@ public static class IdentityEndpoints
         {
             OnRedirectToIdentityProvider = context =>
             {
+                OidcReauthentication.ApplyChallenge(
+                    context.ProtocolMessage,
+                    context.Properties);
                 if (context.Properties.Items.TryGetValue(ConnectionProperty, out string? connection) &&
                     connection is not null)
                 {
@@ -320,13 +325,18 @@ public static class IdentityEndpoints
         string displayName = principal.FindFirstValue("name") ?? label;
         DateTimeOffset now = context.HttpContext.RequestServices
             .GetRequiredService<TimeProvider>().GetUtcNow();
+        DateTimeOffset authenticatedAtUtc = OidcReauthentication.ValidateCallback(
+            principal,
+            context.Properties,
+            now);
         VerifiedExternalIdentity externalIdentity = new(
             connection,
             issuer,
             subject,
             label,
             Limit(displayName, 160),
-            now);
+            now,
+            authenticatedAtUtc);
         IdentityApplicationService service = context.HttpContext.RequestServices
             .GetRequiredService<IdentityApplicationService>();
         if (context.Properties?.Items.TryGetValue(LinkAttemptProperty, out string? attemptValue) is true &&

@@ -171,6 +171,44 @@ public sealed class IdentitySessionSecurityTests
     }
 
     [TestMethod]
+    public async Task SensitiveIdentityMutationWithRecentUnverifiedAuthenticationReturnsForbiddenProblem()
+    {
+        await using var scenario = await IdentityApiScenario.CreateAsync();
+        using var browser = scenario.CreateBrowser();
+        var antiforgeryToken = await IdentityApiTestActions.SignInAsync(browser, "email-owner");
+        using var session = await IdentityApiTestActions.GetSessionAsync(browser);
+        var userId = session.RootElement.GetProperty("userId").GetGuid();
+
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var command = new NpgsqlCommand(
+                """
+                UPDATE identity.sessions
+                SET "AuthenticatedAtUtc" = now(),
+                    "IsAuthenticationAssuranceVerified" = false
+                WHERE "UserId" = @userId
+                """,
+                connection);
+            command.Parameters.AddWithValue("userId", userId);
+            Assert.AreEqual(1, await command.ExecuteNonQueryAsync());
+        }
+
+        using var response = await browser.PostAsync(
+            "/api/identity/link-attempts",
+            new Dictionary<string, string> { ["connection"] = "google" },
+            antiforgeryToken);
+
+        Assert.AreEqual(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.AreEqual("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        using var problem = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        AssertClosedProblemContract(problem.RootElement);
+        Assert.AreEqual(
+            "identity.reauthentication_required",
+            problem.RootElement.GetProperty("code").GetString());
+    }
+
+    [TestMethod]
     public async Task RevokedCookieCannotBeReusedByAStolenSession()
     {
         await using var scenario = await IdentityApiScenario.CreateAsync();

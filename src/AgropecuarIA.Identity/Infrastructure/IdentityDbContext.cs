@@ -69,6 +69,9 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.Property(item => item.TokenHash).HasMaxLength(32).IsRequired();
             entity.Property(item => item.AuthenticatedAtUtc).IsRequired();
             entity.Property(item => item.ExpiresAtUtc).IsRequired();
+            entity.Property(item => item.IsAuthenticationAssuranceVerified)
+                .HasDefaultValue(false)
+                .IsRequired();
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.TokenHash).IsUnique();
             entity.HasIndex(item => new { item.UserId, item.ExpiresAtUtc });

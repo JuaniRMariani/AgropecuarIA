@@ -22,6 +22,7 @@ Antes de arrancar un ambiente distinto de `Development` o `Test`:
 
 - crear la aplicación web confidencial en Auth0;
 - habilitar Authorization Code + PKCE y registrar callback/logout exactos;
+- confirmar que el proveedor devuelve `auth_time` firmado al recibir `max_age=0`; un callback sin esa prueba se rechaza;
 - habilitar las conexiones email OTP y Google en Auth0;
 - cargar Authority, ClientId y ClientSecret desde el secret manager del ambiente;
 - mantener `Identity:DevelopmentProvider:Enabled=false`;
@@ -35,11 +36,13 @@ Email y Google poseen flags independientes (`Identity:Oidc:EmailEnabled` y `Iden
 
 La API limita por ventana fija tanto la IP (`Identity:RateLimits:PerIpPerMinute`, 120 por defecto) como la sesión opaca (`PerSessionPerMinute`, 30 por defecto). Ambos límites se evalúan antes de consultar PostgreSQL; la clave de partición de sesión es un hash y nunca el token. El flujo E2E crítico requiere menos de diez requests por minuto, por lo que queda margen para reintentos rurales sin permitir ráfagas ilimitadas. Antes del servidor compartido se deben revisar métricas `rate_limited`, capacidad del proxy y falsos positivos; el límite de sesión nunca puede superar al de IP.
 
-Para vincular en Auth0, `POST /api/identity/link-attempts` devuelve un `authorizationUrl` que incluye el `linkAttemptId` opaco. El navegador completa OIDC code + PKCE usando `response_mode=query`; así la cookie de sesión `SameSite=Lax` acompaña el callback GET. El callback valida `state`, nonce, issuer, claims, email verificado y la misma sesión iniciadora, adjunta la segunda prueba, consume el intento, persiste `IdentityLinked` y vuelve a `/?identityLinked=true`. El cliente no debe completar el intento otra vez.
+Para vincular en Auth0, `POST /api/identity/link-attempts` devuelve un `authorizationUrl` que incluye el `linkAttemptId` opaco. El navegador completa OIDC code + PKCE usando `response_mode=query`; así la cookie de sesión `SameSite=Lax` acompaña el callback GET. Todo login registra el instante del challenge dentro de `AuthenticationProperties` protegido y envía `max_age=0`. El callback valida `state`, nonce, issuer, claims, email verificado y que el `auth_time` firmado no sea anterior al challenge ni futuro fuera de una tolerancia de un minuto. Solo entonces la sesión se marca con assurance verificada. La vinculación además exige la misma sesión iniciadora, adjunta la segunda prueba, consume el intento, persiste `IdentityLinked` y vuelve a `/?identityLinked=true`. El cliente no debe completar el intento otra vez.
+
+Las sesiones creadas antes de la migración de assurance, o por un writer N-1 durante la ventana de despliegue, siguen sirviendo para lecturas y cierre de sesión, pero fallan cerradas con `identity.reauthentication_required` al vincular o desvincular identidades. El usuario debe iniciar sesión nuevamente; no se promueve una sesión legacy por timestamp local.
 
 ## Rollback y recuperación
 
-La migración es aditiva. Ante fallo de rollout, deshabilitar los flags de conexión y volver a la versión previa sin eliminar tablas ni identidades. Revocar las sesiones emitidas por el rollout afectado antes de reabrir acceso. La reversión de esquema no se ejecuta sobre datos compartidos: se realiza roll-forward una vez preservada la auditoría y exportada la evidencia del incidente.
+Las migraciones son aditivas. `AddAuthenticationAssuranceToSessions` agrega un booleano `NOT NULL DEFAULT false`, por lo que conserva writers N-1 y no atribuye assurance a sesiones existentes. Ante fallo de rollout, deshabilitar los flags de conexión y volver a la versión previa sin eliminar tablas ni identidades. Revocar las sesiones emitidas por el rollout afectado antes de reabrir acceso. La reversión de esquema no se ejecuta sobre datos compartidos: se realiza roll-forward una vez preservada la auditoría y exportada la evidencia del incidente.
 
 ## Datos sensibles y diagnóstico
 

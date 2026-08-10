@@ -16,6 +16,8 @@ public static class IdentityAuthenticationDefaults
     public const string ExternalScheme = "AgropecuarIA.External";
     public const string SessionCookieName = "__Host-agro-session";
     public const string SessionIdClaim = "agro:session_id";
+    public const string AuthenticationAssuranceVerifiedClaim =
+        "agro:authentication_assurance_verified";
 }
 
 public sealed class SessionAuthenticationHandler(
@@ -45,6 +47,9 @@ public sealed class SessionAuthenticationHandler(
             new(ClaimTypes.NameIdentifier, session.UserId.ToString("D")),
             new(IdentityAuthenticationDefaults.SessionIdClaim, session.SessionId.ToString("D")),
             new("auth_time", session.AuthenticatedAtUtc.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)),
+            new(
+                IdentityAuthenticationDefaults.AuthenticationAssuranceVerifiedClaim,
+                session.IsAuthenticationAssuranceVerified.ToString(CultureInfo.InvariantCulture)),
         ];
         ClaimsIdentity identity = new(claims, Scheme.Name);
         AuthenticationTicket ticket = new(new ClaimsPrincipal(identity), Scheme.Name);
@@ -77,6 +82,8 @@ public static class AuthenticatedSessionClaims
         string? userIdValue = principal.FindFirstValue(ClaimTypes.NameIdentifier);
         string? sessionIdValue = principal.FindFirstValue(IdentityAuthenticationDefaults.SessionIdClaim);
         string? authenticatedAtValue = principal.FindFirstValue("auth_time");
+        string? assuranceVerifiedValue = principal.FindFirstValue(
+            IdentityAuthenticationDefaults.AuthenticationAssuranceVerifiedClaim);
 
         if (!Guid.TryParse(userIdValue, out Guid userId) ||
             !Guid.TryParse(sessionIdValue, out Guid sessionId) ||
@@ -88,6 +95,7 @@ public static class AuthenticatedSessionClaims
         return new AuthenticatedSession(
             sessionId,
             userId,
-            DateTimeOffset.FromUnixTimeSeconds(authenticatedAtUnix));
+            DateTimeOffset.FromUnixTimeSeconds(authenticatedAtUnix),
+            bool.TryParse(assuranceVerifiedValue, out bool assuranceVerified) && assuranceVerified);
     }
 }

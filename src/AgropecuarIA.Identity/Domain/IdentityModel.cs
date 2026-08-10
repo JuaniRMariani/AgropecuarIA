@@ -110,13 +110,15 @@ public sealed class UserSession
         Guid userId,
         byte[] tokenHash,
         DateTimeOffset authenticatedAtUtc,
-        DateTimeOffset expiresAtUtc)
+        DateTimeOffset expiresAtUtc,
+        bool isAuthenticationAssuranceVerified)
     {
         Id = id;
         UserId = userId;
         TokenHash = tokenHash;
         AuthenticatedAtUtc = authenticatedAtUtc;
         ExpiresAtUtc = expiresAtUtc;
+        IsAuthenticationAssuranceVerified = isAuthenticationAssuranceVerified;
     }
 
     public Guid Id { get; private set; }
@@ -128,6 +130,8 @@ public sealed class UserSession
     public DateTimeOffset AuthenticatedAtUtc { get; private set; }
 
     public DateTimeOffset ExpiresAtUtc { get; private set; }
+
+    public bool IsAuthenticationAssuranceVerified { get; private set; }
 
     public DateTimeOffset? RevokedAtUtc { get; private set; }
 
@@ -358,4 +362,5 @@ public sealed record VerifiedExternalIdentity(
     string Subject,
     string Label,
     string DisplayName,
-    DateTimeOffset VerifiedAtUtc);
+    DateTimeOffset VerifiedAtUtc,
+    DateTimeOffset AuthenticatedAtUtc);

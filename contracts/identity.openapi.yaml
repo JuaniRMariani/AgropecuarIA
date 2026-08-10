@@ -38,7 +38,8 @@ paths:
         '429': { $ref: '#/components/responses/RateLimited' }
   /api/identity/login/{connection}:
     get:
-      summary: Begin OIDC authorization-code flow with PKCE
+      summary: Begin fresh OIDC authorization-code flow with PKCE
+      description: Stores the protected challenge time and requests `max_age=0`; the callback must prove freshness with the signed `auth_time` claim.
       parameters:
         - in: path
           name: connection
@@ -57,7 +58,7 @@ paths:
   /signin-oidc:
     get:
       summary: OIDC authorization-code callback handled by ASP.NET Core middleware
-      description: Validates state, nonce, code and provider claims; completes sign-in or a pending account link server-side.
+      description: Validates state, nonce, code, provider claims and signed `auth_time` against the protected challenge time; completes sign-in or a pending account link server-side.
       parameters:
         - in: query
           name: code

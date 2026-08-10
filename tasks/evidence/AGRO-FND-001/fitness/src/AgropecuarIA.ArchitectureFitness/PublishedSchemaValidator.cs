@@ -10,6 +10,8 @@ public static class PublishedSchemaValidator
     {
         "cursor-page.v1.schema.json",
         "event-envelope.v1.schema.json",
+        "identity-linked.v1.schema.json",
+        "identity-step-up-completed.v1.schema.json",
         "problem-details.v1.schema.json",
         "request-scope.v1.schema.json",
     };
@@ -106,6 +108,23 @@ public static class PublishedSchemaValidator
                     Add(issues, "schema.event.scope-invalid", "Event scope must reference the discriminated request scope contract.");
                 }
                 break;
+            case "identity-linked.v1.schema.json":
+                ValidateClosedObject(root, fileName, ["userId", "identityId", "connection", "linkedAtUtc"], issues);
+                ValidateExactProperties(root, fileName, ["userId", "identityId", "connection", "linkedAtUtc"], issues);
+                ValidateStringProperty(root, fileName, "userId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "identityId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "connection", null, issues);
+                ValidateStringProperty(root, fileName, "linkedAtUtc", "date-time", issues);
+                break;
+            case "identity-step-up-completed.v1.schema.json":
+                ValidateClosedObject(root, fileName, ["userId", "previousSessionId", "sessionId", "purpose", "completedAtUtc"], issues);
+                ValidateExactProperties(root, fileName, ["userId", "previousSessionId", "sessionId", "purpose", "completedAtUtc"], issues);
+                ValidateStringProperty(root, fileName, "userId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "previousSessionId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "sessionId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "purpose", null, issues);
+                ValidateStringProperty(root, fileName, "completedAtUtc", "date-time", issues);
+                break;
             default:
                 Add(issues, "schema.unregistered", $"Schema '{fileName}' is not registered.");
                 break;
@@ -193,6 +212,47 @@ public static class PublishedSchemaValidator
             {
                 Add(issues, "schema.sensitive-property", $"Schema '{fileName}' exposes forbidden property '{property.Name}'.");
             }
+        }
+    }
+
+    private static void ValidateExactProperties(
+        JsonElement root,
+        string fileName,
+        IReadOnlyCollection<string> expectedNames,
+        ICollection<ValidationIssue> issues)
+    {
+        var actual = root.TryGetProperty("properties", out var properties)
+            && properties.ValueKind == JsonValueKind.Object
+            ? properties.EnumerateObject().Select(property => property.Name).ToHashSet(StringComparer.Ordinal)
+            : [];
+        var expected = expectedNames.ToHashSet(StringComparer.Ordinal);
+        if (!actual.SetEquals(expected))
+        {
+            Add(
+                issues,
+                "schema.properties.invalid",
+                $"Schema '{fileName}' properties must be exactly: {string.Join(", ", expected.Order(StringComparer.Ordinal))}.");
+        }
+    }
+
+    private static void ValidateStringProperty(
+        JsonElement root,
+        string fileName,
+        string propertyName,
+        string? expectedFormat,
+        ICollection<ValidationIssue> issues)
+    {
+        if (!TryProperty(root, "properties", propertyName, out var property)
+            || !property.TryGetProperty("type", out var type)
+            || !string.Equals(type.GetString(), "string", StringComparison.Ordinal)
+            || (expectedFormat is not null
+                && (!property.TryGetProperty("format", out var format)
+                    || !string.Equals(format.GetString(), expectedFormat, StringComparison.Ordinal))))
+        {
+            Add(
+                issues,
+                "schema.property-shape.invalid",
+                $"Schema '{fileName}' property '{propertyName}' must be a string{(expectedFormat is null ? string.Empty : $" with format '{expectedFormat}'")}.");
         }
     }
 

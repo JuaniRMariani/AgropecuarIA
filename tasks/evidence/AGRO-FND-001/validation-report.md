@@ -2,7 +2,7 @@
 
 Fecha: 2026-08-05  
 Resultado R0: `PASS`  
-Estado de tarea multirelease: `En curso`; la evidencia no sustituye el ensayo R1 de migración/staging.
+Estado después del gate R0: `En curso`; esta sección histórica no sustituía el enforcement R1 posterior.
 
 ## Resultado entregado
 
@@ -54,7 +54,7 @@ Principal QA reprodujo los gates y aprobó con 42/42; AppSec/Arquitectura cerró
 - El validador está deliberadamente dirigido a estos cuatro contratos; no pretende ser un motor JSON Schema general.
 - `ADR-PEND-011` queda resuelta. `ADR-PEND-010` conserva `política definida; ensayo pendiente` hasta `AGRO-FND-003`/`AGRO-PLT-004` con staging, backup/restore y backfill reanudable.
 - API, frontend/pnpm, PostgreSQL/PostGIS, migraciones, Docker/Compose, CI/CD, telemetría productiva y deploy son N/A para este R0. No se creó producto ni se promovieron los spikes `AGRO-DIS-003/004`.
-- Estado final legítimo: `En curso` por ser tarea R0/R1; el gate R0 está aprobado, pero la tarea padre no cumple todavía la DoD multirelease completa.
+- Estado después de este gate R0: `En curso`; el enforcement R1 todavía no existía al registrar esta evidencia.
 
 ## Enforcement R1 sobre runtime — 2026-08-05
 
@@ -90,4 +90,23 @@ La integración PostgreSQL efímera demuestra initial→expand, preservación/ba
 
 La revisión independiente final de Principal QA y AppSec/Arquitectura reprodujo restore, build, 77/77 tests, format, modelo EF, SCA, JSON, secrets scan y diff-check. Resultado: `PASS`, cero hallazgos críticos, altos o medios. Los bloqueos iniciales —`traceId` fuera de contrato, falta de `ActorId` y contract prematuro— fueron corregidos y revalidados.
 
-Riesgo residual: el `contract` posterior, backfill reanudable/batcheado con volumen, staging, backup/restore y ETag pertenecen a `AGRO-FND-003`/`AGRO-PLT-004`. Delivery/retry/idempotencia del outbox pertenece a `AGRO-FND-002`. Por ello la tarea multirelease permanece `En curso`; este sub-slice no declara esos gates aprobados.
+El `contract` posterior, backfill reanudable/batcheado con volumen, staging, backup/restore y ETag pertenecen a `AGRO-FND-003`/`AGRO-PLT-004`. Delivery/retry/idempotencia del outbox pertenece a `AGRO-FND-002`. FND-001 permaneció `En curso` hasta cerrar el drift de eventos públicos detectado después; esos gates downstream no se reinterpretan como alcance propio.
+
+## Cierre contractual R1 — 2026-08-10
+
+Estado final: `Completada`.
+
+La integración de `AGRO-ID-002` reveló que `IdentityStepUpCompleted` se emitía sin registro en el mapa contractual. El cierre elimina ese drift y también hace verificable el contrato existente `IdentityLinked`:
+
+- `IdentityIntegrationEvents` es el catálogo inmutable único de type, major/schema version, source, scope y payload schema. Un identificador cerrado se resuelve dentro de `IdentityOutboxMessage`; una definición o valor fuera del catálogo falla antes de persistir.
+- `IdentityOutboxMessage` ya no recibe strings contractuales libres y rechaza scope divergente.
+- Los payloads v1 preservan exactamente su forma histórica para sostener N/N-1: `IdentityLinked` mantiene user/identity IDs, conexión y fecha; `IdentityStepUpCompleted` mantiene user/session IDs, propósito y fecha. Reducir esos IDs exige un contrato v2 explícito; no se oculta como cambio compatible.
+- Ambos eventos tienen JSON Schema 2020-12 cerrado y están registrados en `consumer-map.json` y `runtime-map.json`, honestamente sin consumidores hasta que FND-002 implemente delivery.
+- El fitness compara exactamente runtime↔mapa y bloquea evento desconocido, contrato huérfano, source/scope/version divergentes y schema faltante o incompatible.
+- PostgreSQL real verifica envelope/payload, scope platform, correlación/causación, versión agregada y replay con exactamente una fila.
+
+Gates finales: restore locked PASS; build Release 0 warnings/0 errors; fitness completo 60/60; integración Identity/PostgreSQL dirigida 13/13; suite raíz 114/114, 0 failed/skipped; format PASS; EF sin model drift; 15 JSON parseados; NuGet transitivo sin vulnerabilidades conocidas; secrets scan 0 y diff-check PASS.
+
+Principal QA y AppSec/Arquitectura reprodujeron el estado combinado y aprobaron con cero hallazgos críticos, altos o medios. Durante revisión se corrigieron tres bloqueos: payload v1 breaking, ruta de creación con JSON contractual libre y fixture N/N-1 con payload vacío. El gate final preserva la forma v1 histórica, restringe la creación a factories tipadas y demuestra igualdad jsonb antes/después del upgrade y con writer N-1 coexistente.
+
+Los riesgos de backfill/ETag, staging/restore y outbox delivery/idempotencia continúan asignados respectivamente a `AGRO-FND-003`, `AGRO-PLT-004` y `AGRO-FND-002`; no son trabajo residual de FND-001.

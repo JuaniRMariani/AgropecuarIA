@@ -1,4 +1,6 @@
 using System.Diagnostics.Metrics;
+using System.Reflection;
+using System.Text.Json;
 using AgropecuarIA.Identity.Application;
 using AgropecuarIA.Identity.Domain;
 using AgropecuarIA.Identity.Infrastructure;
@@ -13,6 +15,12 @@ namespace AgropecuarIA.Identity.Tests;
 [DoNotParallelize]
 public sealed class StepUpApplicationIntegrationTests
 {
+    private static readonly string[] ExpectedStepUpPayloadProperties =
+        ["completedAtUtc", "previousSessionId", "purpose", "sessionId", "userId"];
+
+    private static readonly string[] ExpectedOutboxFactoryNames =
+        ["CreateIdentityLinked", "CreateIdentityStepUpCompleted"];
+
     private static readonly DateTimeOffset Now =
         new(2026, 8, 10, 18, 0, 0, TimeSpan.Zero);
 
@@ -66,10 +74,91 @@ public sealed class StepUpApplicationIntegrationTests
             .AsNoTracking()
             .SingleAsync(item => item.Id == started.AttemptId);
         Assert.AreEqual(Now, attempt.ConsumedAtUtc);
-        Assert.AreEqual(1, await scenario.DbContext.OutboxMessages.CountAsync(
-            message => message.Type == "IdentityStepUpCompleted"));
+
+        IdentityOutboxMessage message = await scenario.DbContext.OutboxMessages
+            .AsNoTracking()
+            .SingleAsync(item =>
+                item.Type == IdentityIntegrationEvents.IdentityStepUpCompleted.Type);
+        AssertStepUpCompletedEnvelope(
+            message,
+            seeded.UserId,
+            seeded.Session.SessionId,
+            issued.SessionId,
+            started.AttemptId,
+            context.CorrelationId);
+
+        IdentityOperationException replay = await Assert.ThrowsExactlyAsync<IdentityOperationException>(() =>
+            scenario.Service.CompleteStepUpAttemptAsync(
+                started.AttemptId,
+                seeded.Session,
+                new VerifiedStepUpProof(
+                    seeded.Issuer,
+                    seeded.Subject,
+                    Now.AddMinutes(1),
+                    IsStrongAuthentication: true),
+                context,
+                CancellationToken.None));
+        Assert.AreEqual("identity.step_up_attempt_conflict", replay.Code);
+        Assert.AreEqual(1, await scenario.DbContext.OutboxMessages.CountAsync(item =>
+            item.Type == IdentityIntegrationEvents.IdentityStepUpCompleted.Type));
         Assert.AreEqual(1, await scenario.DbContext.SecurityJournalEntries.CountAsync(
             entry => entry.Action == "step_up_completed" && entry.Outcome == "succeeded"));
+    }
+
+    [TestMethod]
+    public void OutboxRejectsScopeThatDoesNotMatchThePublishedDefinition()
+    {
+        Guid userId = Guid.NewGuid();
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            IdentityOutboxMessage.CreateIdentityStepUpCompleted(
+                CreateEnvelope(RequestScope.ForTenant(Guid.NewGuid()), userId, "scope-mismatch"),
+                new IdentityStepUpCompletedIntegrationEventPayload(
+                    userId,
+                    Guid.NewGuid(),
+                    Guid.NewGuid(),
+                    StepUpPurposes.ManageAuthenticationMethods,
+                    Now)));
+    }
+
+    [TestMethod]
+    public void OutboxRejectsAnUnregisteredEventKind()
+    {
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+            IdentityIntegrationEvents.GetRequired((IdentityIntegrationEventKind)int.MaxValue));
+    }
+
+    [TestMethod]
+    public void IntegrationEventCatalogExhaustivelyMapsEveryKnownKind()
+    {
+        IdentityIntegrationEventKind[] kinds = Enum.GetValues<IdentityIntegrationEventKind>();
+
+        Assert.HasCount(kinds.Length, IdentityIntegrationEvents.All);
+        for (int index = 0; index < kinds.Length; index++)
+        {
+            Assert.AreSame(
+                IdentityIntegrationEvents.GetRequired(kinds[index]),
+                IdentityIntegrationEvents.All[index]);
+        }
+    }
+
+    [TestMethod]
+    public void OutboxPublicApiOnlyExposesTypedEventFactories()
+    {
+        ConstructorInfo[] publicConstructors = typeof(IdentityOutboxMessage)
+            .GetConstructors(BindingFlags.Public | BindingFlags.Instance);
+        Assert.HasCount(0, publicConstructors);
+
+        MethodInfo[] factories = typeof(IdentityOutboxMessage)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(method => method.Name.StartsWith("CreateIdentity", StringComparison.Ordinal))
+            .ToArray();
+        CollectionAssert.AreEquivalent(
+            ExpectedOutboxFactoryNames,
+            factories.Select(factory => factory.Name).ToArray());
+        Assert.IsFalse(factories.Any(factory => factory.GetParameters().Any(parameter =>
+            parameter.ParameterType == typeof(IdentityIntegrationEventKind) ||
+            parameter.ParameterType == typeof(string))));
+        Assert.IsNull(typeof(IdentityIntegrationEventEnvelope).GetProperty("AggregateType"));
     }
 
     [TestMethod]
@@ -152,6 +241,66 @@ public sealed class StepUpApplicationIntegrationTests
         Assert.IsNull(primary.AuthenticationAssurance.StrongAuthenticatedAtUtc);
         Assert.IsNull(primary.AuthenticationAssurance.ExpiresAtUtc);
     }
+
+    private static void AssertStepUpCompletedEnvelope(
+        IdentityOutboxMessage message,
+        Guid userId,
+        Guid previousSessionId,
+        Guid sessionId,
+        Guid attemptId,
+        string correlationId)
+    {
+        IdentityIntegrationEventDefinition definition =
+            IdentityIntegrationEvents.IdentityStepUpCompleted;
+        Assert.AreEqual(definition.Type, message.Type);
+        Assert.AreEqual(definition.MajorVersion, message.Version);
+        Assert.AreEqual(definition.SchemaVersion, message.SchemaVersion);
+        Assert.AreEqual(definition.Source, message.Source);
+        Assert.AreEqual(definition.Scope, message.ScopeKind);
+        Assert.IsNull(message.TenantId);
+        Assert.AreEqual(Now, message.OccurredAtUtc);
+        Assert.AreEqual(Now, message.EffectiveAtUtc);
+        Assert.AreEqual(Now, message.RecordedAtUtc);
+        Assert.AreEqual(userId, message.ActorId);
+        Assert.AreEqual(correlationId, message.CorrelationId);
+        Assert.AreEqual(attemptId, message.CausationId);
+        Assert.AreEqual(definition.AggregateType, message.AggregateType);
+        Assert.AreEqual(userId, message.AggregateId);
+        Assert.AreEqual(1L, message.AggregateVersion);
+        Assert.IsNull(message.DispatchedAtUtc);
+
+        using JsonDocument payload = JsonDocument.Parse(message.Payload);
+        JsonElement root = payload.RootElement;
+        CollectionAssert.AreEqual(
+            ExpectedStepUpPayloadProperties,
+            root.EnumerateObject()
+                .Select(property => property.Name)
+                .Order(StringComparer.Ordinal)
+                .ToArray());
+        Assert.AreEqual(
+            StepUpPurposes.ManageAuthenticationMethods,
+            root.GetProperty("purpose").GetString());
+        Assert.AreEqual(Now, root.GetProperty("completedAtUtc").GetDateTimeOffset());
+        Assert.AreEqual(userId, root.GetProperty("userId").GetGuid());
+        Assert.AreEqual(previousSessionId, root.GetProperty("previousSessionId").GetGuid());
+        Assert.AreEqual(sessionId, root.GetProperty("sessionId").GetGuid());
+    }
+
+    private static IdentityIntegrationEventEnvelope CreateEnvelope(
+        RequestScope scope,
+        Guid userId,
+        string correlationId) =>
+        new(
+            Guid.NewGuid(),
+            scope,
+            Now,
+            Now,
+            Now,
+            userId,
+            correlationId,
+            Guid.NewGuid(),
+            userId,
+            1);
 
     private sealed class StepUpServiceScenario : IAsyncDisposable
     {

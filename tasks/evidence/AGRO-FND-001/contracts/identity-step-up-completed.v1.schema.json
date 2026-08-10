@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.invalid/contracts/identity-step-up-completed.v1.schema.json",
+  "title": "IdentityStepUpCompletedV1",
+  "type": "object",
+  "required": ["userId", "previousSessionId", "sessionId", "purpose", "completedAtUtc"],
+  "properties": {
+    "userId": { "type": "string", "format": "uuid" },
+    "previousSessionId": { "type": "string", "format": "uuid" },
+    "sessionId": { "type": "string", "format": "uuid" },
+    "purpose": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:_[a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "completedAtUtc": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

@@ -1,6 +1,5 @@
 using System.Data;
 using System.Diagnostics;
-using System.Text.Json;
 using AgropecuarIA.Identity.Domain;
 using AgropecuarIA.Identity.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +16,6 @@ public sealed class IdentityApplicationService(
     IOptions<IdentityRuntimeOptions> options)
 {
     private static readonly TimeSpan AuthenticationClockSkew = TimeSpan.FromMinutes(1);
-    private static readonly JsonSerializerOptions EventSerializerOptions = new(JsonSerializerDefaults.Web);
     private readonly IdentityRuntimeOptions runtimeOptions = options.Value;
 
     public async Task<AuthenticatedSession?> AuthenticateAsync(string token, CancellationToken cancellationToken)
@@ -462,29 +460,23 @@ public sealed class IdentityApplicationService(
             attempt.CandidateLabel!,
             attempt.CandidateVerifiedAtUtc.Value));
         attempt.Consume(now);
-        dbContext.OutboxMessages.Add(new IdentityOutboxMessage(
-            Guid.NewGuid(),
-            "IdentityLinked",
-            1,
-            IdentityOutboxMessage.CurrentSchemaVersion,
-            IdentityOutboxMessage.IdentitySource,
-            requestContext.Scope,
-            now,
-            now,
-            now,
-            requestContext.ActorId!.Value,
-            requestContext.CorrelationId,
-            attempt.Id,
-            nameof(PlatformUser),
-            currentSession.UserId,
-            aggregateVersion,
-            JsonSerializer.Serialize(
-                new IdentityLinkedEvent(
-                    currentSession.UserId,
-                    linkedIdentityId,
-                    attempt.Connection,
-                    now),
-                EventSerializerOptions)));
+        dbContext.OutboxMessages.Add(IdentityOutboxMessage.CreateIdentityLinked(
+            new IdentityIntegrationEventEnvelope(
+                Guid.NewGuid(),
+                requestContext.Scope,
+                now,
+                now,
+                now,
+                requestContext.ActorId!.Value,
+                requestContext.CorrelationId,
+                attempt.Id,
+                currentSession.UserId,
+                aggregateVersion),
+            new IdentityLinkedIntegrationEventPayload(
+                currentSession.UserId,
+                linkedIdentityId,
+                attempt.Connection,
+                now)));
         dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
             currentSession.UserId,
             currentSession.SessionId,
@@ -693,30 +685,24 @@ public sealed class IdentityApplicationService(
         PlatformUser user = await dbContext.Users
             .SingleAsync(item => item.Id == currentSession.UserId, cancellationToken);
         long aggregateVersion = user.NextVersion();
-        dbContext.OutboxMessages.Add(new IdentityOutboxMessage(
-            Guid.NewGuid(),
-            "IdentityStepUpCompleted",
-            1,
-            IdentityOutboxMessage.CurrentSchemaVersion,
-            IdentityOutboxMessage.IdentitySource,
-            requestContext.Scope,
-            now,
-            now,
-            now,
-            requestContext.ActorId!.Value,
-            requestContext.CorrelationId,
-            attempt.Id,
-            nameof(PlatformUser),
-            currentSession.UserId,
-            aggregateVersion,
-            JsonSerializer.Serialize(
-                new IdentityStepUpCompletedEvent(
-                    currentSession.UserId,
-                    currentSession.SessionId,
-                    rotatedSession.Id,
-                    attempt.Purpose,
-                    now),
-                EventSerializerOptions)));
+        dbContext.OutboxMessages.Add(IdentityOutboxMessage.CreateIdentityStepUpCompleted(
+            new IdentityIntegrationEventEnvelope(
+                Guid.NewGuid(),
+                requestContext.Scope,
+                now,
+                now,
+                now,
+                requestContext.ActorId!.Value,
+                requestContext.CorrelationId,
+                attempt.Id,
+                currentSession.UserId,
+                aggregateVersion),
+            new IdentityStepUpCompletedIntegrationEventPayload(
+                currentSession.UserId,
+                currentSession.SessionId,
+                rotatedSession.Id,
+                attempt.Purpose,
+                now)));
         dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
             currentSession.UserId,
             currentSession.SessionId,
@@ -888,16 +874,4 @@ public sealed class IdentityApplicationService(
             SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected,
         };
 
-    private sealed record IdentityLinkedEvent(
-        Guid UserId,
-        Guid IdentityId,
-        string Connection,
-        DateTimeOffset LinkedAtUtc);
-
-    private sealed record IdentityStepUpCompletedEvent(
-        Guid UserId,
-        Guid PreviousSessionId,
-        Guid SessionId,
-        string Purpose,
-        DateTimeOffset CompletedAtUtc);
 }

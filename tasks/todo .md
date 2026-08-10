@@ -905,3 +905,33 @@ Estado inicial: `Propuesto`. El sponsor seleccionó explícitamente `AGRO-ID-002
 - Revisión independiente: QA y AppSec/Arquitectura PASS, 0 hallazgos críticos/altos/medios. Los hallazgos iniciales de CRLF, texto UTF-8 y cobertura negativa fueron corregidos y revalidados.
 - Evidencia reproducible: `tasks/evidence/AGRO-ID-002/validation-report.md`, `mfa-recovery-policy.md` y `factor-loss-runbook.md`.
 - Estado final: `En curso`. El sub-slice está terminado, pero la tarea padre aún requiere lifecycle real de passkeys/TOTP/recovery, sandbox Auth0, notificación, enforcement por roles y matriz de dispositivos/navegadores. No hubo deploy.
+
+## Iteración 19 — AGRO-FND-001 cierre contractual R1 (2026-08-10)
+
+Estado inicial: `En curso`. La auditoría posterior a `AGRO-ID-002` detectó que el runtime emite `IdentityStepUpCompleted`, pero el mapa contractual solo registra `IdentityLinked`. El cierre se acota a eliminar ese drift, hacer comprobable que todo evento Identity se publica desde un catálogo único y reproducir la DoD propia de FND-001. Backfill por lotes/ETag, restore de staging y delivery/idempotencia permanecen en `AGRO-FND-003`, `AGRO-PLT-004` y `AGRO-FND-002`; no se absorben aquí.
+
+### Plan verificable
+
+- [x] Registrar `IdentityStepUpCompleted` en el mapa de consumidores con provider, scope y ventana compatible.
+- [x] Introducir un catálogo inmutable y único de eventos públicos Identity; los escritores outbox no aceptan strings contractuales dispersos.
+- [x] Validar por fitness que catálogo runtime y mapa revisado coincidan exactamente en nombre, source, scope y major version.
+- [x] Cubrir eventos desconocidos, contrato faltante, scope divergente y versión incompatible.
+- [x] Reproducir restore locked, build Release, suite MTP raíz, format, modelo EF, JSON/SCA/secrets y diff-check.
+- [x] Obtener revisión independiente QA y AppSec/Arquitectura; actualizar ADR/evidencia y completar FND-001 solo con gates verdes.
+- [x] Commit/push autorizado y detenerse sin iniciar FND-002.
+
+### Ownership y no objetivos
+
+- Principal: catálogo/constructor compartido, integración, plan/evidencia/backlog, gates y Git.
+- Architecture Lead: revisión read-only del alcance y compatibilidad; QA y AppSec: revisión final independiente.
+- No hay frontend, endpoints, migración ni cambio de payload. No se implementan dispatcher, idempotency ledger, RLS tenant, backfill contractual, CI ni deploy.
+
+### Review final
+
+- Resultado: `AGRO-FND-001` completa su DoD R0/R1. El runtime Identity, el mapa de consumidores y el registro runtime contienen exactamente los mismos eventos públicos y schemas; el grafo/ownership continúa sin ciclos ni persistencia ajena.
+- Contrato: catálogo exhaustivo derivado de enum, resolver fail-closed, aggregate type catalogado y constructors privados. Solo factories con payloads v1 tipados pueden crear outbox; source/scope/version/schema/aggregate no quedan como strings libres del writer.
+- Compatibilidad: se preservó exactamente la shape v1 histórica. PostgreSQL prueba payload jsonb real antes y después del expand, writer N-1 posterior y coexistencia sin mutación. Reducir IDs requiere v2 explícito.
+- Gates: restore locked PASS; build Release 0/0; fitness 60/60; Identity/PostgreSQL dirigido 13/13; raíz 114/114; format PASS; EF sin drift; 15 JSON PASS; NuGet vulnerable 0; secrets 0; diff-check PASS.
+- Revisión independiente: QA y AppSec/Arquitectura PASS, cero críticos/altos/medios. Los blockers de catálogo eludible, JSON libre, payload breaking y fixture N/N-1 vacío se corrigieron y revalidaron.
+- Autoevaluación: 97/100 — contexto/selección 15/15, arquitectura/código 20/20, multiagente 10/10, contrato/datos/observabilidad 14/15, tests/seguridad 20/20, preservación/cierre 18/20. Cero gate obligatorio fallido.
+- Estado: `En curso → En revisión → Completada`. FND-002 conserva delivery/idempotencia/RLS; FND-003 conserva ETag/backfill/contract; PLT-004 conserva staging/backup/restore. No hubo frontend, API, migración ni deploy.

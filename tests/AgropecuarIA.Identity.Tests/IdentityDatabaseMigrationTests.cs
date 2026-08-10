@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AgropecuarIA.Identity.Infrastructure;
 using AgropecuarIA.Identity.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,9 @@ namespace AgropecuarIA.Identity.Tests;
 [DoNotParallelize]
 public sealed class IdentityDatabaseMigrationTests
 {
+    private static readonly JsonSerializerOptions EventSerializerOptions =
+        new(JsonSerializerDefaults.Web);
+
     [TestMethod]
     public async Task StartupAppliesVersionedIdentitySchemaAndRelationalConstraints()
     {
@@ -128,7 +132,12 @@ public sealed class IdentityDatabaseMigrationTests
 
         var userId = Guid.NewGuid();
         var eventId = Guid.NewGuid();
+        var identityId = Guid.NewGuid();
         var journalEntryId = Guid.NewGuid();
+        string payload = IdentityLinkedPayload(
+            userId,
+            identityId,
+            new DateTimeOffset(2026, 1, 2, 3, 5, 0, TimeSpan.Zero));
         await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
         {
             await connection.OpenAsync();
@@ -140,7 +149,7 @@ public sealed class IdentityDatabaseMigrationTests
                 INSERT INTO identity.outbox_messages
                     ("EventId", "Type", "Version", "OccurredAtUtc", "AggregateId", "Payload", "DispatchedAtUtc")
                 VALUES
-                    (@eventId, 'IdentityLinked', 1, '2026-01-02T03:05:00Z', @userId, '{}'::jsonb, NULL);
+                    (@eventId, 'IdentityLinked', 1, '2026-01-02T03:05:00Z', @userId, CAST(@payload AS jsonb), NULL);
 
                 INSERT INTO identity.audit_events
                     ("Id", "UserId", "SessionId", "Action", "Outcome", "Connection", "CorrelationId", "OccurredAtUtc")
@@ -150,13 +159,19 @@ public sealed class IdentityDatabaseMigrationTests
                 connection);
             insert.Parameters.AddWithValue("userId", userId);
             insert.Parameters.AddWithValue("eventId", eventId);
+            insert.Parameters.AddWithValue("payload", payload);
             insert.Parameters.AddWithValue("journalEntryId", journalEntryId);
             await insert.ExecuteNonQueryAsync();
+            await AssertPayloadAsync(connection, eventId, payload);
         }
 
         await migrator.MigrateAsync();
 
         var nMinusOneEventId = Guid.NewGuid();
+        string nMinusOnePayload = IdentityLinkedPayload(
+            userId,
+            Guid.NewGuid(),
+            new DateTimeOffset(2026, 1, 2, 3, 6, 0, TimeSpan.Zero));
         await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
         {
             await connection.OpenAsync();
@@ -165,7 +180,7 @@ public sealed class IdentityDatabaseMigrationTests
                 INSERT INTO identity.outbox_messages
                     ("EventId", "Type", "Version", "OccurredAtUtc", "AggregateId", "Payload", "DispatchedAtUtc")
                 VALUES
-                    (@eventId, 'IdentityLinked', 1, '2026-01-02T03:06:00Z', @userId, '{}'::jsonb, NULL);
+                    (@eventId, 'IdentityLinked', 1, '2026-01-02T03:06:00Z', @userId, CAST(@payload AS jsonb), NULL);
 
                 INSERT INTO identity.audit_events
                     ("Id", "UserId", "SessionId", "Action", "Outcome", "Connection", "CorrelationId", "OccurredAtUtc")
@@ -175,8 +190,10 @@ public sealed class IdentityDatabaseMigrationTests
                 connection);
             legacyWriter.Parameters.AddWithValue("eventId", nMinusOneEventId);
             legacyWriter.Parameters.AddWithValue("userId", userId);
+            legacyWriter.Parameters.AddWithValue("payload", nMinusOnePayload);
             legacyWriter.Parameters.AddWithValue("journalEntryId", Guid.NewGuid());
             await legacyWriter.ExecuteNonQueryAsync();
+            await AssertPayloadAsync(connection, nMinusOneEventId, nMinusOnePayload);
         }
 
         await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
@@ -207,6 +224,13 @@ public sealed class IdentityDatabaseMigrationTests
         await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
         {
             await connection.OpenAsync();
+            await AssertPayloadAsync(connection, eventId, payload);
+            await AssertPayloadAsync(connection, nMinusOneEventId, nMinusOnePayload);
+        }
+
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
             await using var verify = new NpgsqlCommand(
                 """
                 SELECT
@@ -223,6 +247,38 @@ public sealed class IdentityDatabaseMigrationTests
             Assert.IsTrue((bool)(await verify.ExecuteScalarAsync()
                 ?? throw new InvalidOperationException("The migration verification returned null.")));
         }
+    }
+
+    private static string IdentityLinkedPayload(
+        Guid userId,
+        Guid identityId,
+        DateTimeOffset linkedAtUtc) =>
+        JsonSerializer.Serialize(
+            new
+            {
+                userId,
+                identityId,
+                connection = "google",
+                linkedAtUtc,
+            },
+            EventSerializerOptions);
+
+    private static async Task AssertPayloadAsync(
+        NpgsqlConnection connection,
+        Guid eventId,
+        string expectedPayload)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT "Payload" = CAST(@payload AS jsonb)
+            FROM identity.outbox_messages
+            WHERE "EventId" = @eventId
+            """,
+            connection);
+        command.Parameters.AddWithValue("eventId", eventId);
+        command.Parameters.AddWithValue("payload", expectedPayload);
+        Assert.IsTrue((bool)(await command.ExecuteScalarAsync()
+            ?? throw new InvalidOperationException("The payload verification returned null.")));
     }
 
     [TestMethod]

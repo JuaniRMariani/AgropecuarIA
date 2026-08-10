@@ -54,6 +54,7 @@ Los eventos incluyen ID, tipo, versión, fuente, scope, tiempos, correlación/ca
 - El shared contract kernel se limita a IDs, scope, correlación y versionado; no contiene dominio ni persistencia.
 - Cualquier nuevo edge, schema o contrato requiere actualizar registro, mapa y tests antes de integrar.
 - Desde el primer runtime R1, `runtime-map.json` vincula módulos implementados, composition roots y contratos reales. El fitness forma parte de la solución raíz e inspecciona referencias de proyecto, ownership EF/schema y OpenAPI; validar solo fixtures R0 no evita drift productivo.
+- Los eventos públicos de cada módulo se emiten desde un catálogo inmutable con type, source, scope, major/schema version y payload schema. El fitness exige igualdad bidireccional entre ese catálogo, el mapa de consumidores y el registro runtime; un evento no publicado o un contrato sin implementación bloquean integración.
 - La primera migración R1 es únicamente `expand`: mantiene nombres físicos y nullability compatibles con escritores N-1, mientras el escritor N y su modelo exigen el envelope completo. Índices/constraints contractuales y renombres físicos se difieren hasta retirar N-1 y demostrar el backfill en `AGRO-FND-003`.
 
 ## Evidencia y fuentes

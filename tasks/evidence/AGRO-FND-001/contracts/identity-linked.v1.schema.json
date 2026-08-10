@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.invalid/contracts/identity-linked.v1.schema.json",
+  "title": "IdentityLinkedV1",
+  "type": "object",
+  "required": ["userId", "identityId", "connection", "linkedAtUtc"],
+  "properties": {
+    "userId": { "type": "string", "format": "uuid" },
+    "identityId": { "type": "string", "format": "uuid" },
+    "connection": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "linkedAtUtc": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

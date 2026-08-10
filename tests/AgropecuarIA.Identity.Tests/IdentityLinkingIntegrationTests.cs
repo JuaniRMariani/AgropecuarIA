@@ -1,4 +1,6 @@
 using System.Net;
+using System.Text.Json;
+using AgropecuarIA.Identity.Domain;
 using AgropecuarIA.Identity.Tests.Infrastructure;
 using Npgsql;
 
@@ -8,6 +10,9 @@ namespace AgropecuarIA.Identity.Tests;
 [DoNotParallelize]
 public sealed class IdentityLinkingIntegrationTests
 {
+    private static readonly string[] ExpectedIdentityLinkedPayloadProperties =
+        ["connection", "identityId", "linkedAtUtc", "userId"];
+
     [TestMethod]
     public async Task ConcurrentSignInsForTheSameIdentityConvergeOnOneUser()
     {
@@ -82,6 +87,13 @@ public sealed class IdentityLinkingIntegrationTests
         Assert.AreEqual(userId, linked.RootElement.GetProperty("userId").GetGuid());
         Assert.HasCount(2, linked.RootElement.GetProperty("identities").EnumerateArray());
         CollectionAssert.AreEqual(memberships, IdentityApiTestActions.Memberships(linked.RootElement));
+        Guid linkedIdentityId = linked.RootElement
+            .GetProperty("identities")
+            .EnumerateArray()
+            .Single(identity =>
+                identity.GetProperty("connection").GetString() == IdentityConnections.Google)
+            .GetProperty("identityId")
+            .GetGuid();
 
         using var googleBrowser = scenario.CreateBrowser();
         await IdentityApiTestActions.SignInAsync(googleBrowser, "google-owner");
@@ -93,18 +105,22 @@ public sealed class IdentityLinkingIntegrationTests
 
         IdentityLinkedEnvelope envelope = await ReadIdentityLinkedEnvelopeAsync(
             scenario.ConnectionString);
-        Assert.AreEqual("1.0.0", envelope.SchemaVersion);
-        Assert.AreEqual("identity-tenancy", envelope.Source);
-        Assert.AreEqual("platform", envelope.ScopeKind);
+        IdentityIntegrationEventDefinition definition = IdentityIntegrationEvents.IdentityLinked;
+        Assert.AreEqual(definition.Type, envelope.Type);
+        Assert.AreEqual(definition.MajorVersion, envelope.Version);
+        Assert.AreEqual(definition.SchemaVersion, envelope.SchemaVersion);
+        Assert.AreEqual(definition.Source, envelope.Source);
+        Assert.AreEqual(definition.Scope, envelope.ScopeKind);
         Assert.IsNull(envelope.TenantId);
         Assert.AreEqual(envelope.OccurredAtUtc, envelope.EffectiveAtUtc);
         Assert.AreEqual(envelope.OccurredAtUtc, envelope.RecordedAtUtc);
         Assert.AreEqual(userId, envelope.ActorId);
         Assert.IsFalse(string.IsNullOrWhiteSpace(envelope.CorrelationId));
         Assert.AreEqual(attemptId, envelope.CausationId);
-        Assert.AreEqual("PlatformUser", envelope.AggregateType);
+        Assert.AreEqual(definition.AggregateType, envelope.AggregateType);
         Assert.AreEqual(userId, envelope.AggregateId);
         Assert.AreEqual(1L, envelope.AggregateVersion);
+        AssertIdentityLinkedPayload(envelope, userId, linkedIdentityId);
     }
 
     [TestMethod]
@@ -222,9 +238,10 @@ public sealed class IdentityLinkingIntegrationTests
             """
             SELECT count(*)
             FROM identity.outbox_messages
-            WHERE "Type" = 'IdentityLinked'
+            WHERE "Type" = @type
             """,
             connection);
+        command.Parameters.AddWithValue("type", IdentityIntegrationEvents.IdentityLinked.Type);
         return (long)(await command.ExecuteScalarAsync()
             ?? throw new InvalidOperationException("The outbox count returned null."));
     }
@@ -247,29 +264,59 @@ public sealed class IdentityLinkingIntegrationTests
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand(
             """
-            SELECT "SchemaVersion", "Source", "ScopeKind", "TenantId", "OccurredAtUtc",
+            SELECT "Type", "Version", "SchemaVersion", "Source", "ScopeKind", "TenantId", "OccurredAtUtc",
                    "EffectiveAtUtc", "RecordedAtUtc", "ActorId", "CorrelationId", "CausationId",
-                   "AggregateType", "AggregateId", "AggregateVersion"
+                   "AggregateType", "AggregateId", "AggregateVersion", "Payload"
             FROM identity.outbox_messages
-            WHERE "Type" = 'IdentityLinked'
+            WHERE "Type" = @type
             """,
             connection);
+        command.Parameters.AddWithValue("type", IdentityIntegrationEvents.IdentityLinked.Type);
         await using var reader = await command.ExecuteReaderAsync();
         Assert.IsTrue(await reader.ReadAsync());
         return new IdentityLinkedEnvelope(
             reader.GetString(0),
-            reader.GetString(1),
+            reader.GetInt32(1),
             reader.GetString(2),
-            reader.IsDBNull(3) ? null : reader.GetGuid(3),
-            reader.GetFieldValue<DateTimeOffset>(4),
-            reader.IsDBNull(5) ? null : reader.GetFieldValue<DateTimeOffset>(5),
+            reader.GetString(3),
+            reader.GetString(4),
+            reader.IsDBNull(5) ? null : reader.GetGuid(5),
             reader.GetFieldValue<DateTimeOffset>(6),
-            reader.GetGuid(7),
-            reader.GetString(8),
-            reader.IsDBNull(9) ? null : reader.GetGuid(9),
+            reader.IsDBNull(7) ? null : reader.GetFieldValue<DateTimeOffset>(7),
+            reader.GetFieldValue<DateTimeOffset>(8),
+            reader.GetGuid(9),
             reader.GetString(10),
-            reader.GetGuid(11),
-            reader.GetInt64(12));
+            reader.IsDBNull(11) ? null : reader.GetGuid(11),
+            reader.GetString(12),
+            reader.GetGuid(13),
+            reader.GetInt64(14),
+            reader.GetString(15));
+    }
+
+    private static void AssertIdentityLinkedPayload(
+        IdentityLinkedEnvelope envelope,
+        Guid userId,
+        Guid linkedIdentityId)
+    {
+        using JsonDocument payload = JsonDocument.Parse(envelope.Payload);
+        JsonElement root = payload.RootElement;
+        CollectionAssert.AreEqual(
+            ExpectedIdentityLinkedPayloadProperties,
+            root.EnumerateObject()
+                .Select(property => property.Name)
+                .Order(StringComparer.Ordinal)
+                .ToArray());
+        Assert.AreEqual(userId, root.GetProperty("userId").GetGuid());
+        Assert.AreEqual(linkedIdentityId, root.GetProperty("identityId").GetGuid());
+        Assert.AreEqual(IdentityConnections.Google, root.GetProperty("connection").GetString());
+        TimeSpan timestampDelta = (envelope.OccurredAtUtc -
+            root.GetProperty("linkedAtUtc").GetDateTimeOffset()).Duration();
+        Assert.IsTrue(
+            timestampDelta < TimeSpan.FromMicroseconds(1),
+            $"Payload and envelope timestamps differ by {timestampDelta.TotalMicroseconds} microseconds.");
+        Assert.IsFalse(envelope.Payload.Contains("issuer", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(envelope.Payload.Contains("subject", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(envelope.Payload.Contains("label", StringComparison.OrdinalIgnoreCase));
     }
 
     private static async Task<long> CountSecurityJournalEntriesAsync(
@@ -293,6 +340,8 @@ public sealed class IdentityLinkingIntegrationTests
     }
 
     private sealed record IdentityLinkedEnvelope(
+        string Type,
+        int Version,
         string SchemaVersion,
         string Source,
         string ScopeKind,
@@ -305,5 +354,6 @@ public sealed class IdentityLinkingIntegrationTests
         Guid? CausationId,
         string AggregateType,
         Guid AggregateId,
-        long AggregateVersion);
+        long AggregateVersion,
+        string Payload);
 }

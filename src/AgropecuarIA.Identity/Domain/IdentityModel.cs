@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace AgropecuarIA.Identity.Domain;
 
 public static class IdentityConnections
@@ -355,74 +357,136 @@ public sealed class IdentitySecurityJournalEntry
 
 public sealed class IdentityOutboxMessage
 {
-    public const string CurrentSchemaVersion = "1.0.0";
-    public const string IdentitySource = "identity-tenancy";
+    private static readonly JsonSerializerOptions PayloadSerializerOptions =
+        new(JsonSerializerDefaults.Web);
 
     private IdentityOutboxMessage()
     {
     }
 
-    public IdentityOutboxMessage(
-        Guid eventId,
-        string type,
-        int version,
-        string schemaVersion,
-        string source,
-        RequestScope scope,
-        DateTimeOffset occurredAtUtc,
-        DateTimeOffset? effectiveAtUtc,
-        DateTimeOffset recordedAtUtc,
-        Guid actorId,
-        string correlationId,
-        Guid? causationId,
-        string aggregateType,
-        Guid aggregateId,
-        long aggregateVersion,
+    private IdentityOutboxMessage(
+        IdentityIntegrationEventKind kind,
+        IdentityIntegrationEventEnvelope envelope,
         string payload)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(type);
-        ArgumentException.ThrowIfNullOrWhiteSpace(schemaVersion);
-        ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(aggregateType);
+        IdentityIntegrationEventDefinition definition = IdentityIntegrationEvents.GetRequired(kind);
+        ArgumentNullException.ThrowIfNull(envelope);
+        ArgumentException.ThrowIfNullOrWhiteSpace(envelope.CorrelationId);
         ArgumentException.ThrowIfNullOrWhiteSpace(payload);
-        ArgumentNullException.ThrowIfNull(scope);
-        if (eventId == Guid.Empty || actorId == Guid.Empty || aggregateId == Guid.Empty)
+        ArgumentNullException.ThrowIfNull(envelope.Scope);
+        if (envelope.EventId == Guid.Empty || envelope.ActorId == Guid.Empty || envelope.AggregateId == Guid.Empty)
         {
             throw new ArgumentException("Event, actor, and aggregate IDs are required.");
         }
 
-        if (version <= 0 || aggregateVersion <= 0)
+        if (envelope.AggregateVersion <= 0)
         {
             throw new ArgumentOutOfRangeException(
-                nameof(version),
-                "Schema major and aggregate versions must be positive.");
+                nameof(envelope),
+                "The aggregate version must be positive.");
         }
 
-        if (recordedAtUtc < occurredAtUtc)
+        if (!string.Equals(definition.Scope, envelope.Scope.Kind, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"Event '{definition.Type}' requires '{definition.Scope}' scope.",
+                nameof(envelope));
+        }
+
+        if (envelope.RecordedAtUtc < envelope.OccurredAtUtc)
         {
             throw new ArgumentException(
                 "Recorded time cannot precede occurred time.",
-                nameof(recordedAtUtc));
+                nameof(envelope));
         }
 
-        EventId = eventId;
-        Type = type;
-        Version = version;
-        SchemaVersion = schemaVersion;
-        Source = source;
-        ScopeKind = scope.Kind;
-        TenantId = scope.TenantId;
-        OccurredAtUtc = occurredAtUtc;
-        EffectiveAtUtc = effectiveAtUtc;
-        RecordedAtUtc = recordedAtUtc;
-        ActorId = actorId;
-        CorrelationId = correlationId;
-        CausationId = causationId;
-        AggregateType = aggregateType;
-        AggregateId = aggregateId;
-        AggregateVersion = aggregateVersion;
+        EventId = envelope.EventId;
+        Type = definition.Type;
+        Version = definition.MajorVersion;
+        SchemaVersion = definition.SchemaVersion;
+        Source = definition.Source;
+        ScopeKind = envelope.Scope.Kind;
+        TenantId = envelope.Scope.TenantId;
+        OccurredAtUtc = envelope.OccurredAtUtc;
+        EffectiveAtUtc = envelope.EffectiveAtUtc;
+        RecordedAtUtc = envelope.RecordedAtUtc;
+        ActorId = envelope.ActorId;
+        CorrelationId = envelope.CorrelationId;
+        CausationId = envelope.CausationId;
+        AggregateType = definition.AggregateType;
+        AggregateId = envelope.AggregateId;
+        AggregateVersion = envelope.AggregateVersion;
         Payload = payload;
+    }
+
+    public static IdentityOutboxMessage CreateIdentityLinked(
+        IdentityIntegrationEventEnvelope envelope,
+        IdentityLinkedIntegrationEventPayload payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        ValidateUserPayload(envelope, payload.UserId, payload.LinkedAtUtc);
+        if (payload.IdentityId == Guid.Empty)
+        {
+            throw new ArgumentException("The linked identity ID is required.", nameof(payload));
+        }
+
+        if (!IdentityConnections.IsSupported(payload.Connection))
+        {
+            throw new ArgumentException("The identity connection is not supported.", nameof(payload));
+        }
+
+        return new IdentityOutboxMessage(
+            IdentityIntegrationEventKind.IdentityLinked,
+            envelope,
+            JsonSerializer.Serialize(payload, PayloadSerializerOptions));
+    }
+
+    public static IdentityOutboxMessage CreateIdentityStepUpCompleted(
+        IdentityIntegrationEventEnvelope envelope,
+        IdentityStepUpCompletedIntegrationEventPayload payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        ValidateUserPayload(envelope, payload.UserId, payload.CompletedAtUtc);
+        if (payload.PreviousSessionId == Guid.Empty || payload.SessionId == Guid.Empty)
+        {
+            throw new ArgumentException("The previous and rotated session IDs are required.", nameof(payload));
+        }
+
+        if (payload.PreviousSessionId == payload.SessionId)
+        {
+            throw new ArgumentException("The rotated session must be new.", nameof(payload));
+        }
+
+        if (!StepUpPurposes.IsSupported(payload.Purpose))
+        {
+            throw new ArgumentException("The step-up purpose is not supported.", nameof(payload));
+        }
+
+        return new IdentityOutboxMessage(
+            IdentityIntegrationEventKind.IdentityStepUpCompleted,
+            envelope,
+            JsonSerializer.Serialize(payload, PayloadSerializerOptions));
+    }
+
+    private static void ValidateUserPayload(
+        IdentityIntegrationEventEnvelope envelope,
+        Guid userId,
+        DateTimeOffset eventAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+        if (userId == Guid.Empty || userId != envelope.AggregateId || userId != envelope.ActorId)
+        {
+            throw new ArgumentException(
+                "The payload user must match the event actor and aggregate.",
+                nameof(userId));
+        }
+
+        if (eventAtUtc != envelope.OccurredAtUtc)
+        {
+            throw new ArgumentException(
+                "The payload occurrence time must match the event envelope.",
+                nameof(eventAtUtc));
+        }
     }
 
     public Guid EventId { get; private set; }

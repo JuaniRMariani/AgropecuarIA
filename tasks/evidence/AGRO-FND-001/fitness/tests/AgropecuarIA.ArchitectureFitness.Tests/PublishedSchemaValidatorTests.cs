@@ -53,6 +53,28 @@ public sealed class PublishedSchemaValidatorTests
         Assert.IsTrue(issues.Any(issue => issue.Code == "schema.scope.kinds-invalid"));
     }
 
+    [TestMethod]
+    [DataRow("identity-linked.v1.schema.json", "linkedAtUtc")]
+    [DataRow("identity-linked.v1.schema.json", "userId")]
+    [DataRow("identity-step-up-completed.v1.schema.json", "completedAtUtc")]
+    [DataRow("identity-step-up-completed.v1.schema.json", "previousSessionId")]
+    public void IdentityEventPayloadSchemasRejectMissingExtraAndWronglyTypedFields(
+        string fileName,
+        string requiredProperty)
+    {
+        var schema = Schema(fileName);
+        var required = schema["required"]!.AsArray();
+        _ = required.Remove(required.Single(node => node?.GetValue<string>() == requiredProperty));
+        schema["properties"]!["unexpected"] = new JsonObject { ["type"] = "string" };
+        schema["properties"]![requiredProperty]!["type"] = "integer";
+
+        var issues = PublishedSchemaValidator.Validate(fileName, schema.ToJsonString());
+
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.required.missing"));
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.properties.invalid"));
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-shape.invalid"));
+    }
+
     private static JsonObject Schema(string fileName) =>
         JsonNode.Parse(File.ReadAllText(Path.Combine(EvidenceFixture.ContractsDirectory(), fileName)))!.AsObject();
 }

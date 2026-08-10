@@ -982,3 +982,55 @@ Estado inicial: `En curso`. La selección autónoma descartó `AGRO-FND-002` por
 - Riesgos residuales: Auth0/factores reales, tenant/RLS/roles, edge/HSTS/hosts/key ring/limiter distribuido, OTLP, CI/SBOM/provenance, auditoría central, backup/restore, región/DPA/retención y notificación permanecen `NO-GO` para ambiente compartido o Internet.
 - Autoevaluación: 96/100 — contexto/selección 15/15, arquitectura/código 19/20, multiagente 10/10, full-stack/datos/observabilidad 14/15, tests/seguridad 20/20, preservación/cierre 18/20. Cero gate obligatorio fallido.
 - Estado: `En curso`. El incremento local está terminado; la tarea padre R0–R6 continúa y se reevaluará por slice. No hubo deploy.
+
+## Iteración 21 — AGRO-DIS-003 discovery seguro de membresías (2026-08-10)
+
+Estado inicial: `En revisión`. El sponsor aprobó continuar con la candidata recomendada. Clasificación: extensión R0 descartable del spike existente; no es código productivo ni inicia `AGRO-FND-002`/`AGRO-ID-003`.
+
+### DoR, decisión y alcance
+
+- [x] Confirmar que el discovery 0/1/N actual usa `FixtureIdentityDirectory`, mientras PostgreSQL solo permite RLS después de conocer `app.current_organization_id`.
+- [x] Confirmar que `Organization` sigue siendo tenant técnico, pero CUIT, propiedad/control contractual y roles definitivos permanecen fuera del spike.
+- [x] Elegir un principal DB exclusivo `agro_membership_discovery`: `LOGIN`, `NOINHERIT`, `NOBYPASSRLS`, sin ownership ni escritura.
+- [x] Fijar `app.current_actor_id` mediante `set_config(..., true)` dentro de una transacción, derivado únicamente de la sesión server-side; ningún request acepta `userId` autoritativo.
+- [x] Mantener policies de discovery separadas de las policies tenant; seleccionar organización solo revalida una membership activa y no entrega autoridad por el ID del cliente.
+- [x] Basar la decisión en PostgreSQL 17: `FORCE ROW LEVEL SECURITY`, default-deny, `set_config` transaccional y rol runtime sin `BYPASSRLS`; Npgsql conserva conexión/transacción explícitas sobre un pool dedicado.
+
+### Plan verificable
+
+- [x] Capturar baseline del spike con PostgreSQL 17 efímero y suite raíz sin modificar artefactos productivos.
+- [x] Agregar una migración R0 `003` con rol/grants/policies actor-scoped, datos mínimos y probes de catálogo/discovery.
+- [x] Implementar un port pequeño de discovery PostgreSQL; reemplazar únicamente el listado in-memory y hacer la resolución de sesión async/cancelable.
+- [x] Conservar 0 memberships como sesión platform-scoped sin tenant; 1 activa selección automática; N activas requieren selección; revocada/inactiva/ajena falla cerrada.
+- [x] Revalidar la membership al cambiar organización, rotar sesión y resolver permisos/security version desde DB antes de acceder a datos tenant.
+- [x] Probar 0/1/N, actor ausente/ajeno, org/membership inactiva, revocación entre listado y switch, orden/límite y pool tras commit/rollback/excepción/cancelación.
+- [x] Verificar roles/grants: ningún runtime owner/superuser/`BYPASSRLS`; discovery sin escritura, sin `platform_user`, email, CUIT ni datos productivos.
+- [x] Reconciliar contratos y evidencia histórica: separar sesión platform-scoped, discovery y contexto tenant; marcar identidad externa 1:N como cerrada por ID-001 y conservar gates Auth0/Legal externos.
+- [x] Obtener revisión independiente DBA/AppSec y QA/Arquitectura; actualizar `ADR-PEND-007` solo si toda la evidencia técnica queda verde.
+- [x] Ejecutar gates del spike y regresión raíz; commit/push autorizado y detenerse sin iniciar otra tarea.
+
+### Ownership disjunto
+
+- Principal: contrato compartido, `Program.cs`, plan/ADR/evidencia, integración, gates, backlog y Git.
+- Database/Security: migración/probes/runner/scripts PostgreSQL del spike; no edita API, tests C# ni documentación principal.
+- Backend .NET: port/repositorio, resolución de sesión y tests C# del spike; no edita SQL, `Program.cs`, contratos ni documentación.
+- QA y Architecture/AppSec: revisión final read-only desde el estado combinado.
+
+### No objetivos y gates
+
+- No modificar `src/**`, `apps/**`, migraciones EF ni contratos productivos; no implementar invitaciones/roles, mutation ledger, outbox/inbox, worker, IdP real, CI o deploy.
+- El rol de discovery sigue confiando en que el actor proviene del borde autenticado: RLS es defensa en profundidad, no mitigación de SQL injection o compromiso total del principal DB.
+- Rollback: detener/eliminar el clúster efímero; la migración del spike no se copia a producción.
+- La mención histórica a `trust` en Iteración 9 describe la baseline del 2026-08-05 y queda supersedida: el harness vigente exige SCRAM-SHA-256, cuatro secretos efímeros distintos y ACL owner-only.
+- Gates: PostgreSQL probes; spike restore/build/MTP/format/SCA; contratos JSON; suite raíz 114/114; secrets/UTF-8/diff-check; revisiones independientes con cero hallazgos críticos/altos.
+
+### Review final
+
+- Resultado: `PASS` del incremento R0. PostgreSQL 17 limpio con SCRAM devolvió `catalog-security-pass`, `rls-isolation-pass`, `membership-discovery-pass` e `identity-spike-database-pass`; migration/probe `003` reejecutables.
+- Spike: restore `PASS`; build Debug 0 warnings/errores; MTP 29/29; format `PASS`; NuGet SCA 0 vulnerabilidades conocidas; cleanup eliminó `.runtime`.
+- Regresión raíz: restore locked `PASS`; build Release 0 warnings/errores; MTP 114/114; format `PASS`; EF sin cambios pendientes; NuGet SCA 0 vulnerabilidades conocidas.
+- Seguridad: owner/superuser/`BYPASSRLS`/`INHERIT`/`CREATEDB`/`CREATEROLE`/`REPLICATION`, memberships u ownership indebidos fallan antes de servir. Reautorización del recurso comparte statement/snapshot con la lectura.
+- QA y AppSec/Arquitectura independientes: `PASS`, cero hallazgos críticos, altos o medios. Los blockers iniciales de `trust`, principal fail-open, TOCTOU y cobertura documental fueron corregidos y revalidados.
+- Contratos/documentación: 4 JSON válidos y UTF-8; discovery es contrato conceptual interno, no endpoint independiente; cero memberships conserva estado interno pero el HTTP histórico responde 403.
+- Estado: `AGRO-DIS-003` continúa `En revisión` por Auth0/Legal/runtime productivo. `ADR-PEND-007` queda aceptada para desarrollo R1, no implementada en producción.
+- No hubo cambios en `src/**`, `apps/**`, `tests/**`, frontend, migraciones EF, CI o deploy. Autoevaluación: 96/100; cero gate obligatorio fallido.

@@ -8,6 +8,7 @@ internal sealed class TenantRecordRepository(NpgsqlDataSource dataSource)
 {
     internal async Task<TenantRecord?> FindAsync(
         Guid organizationId,
+        Guid actorUserId,
         Guid recordId,
         CancellationToken cancellationToken)
     {
@@ -28,9 +29,25 @@ internal sealed class TenantRecordRepository(NpgsqlDataSource dataSource)
         {
             query.Transaction = transaction;
             query.CommandText =
-                "select id, organization_id, record_name from identity_spike.tenant_record where id = @record_id";
+                """
+                select record.id, record.organization_id, record.record_name
+                from identity_spike.tenant_record record
+                where record.id = @record_id
+                  and exists (
+                      select 1
+                      from identity_spike.membership membership
+                      where membership.organization_id = record.organization_id
+                        and membership.platform_user_id = @actor_user_id
+                        and membership.is_active
+                        and membership.permission_set = 'tenant-record.read'
+                  )
+                """;
             query.Parameters.AddWithValue("record_id", recordId);
+            query.Parameters.AddWithValue("actor_user_id", actorUserId);
 
+            // Authorization and data share this READ COMMITTED statement snapshot.
+            // A revocation committed before it starts denies the read; a later racing
+            // revocation becomes authoritative for the next request.
             await using var reader = await query.ExecuteReaderAsync(cancellationToken);
             if (await reader.ReadAsync(cancellationToken))
             {

@@ -28,6 +28,20 @@ builder.Services.AddAntiforgery(options =>
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(_ => new FixtureIdentityDirectory());
 builder.Services.AddSingleton<SessionStore>();
+builder.Services.AddSingleton<IMembershipDiscoveryRepository>(services =>
+{
+    var configuration = services.GetRequiredService<IConfiguration>();
+    var connectionString = configuration["IdentitySpike:DiscoveryConnectionString"];
+
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        throw new InvalidOperationException(
+            "IdentitySpike:DiscoveryConnectionString is required at runtime. " +
+            "Membership discovery must not reuse the tenant application principal.");
+    }
+
+    return new PostgresMembershipDiscoveryRepository(connectionString);
+});
 builder.Services.AddSingleton<SessionContextService>();
 builder.Services.AddSingleton<ReauthenticationProofStore>();
 builder.Services.AddSingleton<LinkAttemptService>();
@@ -50,6 +64,10 @@ builder.Services.AddSingleton<TenantRecordRepository>();
 builder.Services.AddSingleton<AuditEventRepository>();
 
 var app = builder.Build();
+
+await app.Services
+    .GetRequiredService<IMembershipDiscoveryRepository>()
+    .ValidateConfigurationAsync(CancellationToken.None);
 
 app.UseExceptionHandler();
 app.Use(async (context, next) =>

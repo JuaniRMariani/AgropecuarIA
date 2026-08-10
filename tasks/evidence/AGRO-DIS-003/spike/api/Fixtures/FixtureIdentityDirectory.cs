@@ -37,56 +37,6 @@ internal sealed class FixtureIdentityDirectory
 
     internal ExternalIdentity GetPrimaryIdentity(Guid userId) => _primaryIdentities[userId];
 
-    internal static IReadOnlyList<OrganizationMembership> GetActiveMemberships(Guid userId)
-    {
-        if (userId == OneOrganizationUserId)
-        {
-            return
-            [
-                new(
-                    Guid.Parse("a1111111-1111-4111-8111-111111111111"),
-                    OrganizationAId,
-                    "Organización sintética A",
-                    "active",
-                    ["tenant-record.read"])
-            ];
-        }
-
-        if (userId == ManyOrganizationsUserId)
-        {
-            return
-            [
-                new(
-                    Guid.Parse("a2222222-2222-4222-8222-222222222221"),
-                    OrganizationAId,
-                    "Organización sintética A",
-                    "active",
-                    ["tenant-record.read"]),
-                new(
-                    Guid.Parse("a2222222-2222-4222-8222-222222222222"),
-                    OrganizationBId,
-                    "Organización sintética B",
-                    "active",
-                    ["tenant-record.read"])
-            ];
-        }
-
-        if (userId == NoReadPermissionUserId)
-        {
-            return
-            [
-                new(
-                    Guid.Parse("a3333333-3333-4333-8333-333333333333"),
-                    OrganizationBId,
-                    "Organización sintética B",
-                    "active",
-                    [])
-            ];
-        }
-
-        return [];
-    }
-
     internal LinkIdentityResult TryLink(Guid userId, ExternalIdentity candidate)
     {
         var key = ExternalIdentityKey.From(candidate);

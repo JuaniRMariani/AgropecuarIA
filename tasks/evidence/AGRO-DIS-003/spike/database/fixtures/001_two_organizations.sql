@@ -11,7 +11,8 @@ INSERT INTO identity_spike.platform_user (
 VALUES
     ('10000000-0000-0000-0000-000000000001', 'https://fake-idp.invalid/email', 'user-a', 'user-a@example.invalid', '2026-08-05T12:00:00Z'),
     ('10000000-0000-0000-0000-000000000002', 'https://fake-idp.invalid/email', 'user-b', 'user-b@example.invalid', '2026-08-05T12:00:00Z'),
-    ('10000000-0000-0000-0000-000000000003', 'https://fake-idp.invalid/google', 'user-shared', 'shared@example.invalid', '2026-08-05T12:00:00Z')
+    ('10000000-0000-0000-0000-000000000003', 'https://fake-idp.invalid/google', 'user-shared', 'shared@example.invalid', '2026-08-05T12:00:00Z'),
+    ('10000000-0000-0000-0000-000000000004', 'https://fake-idp.invalid/email', 'user-zero', 'zero@example.invalid', '2026-08-05T12:00:00Z')
 ON CONFLICT (id) DO UPDATE SET
     external_issuer = EXCLUDED.external_issuer,
     external_subject = EXCLUDED.external_subject,
@@ -28,12 +29,13 @@ ON CONFLICT (id) DO UPDATE SET
     created_at = EXCLUDED.created_at;
 
 INSERT INTO identity_spike.membership (
-    organization_id, platform_user_id, permission_set, is_active, security_version, created_at
+    id, organization_id, platform_user_id, permission_set, is_active, security_version, created_at
 )
 VALUES
-    ('00000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', 'identity.owner', true, 1, '2026-08-05T12:01:00Z'),
-    ('00000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000003', 'identity.viewer', true, 1, '2026-08-05T12:01:00Z')
+    ('a1111111-1111-4111-8111-111111111111', '00000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', 'tenant-record.read', true, 1, '2026-08-05T12:01:00Z'),
+    ('a2222222-2222-4222-8222-222222222221', '00000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000003', 'tenant-record.read', true, 1, '2026-08-05T12:01:00Z')
 ON CONFLICT (organization_id, platform_user_id) DO UPDATE SET
+    id = EXCLUDED.id,
     permission_set = EXCLUDED.permission_set,
     is_active = EXCLUDED.is_active,
     security_version = EXCLUDED.security_version,
@@ -83,12 +85,14 @@ ON CONFLICT (id) DO UPDATE SET
     created_at = EXCLUDED.created_at;
 
 INSERT INTO identity_spike.membership (
-    organization_id, platform_user_id, permission_set, is_active, security_version, created_at
+    id, organization_id, platform_user_id, permission_set, is_active, security_version, created_at
 )
 VALUES
-    ('00000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000002', 'identity.owner', true, 1, '2026-08-05T12:01:00Z'),
-    ('00000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000003', 'identity.viewer', true, 1, '2026-08-05T12:01:00Z')
+    ('a3333333-3333-4333-8333-333333333333', '00000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000002', 'identity.none', true, 1, '2026-08-05T12:01:00Z'),
+    ('a2222222-2222-4222-8222-222222222222', '00000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000003', 'tenant-record.read', true, 1, '2026-08-05T12:01:00Z'),
+    ('a4444444-4444-4444-8444-444444444444', '00000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000001', 'tenant-record.read', false, 2, '2026-08-05T12:01:00Z')
 ON CONFLICT (organization_id, platform_user_id) DO UPDATE SET
+    id = EXCLUDED.id,
     permission_set = EXCLUDED.permission_set,
     is_active = EXCLUDED.is_active,
     security_version = EXCLUDED.security_version,

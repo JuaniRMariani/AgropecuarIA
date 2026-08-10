@@ -17,12 +17,16 @@ internal static class TenantRecordEndpoints
         AuditEventRepository auditRepository,
         CancellationToken cancellationToken)
     {
-        var resolution = SessionEndpointSupport.RequireActive(context, contextService, out var failure);
-        if (failure is not null)
+        SessionRequirementResult requirement = await SessionEndpointSupport.RequireActiveAsync(
+            context,
+            contextService,
+            cancellationToken);
+        if (requirement.Failure is not null)
         {
-            return failure;
+            return requirement.Failure;
         }
 
+        SessionResolution resolution = requirement.Resolution;
         if (!resolution.ActiveMembership!.Permissions.Contains(
             "tenant-record.read",
             StringComparer.Ordinal))
@@ -40,6 +44,7 @@ internal static class TenantRecordEndpoints
 
         var record = await repository.FindAsync(
             resolution.ActiveMembership!.OrganizationId,
+            resolution.Session!.UserId,
             recordId,
             cancellationToken);
         if (record is not null)

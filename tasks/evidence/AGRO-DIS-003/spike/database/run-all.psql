@@ -3,10 +3,14 @@
 \ir migrations/001_roles_and_schema.sql
 \echo 'Applying identity model and RLS'
 \ir migrations/002_identity_model_and_rls.sql
+\echo 'Verifying baseline tenant catalog security invariants'
+\ir probes/001_catalog_security.sql
+\echo 'Applying actor-scoped membership discovery'
+\ir migrations/003_membership_discovery.sql
 \echo 'Loading deterministic synthetic fixtures'
 \ir fixtures/001_two_organizations.sql
-\echo 'Verifying catalog security invariants'
-\ir probes/001_catalog_security.sql
 \echo 'Verifying tenant isolation and transaction-local context'
 \ir probes/002_rls_isolation.sql
+\echo 'Verifying actor-scoped membership discovery'
+\ir probes/003_membership_discovery.sql
 \echo 'identity-spike-database-pass'

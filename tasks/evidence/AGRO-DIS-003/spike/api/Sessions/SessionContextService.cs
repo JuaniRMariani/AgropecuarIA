@@ -1,12 +1,13 @@
-using AgropecuarIA.IdentitySpike.Api.Fixtures;
-
 namespace AgropecuarIA.IdentitySpike.Api.Sessions;
 
 internal sealed class SessionContextService(
     SessionStore sessionStore,
+    IMembershipDiscoveryRepository membershipDiscoveryRepository,
     TimeProvider timeProvider)
 {
-    internal SessionResolution Resolve(HttpContext context)
+    internal async Task<SessionResolution> ResolveAsync(
+        HttpContext context,
+        CancellationToken cancellationToken)
     {
         if (!context.Request.Cookies.TryGetValue(SessionStore.CookieName, out var rawSessionId) ||
             !Guid.TryParse(rawSessionId, out var sessionId))
@@ -30,7 +31,22 @@ internal sealed class SessionContextService(
                 NormalizeRevocationReason(session.RevocationReason));
         }
 
-        var memberships = FixtureIdentityDirectory.GetActiveMemberships(session.UserId);
+        IReadOnlyList<OrganizationMembership> memberships;
+        try
+        {
+            memberships = await membershipDiscoveryRepository.ListActiveForActorAsync(
+                session.UserId,
+                cancellationToken);
+        }
+        catch (MembershipDiscoveryLimitExceededException)
+        {
+            return new(
+                SessionResolutionKind.MembershipLimitExceeded,
+                session,
+                [],
+                null,
+                null);
+        }
         if (memberships.Count == 0)
         {
             return new(SessionResolutionKind.NoActiveMembership, session, memberships, null, null);
@@ -69,7 +85,7 @@ internal sealed class SessionContextService(
             ToActorResponse(session),
             ToOrganizationResponse(membership),
             membership.Permissions,
-            "fixture-v1",
+            $"membership-v{membership.SecurityVersion}",
             ToSessionResponse(session));
 
     internal static SelectionRequiredResponse ToSelectionRequiredResponse(

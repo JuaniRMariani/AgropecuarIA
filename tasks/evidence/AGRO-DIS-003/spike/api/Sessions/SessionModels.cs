@@ -5,7 +5,8 @@ internal sealed record OrganizationMembership(
     Guid OrganizationId,
     string DisplayName,
     string Status,
-    IReadOnlyList<string> Permissions);
+    IReadOnlyList<string> Permissions,
+    int SecurityVersion);
 
 internal sealed record SessionRecord(
     Guid SessionId,
@@ -58,7 +59,8 @@ internal enum SessionResolutionKind
     Revoked,
     NoActiveMembership,
     SelectionRequired,
-    Active
+    Active,
+    MembershipLimitExceeded
 }
 
 internal sealed record SessionResolution(

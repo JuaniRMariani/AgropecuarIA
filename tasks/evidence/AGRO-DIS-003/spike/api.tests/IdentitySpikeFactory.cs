@@ -6,6 +6,17 @@ namespace AgropecuarIA.IdentitySpike.Tests;
 
 internal sealed class IdentitySpikeFactory : WebApplicationFactory<Program>
 {
+    internal string OwnerConnectionString { get; } =
+        TestEnvironment.Require("IdentitySpike__OwnerConnectionString");
+
+    internal string DiscoveryConnectionString { get; }
+
+    internal IdentitySpikeFactory(string? discoveryConnectionString = null)
+    {
+        DiscoveryConnectionString = discoveryConnectionString ??
+            TestEnvironment.Require("IdentitySpike__DiscoveryConnectionString");
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         var connectionString = TestEnvironment.Require("ConnectionStrings__IdentitySpike");
@@ -16,6 +27,7 @@ internal sealed class IdentitySpikeFactory : WebApplicationFactory<Program>
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:IdentitySpike"] = connectionString,
+                ["IdentitySpike:DiscoveryConnectionString"] = DiscoveryConnectionString,
                 ["urls"] = "https://localhost"
             });
         });

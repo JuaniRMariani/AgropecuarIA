@@ -1,8 +1,12 @@
 \set ON_ERROR_STOP on
 
 -- R0 spike only. Run as the owner of an isolated PostgreSQL 17 database.
--- Login roles intentionally have no password: the local ephemeral harness uses
--- loopback-only trust authentication and no credential is persisted.
+-- The ephemeral harness supplies distinct random passwords through process
+-- environment variables. psql variables avoid placing those values in SQL or
+-- command output.
+
+\getenv agro_app_password AGRO_APP_PASSWORD
+\getenv agro_job_password AGRO_JOB_PASSWORD
 
 BEGIN;
 
@@ -46,9 +50,11 @@ $roles$;
 ALTER ROLE agro_schema_owner
     NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
 ALTER ROLE agro_app
-    LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+    LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS
+    PASSWORD :'agro_app_password';
 ALTER ROLE agro_job
-    LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+    LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS
+    PASSWORD :'agro_job_password';
 
 -- Re-running the spike cannot accidentally retain owner membership, while a
 -- clean cluster remains warning-free.

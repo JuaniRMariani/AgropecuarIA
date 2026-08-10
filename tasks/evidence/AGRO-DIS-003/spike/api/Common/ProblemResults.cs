@@ -46,6 +46,13 @@ internal static class ProblemResults
         "Membresía activa requerida",
         "La identidad autenticada no tiene una membresía activa.");
 
+    internal static ProblemHttpResult MembershipLimitExceeded(HttpContext context) => Create(
+        context,
+        StatusCodes.Status409Conflict,
+        "membership-discovery-limit-exceeded",
+        "Contexto de organizaciones no resoluble",
+        "La cuenta supera el límite seguro de membresías activas para este flujo.");
+
     internal static ProblemHttpResult NeutralNotFound(HttpContext context) => Create(
         context,
         StatusCodes.Status404NotFound,

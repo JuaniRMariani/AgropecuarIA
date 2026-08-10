@@ -19,16 +19,20 @@ internal static class LinkingEndpoints
             .AddEndpointFilter<AntiforgeryEndpointFilter>();
     }
 
-    private static IResult CreateAttempt(
+    private static async Task<IResult> CreateAttempt(
         CreateLinkAttemptRequest request,
         HttpContext context,
         SessionContextService contextService,
-        LinkAttemptService service)
+        LinkAttemptService service,
+        CancellationToken cancellationToken)
     {
-        var resolution = SessionEndpointSupport.RequireStepUp(context, contextService, out var failure);
-        if (failure is not null)
+        SessionRequirementResult requirement = await SessionEndpointSupport.RequireStepUpAsync(
+            context,
+            contextService,
+            cancellationToken);
+        if (requirement.Failure is not null)
         {
-            return failure;
+            return requirement.Failure;
         }
 
         if (!TryCreateIdentity(request.Issuer, request.Subject, out var candidate))
@@ -37,38 +41,52 @@ internal static class LinkingEndpoints
         }
 
         var attempt = service.Create(
-            resolution.Session!.SessionId,
-            resolution.Session.UserId,
+            requirement.Resolution.Session!.SessionId,
+            requirement.Resolution.Session.UserId,
             candidate!);
         return TypedResults.Created(
             $"/api/spike/link-attempts/{attempt.AttemptId:D}",
             ToResponse(attempt));
     }
 
-    private static IResult ReauthenticateCurrent(
+    private static async Task<IResult> ReauthenticateCurrent(
         Guid attemptId,
         ReauthenticateRequest request,
         HttpContext context,
         SessionContextService contextService,
-        LinkAttemptService service)
+        LinkAttemptService service,
+        CancellationToken cancellationToken)
     {
-        var resolution = SessionEndpointSupport.RequireStepUp(context, contextService, out var failure);
-        return failure ?? ToResult(
+        SessionRequirementResult requirement = await SessionEndpointSupport.RequireStepUpAsync(
             context,
-            service.ReauthenticateCurrent(attemptId, resolution.Session!.SessionId, request.ProofId));
+            contextService,
+            cancellationToken);
+        return requirement.Failure ?? ToResult(
+            context,
+            service.ReauthenticateCurrent(
+                attemptId,
+                requirement.Resolution.Session!.SessionId,
+                request.ProofId));
     }
 
-    private static IResult ReauthenticateCandidate(
+    private static async Task<IResult> ReauthenticateCandidate(
         Guid attemptId,
         ReauthenticateRequest request,
         HttpContext context,
         SessionContextService contextService,
-        LinkAttemptService service)
+        LinkAttemptService service,
+        CancellationToken cancellationToken)
     {
-        var resolution = SessionEndpointSupport.RequireStepUp(context, contextService, out var failure);
-        return failure ?? ToResult(
+        SessionRequirementResult requirement = await SessionEndpointSupport.RequireStepUpAsync(
             context,
-            service.ReauthenticateCandidate(attemptId, resolution.Session!.SessionId, request.ProofId));
+            contextService,
+            cancellationToken);
+        return requirement.Failure ?? ToResult(
+            context,
+            service.ReauthenticateCandidate(
+                attemptId,
+                requirement.Resolution.Session!.SessionId,
+                request.ProofId));
     }
 
     private static async Task<IResult> Complete(
@@ -79,12 +97,16 @@ internal static class LinkingEndpoints
         AuditEventRepository auditRepository,
         CancellationToken cancellationToken)
     {
-        var resolution = SessionEndpointSupport.RequireStepUp(context, contextService, out var failure);
-        if (failure is not null)
+        SessionRequirementResult requirement = await SessionEndpointSupport.RequireStepUpAsync(
+            context,
+            contextService,
+            cancellationToken);
+        if (requirement.Failure is not null)
         {
-            return failure;
+            return requirement.Failure;
         }
 
+        SessionResolution resolution = requirement.Resolution;
         var operation = service.Complete(attemptId, resolution.Session!.SessionId);
         if (operation.Result != LinkOperationResult.Succeeded)
         {

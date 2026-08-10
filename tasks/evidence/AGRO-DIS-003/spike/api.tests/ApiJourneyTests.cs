@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Npgsql;
 
 namespace AgropecuarIA.IdentitySpike.Tests;
 
@@ -38,6 +39,9 @@ public sealed class ApiJourneyTests
             await AssertJsonAsync(one, HttpStatusCode.OK, "kind", "active");
             using var document = await ReadJsonAsync(one);
             Assert.AreEqual(OrganizationA, document.RootElement.GetProperty("tenant").GetProperty("organizationId").GetString());
+            Assert.AreEqual(
+                "membership-v1",
+                document.RootElement.GetProperty("authorizationVersion").GetString());
         }
 
         using (var manyClient = factory.CreateBrowserClient())
@@ -46,7 +50,57 @@ public sealed class ApiJourneyTests
             using var many = await manyClient.GetAsync("/api/spike/session");
             await AssertJsonAsync(many, HttpStatusCode.OK, "kind", "selection_required");
             using var document = await ReadJsonAsync(many);
-            Assert.AreEqual(2, document.RootElement.GetProperty("organizations").GetArrayLength());
+            JsonElement.ArrayEnumerator organizations =
+                document.RootElement.GetProperty("organizations").EnumerateArray();
+            Assert.IsTrue(organizations.MoveNext());
+            Assert.AreEqual(OrganizationA, organizations.Current.GetProperty("organizationId").GetString());
+            Assert.IsFalse(organizations.Current.TryGetProperty("permissions", out _));
+            Assert.IsTrue(organizations.MoveNext());
+            Assert.AreEqual(OrganizationB, organizations.Current.GetProperty("organizationId").GetString());
+            Assert.IsFalse(organizations.Current.TryGetProperty("permissions", out _));
+            Assert.IsFalse(organizations.MoveNext());
+        }
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public async Task RevokedMembershipBetweenListingAndSwitchIsNeutralAndDoesNotRotateSession()
+    {
+        await using var factory = new IdentitySpikeFactory();
+        using var client = factory.CreateBrowserClient();
+        var originalSessionId = await CreateSessionAsync(client, "many");
+
+        using (var listed = await client.GetAsync("/api/spike/session"))
+        {
+            await AssertJsonAsync(listed, HttpStatusCode.OK, "kind", "selection_required");
+        }
+
+        var antiforgeryToken = await GetAntiforgeryTokenAsync(client);
+        await SetSharedMembershipBStateAsync(factory.OwnerConnectionString, isActive: false, securityVersion: 2);
+        try
+        {
+            using (var denied = await PostWithAntiforgeryAsync(
+                client,
+                "/api/spike/session/switch-organization",
+                new { organizationId = OrganizationB },
+                antiforgeryToken))
+            {
+                await AssertProblemAsync(denied, HttpStatusCode.NotFound, "resource-not-found");
+            }
+
+            using var current = await client.GetAsync("/api/spike/session");
+            await AssertJsonAsync(current, HttpStatusCode.OK, "kind", "active");
+            using var document = await ReadJsonAsync(current);
+            Assert.AreEqual(
+                originalSessionId,
+                document.RootElement.GetProperty("session").GetProperty("sessionId").GetString());
+            Assert.AreEqual(
+                OrganizationA,
+                document.RootElement.GetProperty("tenant").GetProperty("organizationId").GetString());
+        }
+        finally
+        {
+            await SetSharedMembershipBStateAsync(factory.OwnerConnectionString, isActive: true, securityVersion: 1);
         }
     }
 
@@ -501,4 +555,22 @@ public sealed class ApiJourneyTests
 
     private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response) =>
         JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+    private static async Task SetSharedMembershipBStateAsync(
+        string ownerConnectionString,
+        bool isActive,
+        int securityVersion)
+    {
+        await using var dataSource = NpgsqlDataSource.Create(ownerConnectionString);
+        await using var command = dataSource.CreateCommand(
+            """
+            update identity_spike.membership
+            set is_active = @is_active,
+                security_version = @security_version
+            where id = 'a2222222-2222-4222-8222-222222222222'
+            """);
+        command.Parameters.AddWithValue("is_active", isActive);
+        command.Parameters.AddWithValue("security_version", securityVersion);
+        Assert.AreEqual(1, await command.ExecuteNonQueryAsync());
+    }
 }

@@ -14,9 +14,12 @@ internal static class SessionEndpoints
             .AddEndpointFilter<AntiforgeryEndpointFilter>();
     }
 
-    private static IResult GetSession(HttpContext context, SessionContextService contextService)
+    private static async Task<IResult> GetSession(
+        HttpContext context,
+        SessionContextService contextService,
+        CancellationToken cancellationToken)
     {
-        var resolution = contextService.Resolve(context);
+        SessionResolution resolution = await contextService.ResolveAsync(context, cancellationToken);
         return resolution.Kind switch
         {
             SessionResolutionKind.SignedOut => TypedResults.Ok(new SignedOutResponse("signed_out")),
@@ -31,6 +34,8 @@ internal static class SessionEndpoints
                 SessionContextService.ToActiveResponse(
                     resolution.Session!,
                     resolution.ActiveMembership!)),
+            SessionResolutionKind.MembershipLimitExceeded =>
+                ProblemResults.MembershipLimitExceeded(context),
             _ => throw new InvalidOperationException("Unknown session resolution.")
         };
     }
@@ -43,13 +48,17 @@ internal static class SessionEndpoints
         AuditEventRepository auditRepository,
         CancellationToken cancellationToken)
     {
-        var resolution = SessionEndpointSupport.RequireAuthenticated(context, contextService, out var failure);
-        if (failure is not null)
+        SessionRequirementResult requirement = await SessionEndpointSupport.RequireAuthenticatedAsync(
+            context,
+            contextService,
+            cancellationToken);
+        if (requirement.Failure is not null)
         {
-            return failure;
+            return requirement.Failure;
         }
 
-        var membership = resolution.Memberships.SingleOrDefault(
+        SessionResolution resolution = requirement.Resolution;
+        OrganizationMembership? membership = resolution.Memberships.SingleOrDefault(
             candidate => candidate.OrganizationId == request.OrganizationId);
         if (membership is null)
         {
@@ -90,12 +99,16 @@ internal static class SessionEndpoints
         AuditEventRepository auditRepository,
         CancellationToken cancellationToken)
     {
-        var resolution = SessionEndpointSupport.RequireAuthenticated(context, contextService, out var failure);
-        if (failure is not null)
+        SessionRequirementResult requirement = await SessionEndpointSupport.RequireAuthenticatedAsync(
+            context,
+            contextService,
+            cancellationToken);
+        if (requirement.Failure is not null)
         {
-            return failure;
+            return requirement.Failure;
         }
 
+        SessionResolution resolution = requirement.Resolution;
         var revoked = sessionStore.Revoke(resolution.Session!.SessionId, "session_revoked");
         if (revoked is null)
         {

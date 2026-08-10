@@ -73,16 +73,20 @@ internal static class FixtureEndpoints
                 initialResolution));
     }
 
-    private static IResult IssueReauthenticationProof(
+    private static async Task<IResult> IssueReauthenticationProof(
         IssueProofRequest request,
         HttpContext context,
         SessionContextService contextService,
-        ReauthenticationProofStore proofStore)
+        ReauthenticationProofStore proofStore,
+        CancellationToken cancellationToken)
     {
-        var resolution = SessionEndpointSupport.RequireAuthenticated(context, contextService, out var failure);
-        if (failure is not null)
+        SessionRequirementResult requirement = await SessionEndpointSupport.RequireAuthenticatedAsync(
+            context,
+            contextService,
+            cancellationToken);
+        if (requirement.Failure is not null)
         {
-            return failure;
+            return requirement.Failure;
         }
 
         if (!LinkingEndpoints.TryCreateIdentity(request.Issuer, request.Subject, out var identity))
@@ -95,7 +99,7 @@ internal static class FixtureEndpoints
                 "Issuer debe ser HTTPS y subject no puede estar vacío.");
         }
 
-        var proof = proofStore.Issue(resolution.Session!.SessionId, identity!);
+        var proof = proofStore.Issue(requirement.Resolution.Session!.SessionId, identity!);
         return TypedResults.Created(
             $"/__fixtures/reauthentication-proofs/{proof.ProofId:D}",
             new ProofResponse(proof.ProofId, proof.ExpiresAt));

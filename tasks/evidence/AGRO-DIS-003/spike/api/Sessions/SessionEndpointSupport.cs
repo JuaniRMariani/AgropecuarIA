@@ -4,48 +4,61 @@ namespace AgropecuarIA.IdentitySpike.Api.Sessions;
 
 internal static class SessionEndpointSupport
 {
-    internal static SessionResolution RequireAuthenticated(
+    internal static async Task<SessionRequirementResult> RequireAuthenticatedAsync(
         HttpContext context,
         SessionContextService contextService,
-        out IResult? failure)
+        CancellationToken cancellationToken)
     {
-        var resolution = contextService.Resolve(context);
-        failure = resolution.Kind switch
+        SessionResolution resolution = await contextService.ResolveAsync(context, cancellationToken);
+        IResult? failure = resolution.Kind switch
         {
             SessionResolutionKind.SignedOut or SessionResolutionKind.Revoked =>
                 ProblemResults.NotAuthenticated(context),
             SessionResolutionKind.NoActiveMembership => ProblemResults.NoActiveMembership(context),
+            SessionResolutionKind.MembershipLimitExceeded =>
+                ProblemResults.MembershipLimitExceeded(context),
             _ => null
         };
-        return resolution;
+        return new SessionRequirementResult(resolution, failure);
     }
 
-    internal static SessionResolution RequireActive(
+    internal static async Task<SessionRequirementResult> RequireActiveAsync(
         HttpContext context,
         SessionContextService contextService,
-        out IResult? failure)
+        CancellationToken cancellationToken)
     {
-        var resolution = RequireAuthenticated(context, contextService, out failure);
-        if (failure is null && resolution.Kind == SessionResolutionKind.SelectionRequired)
+        SessionRequirementResult requirement = await RequireAuthenticatedAsync(
+            context,
+            contextService,
+            cancellationToken);
+        if (requirement.Failure is null &&
+            requirement.Resolution.Kind == SessionResolutionKind.SelectionRequired)
         {
-            failure = ProblemResults.OrganizationSelectionRequired(context);
+            return requirement with
+            {
+                Failure = ProblemResults.OrganizationSelectionRequired(context)
+            };
         }
 
-        return resolution;
+        return requirement;
     }
 
-    internal static SessionResolution RequireStepUp(
+    internal static async Task<SessionRequirementResult> RequireStepUpAsync(
         HttpContext context,
         SessionContextService contextService,
-        out IResult? failure)
+        CancellationToken cancellationToken)
     {
-        var resolution = RequireActive(context, contextService, out failure);
-        if (failure is null && !contextService.HasValidStepUp(resolution.Session!))
+        SessionRequirementResult requirement = await RequireActiveAsync(
+            context,
+            contextService,
+            cancellationToken);
+        if (requirement.Failure is null &&
+            !contextService.HasValidStepUp(requirement.Resolution.Session!))
         {
-            failure = ProblemResults.StepUpRequired(context);
+            return requirement with { Failure = ProblemResults.StepUpRequired(context) };
         }
 
-        return resolution;
+        return requirement;
     }
 
     internal static void SetSessionCookie(HttpContext context, SessionRecord session)
@@ -76,3 +89,5 @@ internal static class SessionEndpointSupport
                 IsEssential = true
             });
 }
+
+internal sealed record SessionRequirementResult(SessionResolution Resolution, IResult? Failure);

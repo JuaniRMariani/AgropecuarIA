@@ -57,3 +57,52 @@ Principal QA: `PASS` tras revalidación (backend 15/15; E2E 1/1).
 AppSec/Architecture: sin hallazgos críticos, altos ni medios internos tras revalidación.
 
 Para completar la tarea faltan evidencias externas que este spike no puede fabricar: sandbox Auth0 con OIDC Authorization Code + PKCE y validación de claims/callback; linking/recovery/factor perdido/revocación/failover reales; región/DPA/retención/subprocesadores/plan/SLA/exportabilidad; identidad externa one-to-many persistida y unicidad concurrente; discovery productivo seguro de membresías. Por eso el estado correcto es `En revisión`, no `Completada`.
+
+---
+
+## Extensión R0 — discovery seguro de membresías (2026-08-10)
+
+Resultado técnico: `PASS` para la viabilidad R1 del patrón; revisiones independientes QA y AppSec/Arquitectura sin hallazgos críticos, altos o medios residuales. `AGRO-DIS-003` permanece `En revisión`: este incremento no prueba Auth0 ni autoriza copiar el spike a producción.
+
+### Gap cerrado
+
+El journey 0/1/N anterior consultaba `FixtureIdentityDirectory`; las policies PostgreSQL solo funcionaban después de conocer `app.current_organization_id`. La extensión separa el descubrimiento previo al tenant mediante `agro_membership_discovery`, un principal read-only, `NOINHERIT`, `NOBYPASSRLS`, sin ownership ni acceso a identidades globales o datos tenant.
+
+El actor proviene de la sesión server-side y se fija con `set_config('app.current_actor_id', ..., true)` dentro de una transacción. Las policies actor-scoped muestran solo memberships y organizaciones activas propias. Al cambiar organización, el servidor vuelve a consultar la membership vigente antes de rotar la sesión; un locator ajeno, inactivo o revocado falla de manera neutral.
+
+### Baseline e incidencias
+
+La baseline integrada previa al cambio pasó en la raíz: restore locked, build Release sin warnings y 114/114 tests. En el spike aparecieron dos defectos de harness preexistentes al integrarlo al repositorio actual: heredaba Central Package Management desde la raíz y `MSTestSettings.cs` no respetaba charset/fin de línea. Se aislaron mediante `spike/Directory.Packages.props` y normalización UTF-8/LF; luego la baseline del spike pasó 15/15. No se debilitó ningún gate.
+
+### PostgreSQL y backend
+
+PostgreSQL 17 efímero ejecutó migraciones, fixtures y probes desde cero: `catalog-security-pass`, `rls-isolation-pass`, `membership-discovery-pass` e `identity-spike-database-pass`.
+
+La migración/probe `003` verificó atributos y memberships de roles, ownership, grants por columna, `ENABLE/FORCE RLS`, coexistencia de policies tenant/discovery, ausencia de actor, 0/1/N, membership u organización inactiva, permiso vacío, prohibición de `platform_user`/`tenant_record`/auditoría y escritura. Una segunda ejecución de `003` sobre el mismo clúster pasó. `run-all.psql` completo no es idempotente porque la migración R0 preexistente `002` crea tablas sin guardas; esa limitación no se atribuye a `003` ni se oculta.
+
+El adapter Npgsql usa una conexión dedicada, transacción explícita, consulta parametrizada, orden determinista y límite fail-closed de 100. Valida el principal exacto antes de servir y rechaza una connection string owner. La lectura tenant vuelve a comprobar actor, membership activa y permiso en el mismo statement/snapshot del recurso. Las pruebas reales cubren limpieza del actor tras commit, rollback, excepción y cancelación; actor ajeno; 0/1/N; permiso desconocido; límite 101; revocación antes de selección/lectura; y no rotación ante selección rechazada.
+
+El clúster efímero usa SCRAM-SHA-256, cuatro secretos RNG distintos, `pwfile` transitorio y ACL owner-only. Los gates rechazan conexión sin password, usuario desconocido, reglas `trust` y principal discovery owner/superuser/BYPASS. Un primer juego de secretos efímeros apareció accidentalmente en salida interna de verificación; ese clúster fue eliminado inmediatamente, se regeneraron los cuatro secretos y el estado final no conserva `.runtime` ni credencial alguna.
+
+```text
+dotnet restore .\AgropecuarIA.IdentitySpike.slnx
+  PASS
+dotnet build .\AgropecuarIA.IdentitySpike.slnx --configuration Debug --no-restore
+  PASS · 0 warnings · 0 errors
+dotnet test --solution .\AgropecuarIA.IdentitySpike.slnx --configuration Debug --no-build --minimum-expected-tests 29
+  PASS · 29/29 · 0 failed · 0 skipped
+dotnet format .\AgropecuarIA.IdentitySpike.slnx --verify-no-changes --no-restore
+  PASS
+dotnet list .\AgropecuarIA.IdentitySpike.slnx package --vulnerable --include-transitive --no-restore
+  PASS · 0 vulnerabilidades conocidas
+```
+
+El clúster se detuvo con el script del spike y `.runtime` quedó ausente. No hubo migración productiva, credenciales reales, frontend, CI ni deploy.
+
+La regresión del repositorio integrado pasó `dotnet restore --locked-mode`, build Release con 0 warnings/errores, 114/114 tests, format y EF sin cambios pendientes. El análisis NuGet reportó cero vulnerabilidades conocidas.
+
+### Decisión y pendientes
+
+`ADR-PEND-007` queda aceptada para desarrollo R1 con runtime pendiente: `FORCE RLS` default-deny; owner `NOLOGIN`; principals app/job/discovery sin `BYPASSRLS` ni ownership; contexto actor/tenant transaccional; y discovery actor-scoped separado. R1 debe crear migraciones forward-safe propias, principal migrator aislado, grants por capacidad y toda la suite A/B/sin contexto/pool/jobs.
+
+Identidad externa one-to-many ya fue implementada por `AGRO-ID-001`; no continúa como gap del spike. Persisten Auth0 real, plan/región/DPA/SLA/exportabilidad, roles/alcances definitivos, jobs, auditoría central, primera mutación tenant exactly-once y revisiones de despliegue. Por ello la tarea sigue `En revisión`.

@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Keep the disposable R0 spike independent from the product CPM catalog. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

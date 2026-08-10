@@ -87,6 +87,9 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
                 "Identity:DevelopmentProvider:Enabled",
                 (environment is "Development" or "Test").ToString());
             builder.UseSetting(
+                "Identity:StrongAuthentication:Enabled",
+                (environment is "Development" or "Test").ToString());
+            builder.UseSetting(
                 "Identity:ApplyMigrations",
                 (environment is "Development" or "Test").ToString());
             builder.ConfigureAppConfiguration((_, configurationBuilder) =>
@@ -95,6 +98,8 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
                 {
                     ["ConnectionStrings:Identity"] = connectionString,
                     ["Identity:DevelopmentProvider:Enabled"] =
+                        (environment is "Development" or "Test").ToString(),
+                    ["Identity:StrongAuthentication:Enabled"] =
                         (environment is "Development" or "Test").ToString(),
                     ["Identity:ApplyMigrations"] =
                         (environment is "Development" or "Test").ToString(),

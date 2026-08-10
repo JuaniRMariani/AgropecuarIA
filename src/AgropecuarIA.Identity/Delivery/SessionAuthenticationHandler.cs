@@ -18,6 +18,8 @@ public static class IdentityAuthenticationDefaults
     public const string SessionIdClaim = "agro:session_id";
     public const string AuthenticationAssuranceVerifiedClaim =
         "agro:authentication_assurance_verified";
+    public const string StrongAuthenticatedAtClaim = "agro:strong_authenticated_at";
+    public const string StrongAuthenticationPurposeClaim = "agro:strong_authentication_purpose";
 }
 
 public sealed class SessionAuthenticationHandler(
@@ -42,7 +44,7 @@ public sealed class SessionAuthenticationHandler(
             return AuthenticateResult.Fail("The session is missing, expired, or revoked.");
         }
 
-        Claim[] claims =
+        List<Claim> claims =
         [
             new(ClaimTypes.NameIdentifier, session.UserId.ToString("D")),
             new(IdentityAuthenticationDefaults.SessionIdClaim, session.SessionId.ToString("D")),
@@ -51,6 +53,19 @@ public sealed class SessionAuthenticationHandler(
                 IdentityAuthenticationDefaults.AuthenticationAssuranceVerifiedClaim,
                 session.IsAuthenticationAssuranceVerified.ToString(CultureInfo.InvariantCulture)),
         ];
+        if (session.StrongAuthenticatedAtUtc is not null)
+        {
+            claims.Add(new Claim(
+                IdentityAuthenticationDefaults.StrongAuthenticatedAtClaim,
+                session.StrongAuthenticatedAtUtc.Value.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)));
+        }
+
+        if (session.StrongAuthenticationPurpose is not null)
+        {
+            claims.Add(new Claim(
+                IdentityAuthenticationDefaults.StrongAuthenticationPurposeClaim,
+                session.StrongAuthenticationPurpose));
+        }
         ClaimsIdentity identity = new(claims, Scheme.Name);
         AuthenticationTicket ticket = new(new ClaimsPrincipal(identity), Scheme.Name);
         return AuthenticateResult.Success(ticket);
@@ -84,6 +99,10 @@ public static class AuthenticatedSessionClaims
         string? authenticatedAtValue = principal.FindFirstValue("auth_time");
         string? assuranceVerifiedValue = principal.FindFirstValue(
             IdentityAuthenticationDefaults.AuthenticationAssuranceVerifiedClaim);
+        string? strongAuthenticatedAtValue = principal.FindFirstValue(
+            IdentityAuthenticationDefaults.StrongAuthenticatedAtClaim);
+        string? strongAuthenticationPurpose = principal.FindFirstValue(
+            IdentityAuthenticationDefaults.StrongAuthenticationPurposeClaim);
 
         if (!Guid.TryParse(userIdValue, out Guid userId) ||
             !Guid.TryParse(sessionIdValue, out Guid sessionId) ||
@@ -96,6 +115,13 @@ public static class AuthenticatedSessionClaims
             sessionId,
             userId,
             DateTimeOffset.FromUnixTimeSeconds(authenticatedAtUnix),
-            bool.TryParse(assuranceVerifiedValue, out bool assuranceVerified) && assuranceVerified);
+            bool.TryParse(assuranceVerifiedValue, out bool assuranceVerified) && assuranceVerified,
+            long.TryParse(
+                strongAuthenticatedAtValue,
+                CultureInfo.InvariantCulture,
+                out long strongAuthenticatedAtUnix)
+                ? DateTimeOffset.FromUnixTimeSeconds(strongAuthenticatedAtUnix)
+                : null,
+            strongAuthenticationPurpose);
     }
 }

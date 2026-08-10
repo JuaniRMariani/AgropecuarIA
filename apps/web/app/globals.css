@@ -436,11 +436,87 @@ input:focus-visible {
 .session-card,
 .identity-card,
 .membership-card,
+.assurance-card,
 .revoke-card {
   padding: 20px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: white;
+}
+
+.assurance-card {
+  display: grid;
+  gap: 16px;
+  border-left: 4px solid var(--ochre);
+  background: #fffdf8;
+}
+
+.assurance-card--strong {
+  border-left-color: #2e8052;
+  background: #f8fcf6;
+}
+
+.assurance-card__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.assurance-card__heading h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+
+.assurance-chip {
+  display: inline-flex;
+  padding: 7px 10px;
+  flex: none;
+  border-radius: 999px;
+  color: #70470f;
+  background: #f5e8c7;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.assurance-chip--strong {
+  color: #205d3a;
+  background: #e3f1e4;
+}
+
+.assurance-card__detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.assurance-card__provider-note {
+  display: flex;
+  padding: 13px 14px;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: var(--radius-sm);
+  color: #48554a;
+  background: #f0f3ea;
+}
+
+.assurance-card__provider-note > span {
+  color: var(--forest);
+  font-weight: 900;
+}
+
+.assurance-card__provider-note p {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.assurance-card__action {
+  width: fit-content;
 }
 
 .session-card {
@@ -686,6 +762,7 @@ input:focus-visible {
   }
 
   .identity-row,
+  .assurance-card__heading,
   .revoke-card {
     align-items: stretch;
     flex-wrap: wrap;
@@ -696,6 +773,7 @@ input:focus-visible {
   }
 
   .identity-row .button,
+  .assurance-card__action,
   .revoke-card .button,
   .link-actions .button {
     width: 100%;

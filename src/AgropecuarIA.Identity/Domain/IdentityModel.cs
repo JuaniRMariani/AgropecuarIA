@@ -9,6 +9,14 @@ public static class IdentityConnections
         value is Email or Google;
 }
 
+public static class StepUpPurposes
+{
+    public const string ManageAuthenticationMethods = "manage_authentication_methods";
+
+    public static bool IsSupported(string value) =>
+        value is ManageAuthenticationMethods;
+}
+
 public sealed class PlatformUser
 {
     private PlatformUser()
@@ -111,14 +119,33 @@ public sealed class UserSession
         byte[] tokenHash,
         DateTimeOffset authenticatedAtUtc,
         DateTimeOffset expiresAtUtc,
-        bool isAuthenticationAssuranceVerified)
+        bool isAuthenticationAssuranceVerified,
+        DateTimeOffset? strongAuthenticatedAtUtc = null,
+        string? strongAuthenticationPurpose = null)
     {
+        if ((strongAuthenticatedAtUtc is null) != (strongAuthenticationPurpose is null) ||
+            (strongAuthenticationPurpose is not null &&
+                !StepUpPurposes.IsSupported(strongAuthenticationPurpose)))
+        {
+            throw new ArgumentException(
+                "Strong authentication time and a supported purpose must be provided together.");
+        }
+
+        if (strongAuthenticatedAtUtc > expiresAtUtc)
+        {
+            throw new ArgumentException(
+                "Strong authentication cannot outlive the session.",
+                nameof(strongAuthenticatedAtUtc));
+        }
+
         Id = id;
         UserId = userId;
         TokenHash = tokenHash;
         AuthenticatedAtUtc = authenticatedAtUtc;
         ExpiresAtUtc = expiresAtUtc;
         IsAuthenticationAssuranceVerified = isAuthenticationAssuranceVerified;
+        StrongAuthenticatedAtUtc = strongAuthenticatedAtUtc;
+        StrongAuthenticationPurpose = strongAuthenticationPurpose;
     }
 
     public Guid Id { get; private set; }
@@ -133,6 +160,10 @@ public sealed class UserSession
 
     public bool IsAuthenticationAssuranceVerified { get; private set; }
 
+    public DateTimeOffset? StrongAuthenticatedAtUtc { get; private set; }
+
+    public string? StrongAuthenticationPurpose { get; private set; }
+
     public DateTimeOffset? RevokedAtUtc { get; private set; }
 
     public Guid Version { get; private set; } = Guid.NewGuid();
@@ -140,6 +171,81 @@ public sealed class UserSession
     public void Revoke(DateTimeOffset revokedAtUtc)
     {
         RevokedAtUtc ??= revokedAtUtc;
+        Version = Guid.NewGuid();
+    }
+}
+
+public sealed class StepUpAttempt
+{
+    private StepUpAttempt()
+    {
+    }
+
+    public StepUpAttempt(
+        Guid id,
+        Guid userId,
+        Guid initiatingSessionId,
+        string purpose,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset expiresAtUtc)
+    {
+        if (id == Guid.Empty || userId == Guid.Empty || initiatingSessionId == Guid.Empty)
+        {
+            throw new ArgumentException("Step-up attempt, user, and session IDs are required.");
+        }
+
+        if (!StepUpPurposes.IsSupported(purpose))
+        {
+            throw new ArgumentException("The step-up purpose is not supported.", nameof(purpose));
+        }
+
+        if (expiresAtUtc <= startedAtUtc)
+        {
+            throw new ArgumentException("Step-up expiry must follow its start time.", nameof(expiresAtUtc));
+        }
+
+        Id = id;
+        UserId = userId;
+        InitiatingSessionId = initiatingSessionId;
+        Purpose = purpose;
+        StartedAtUtc = startedAtUtc;
+        ExpiresAtUtc = expiresAtUtc;
+    }
+
+    public Guid Id { get; private set; }
+
+    public Guid UserId { get; private set; }
+
+    public Guid InitiatingSessionId { get; private set; }
+
+    public string Purpose { get; private set; } = string.Empty;
+
+    public DateTimeOffset StartedAtUtc { get; private set; }
+
+    public DateTimeOffset ExpiresAtUtc { get; private set; }
+
+    public DateTimeOffset? ConsumedAtUtc { get; private set; }
+
+    public Guid Version { get; private set; } = Guid.NewGuid();
+
+    public void Consume(DateTimeOffset consumedAtUtc)
+    {
+        if (ConsumedAtUtc is not null)
+        {
+            throw new InvalidOperationException("The step-up attempt has already been consumed.");
+        }
+
+        if (consumedAtUtc < StartedAtUtc)
+        {
+            throw new ArgumentException("Consumption cannot precede the attempt.", nameof(consumedAtUtc));
+        }
+
+        if (consumedAtUtc >= ExpiresAtUtc)
+        {
+            throw new ArgumentException("An expired step-up attempt cannot be consumed.", nameof(consumedAtUtc));
+        }
+
+        ConsumedAtUtc = consumedAtUtc;
         Version = Guid.NewGuid();
     }
 }

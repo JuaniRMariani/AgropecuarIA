@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  completeDevelopmentStepUp,
   completeDevelopmentLink,
   developmentSignIn,
   identityLoginUrl,
@@ -12,6 +13,7 @@ import {
   resolveAuthorizationUrl,
   revokeSession,
   startLink,
+  startStepUp,
   unlinkIdentity,
 } from "./identity-api";
 import type {
@@ -243,6 +245,49 @@ export function IdentityHub() {
     [resource],
   );
 
+  const handleStepUp = useCallback(async () => {
+    if (resource.kind !== "authenticated") {
+      return;
+    }
+    setPendingAction("step-up");
+    setNotice(NO_IDENTITY_NOTICE);
+    try {
+      const attempt = await startStepUp("manage_authentication_methods");
+      if (developmentProviderAvailable(resource.capabilities)) {
+        const session = await completeDevelopmentStepUp(attempt);
+        if (mounted.current) {
+          setResource({
+            kind: "authenticated",
+            capabilities: resource.capabilities,
+            session,
+          });
+          setNotice({
+            kind: "success",
+            message:
+              "Verificación reforzada confirmada para proteger la futura gestión de métodos de acceso.",
+          });
+        }
+        return;
+      }
+
+      const authorizationUrl = resolveAuthorizationUrl(
+        attempt.authorizationUrl,
+      );
+      if (authorizationUrl === null) {
+        throw new IdentityApiError("error", 502);
+      }
+      window.location.assign(authorizationUrl);
+    } catch (error) {
+      if (!isAbort(error) && mounted.current) {
+        setNotice(actionNotice(error));
+      }
+    } finally {
+      if (mounted.current) {
+        setPendingAction(null);
+      }
+    }
+  }, [resource]);
+
   const handleRevoke = useCallback(async () => {
     if (!window.confirm("¿Cerrar y revocar esta sesión en este navegador?")) {
       return;
@@ -317,6 +362,7 @@ export function IdentityHub() {
       notice={notice}
       onLink={(connection) => void handleLink(connection)}
       onLogin={handleLogin}
+      onStepUp={() => void handleStepUp()}
       onRetry={() => {
         setResource({ kind: "loading" });
         setNotice(NO_IDENTITY_NOTICE);

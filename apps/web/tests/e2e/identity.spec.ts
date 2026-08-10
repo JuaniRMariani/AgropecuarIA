@@ -77,6 +77,20 @@ test.describe("identity access", () => {
       page.getByText("Google", { exact: true }).first(),
     ).toBeVisible();
     await expect(page.getByLabel("2 identidades")).toBeVisible();
+
+    const verifyMfa = page.getByRole("button", {
+      name: "Verificar con MFA",
+      exact: true,
+    });
+    await expect(verifyMfa).toBeVisible();
+    await verifyMfa.focus();
+    await expect(verifyMfa).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("MFA vigente", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(/verificación reforzada confirmada/i),
+    ).toBeVisible();
+    await expect(page.getByText(/custodiados por el proveedor/i)).toBeVisible();
     await expectNoAccessibilityViolations(page);
   });
 

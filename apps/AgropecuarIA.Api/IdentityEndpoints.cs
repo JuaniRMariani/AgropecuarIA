@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
@@ -17,6 +18,7 @@ public static class IdentityEndpoints
 {
     private const string IdentityRateLimitPolicy = "identity";
     private const string LinkAttemptProperty = "agro:link_attempt_id";
+    private const string StepUpAttemptProperty = "agro:step_up_attempt_id";
     private const string ConnectionProperty = "agro:connection";
 
     public static IEndpointRouteBuilder MapIdentityEndpoints(this IEndpointRouteBuilder endpoints)
@@ -27,7 +29,8 @@ public static class IdentityEndpoints
         identity.MapGet("/capabilities", (
             IHostEnvironment environment,
             IOptions<OidcProviderOptions> configuredOptions,
-            IOptions<DevelopmentIdentityProviderOptions> developmentOptions) =>
+            IOptions<DevelopmentIdentityProviderOptions> developmentOptions,
+            IOptions<StrongAuthenticationOptions> strongAuthenticationOptions) =>
         {
             OidcProviderOptions options = configuredOptions.Value;
             bool developmentProviderEnabled =
@@ -36,6 +39,8 @@ public static class IdentityEndpoints
                 environment.EnvironmentName,
                 options.IsConfigured,
                 developmentProviderEnabled,
+                strongAuthenticationOptions.Value.Enabled &&
+                    (options.IsConfigured || developmentProviderEnabled),
                 [
                     new(
                         "email",
@@ -60,7 +65,7 @@ public static class IdentityEndpoints
             CancellationToken cancellationToken) =>
         {
             AuthenticatedSession current = AuthenticatedSessionClaims.Read(principal);
-            IdentitySessionResult session = await service.GetSessionAsync(current.UserId, cancellationToken);
+            IdentitySessionResult session = await service.GetSessionAsync(current, cancellationToken);
             return Results.Ok(ToResponse(session));
         }).RequireAuthorization();
 
@@ -123,6 +128,77 @@ public static class IdentityEndpoints
                     attempt.ExpiresAtUtc,
                     attempt.AuthorizationUrl));
         }).RequireAuthorization();
+
+        identity.MapPost("/step-up-attempts", async (
+            StartStepUpAttemptRequest request,
+            HttpContext context,
+            IAntiforgery antiforgery,
+            IdentityApplicationService service,
+            IHostEnvironment environment,
+            IOptions<OidcProviderOptions> oidcOptions,
+            IOptions<DevelopmentIdentityProviderOptions> developmentOptions,
+            IOptions<StrongAuthenticationOptions> strongAuthenticationOptions,
+            CancellationToken cancellationToken) =>
+        {
+            await antiforgery.ValidateRequestAsync(context);
+            bool developmentProviderEnabled =
+                IsDevelopmentOrTest(environment) && developmentOptions.Value.Enabled;
+            if (!strongAuthenticationOptions.Value.Enabled ||
+                (!oidcOptions.Value.IsConfigured && !developmentProviderEnabled))
+            {
+                throw IdentityErrors.ProviderUnavailable();
+            }
+
+            AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
+            StartedStepUpAttempt attempt = await service.StartStepUpAttemptAsync(
+                current,
+                request.Purpose,
+                RequestContext(context, current),
+                cancellationToken);
+            return Results.Created(
+                $"/api/identity/step-up-attempts/{attempt.AttemptId:D}",
+                new StepUpAttemptResponse(
+                    attempt.AttemptId,
+                    attempt.Purpose,
+                    attempt.ExpiresAtUtc,
+                    attempt.AuthorizationUrl));
+        })
+            .RequireAuthorization()
+            .RequireRateLimiting("identity-step-up");
+
+        identity.MapGet("/step-up/{attemptId:guid}", async (
+            Guid attemptId,
+            HttpContext context,
+            IdentityApplicationService service,
+            IOptions<OidcProviderOptions> oidcOptions,
+            IOptions<StrongAuthenticationOptions> strongAuthenticationOptions,
+            TimeProvider timeProvider,
+            CancellationToken cancellationToken) =>
+        {
+            if (!strongAuthenticationOptions.Value.Enabled || !oidcOptions.Value.IsConfigured)
+            {
+                throw IdentityErrors.ProviderUnavailable();
+            }
+
+            AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
+            await service.ValidateStepUpAttemptAsync(
+                attemptId,
+                current,
+                RequestContext(context, current),
+                cancellationToken);
+            AuthenticationProperties properties = new()
+            {
+                RedirectUri = "/",
+            };
+            OidcReauthentication.PrepareChallenge(
+                properties,
+                timeProvider.GetUtcNow(),
+                requireStrongAuthentication: true);
+            properties.Items[StepUpAttemptProperty] = attemptId.ToString("D");
+            return Results.Challenge(properties, [OpenIdConnectDefaults.AuthenticationScheme]);
+        })
+            .RequireAuthorization()
+            .RequireRateLimiting("identity-step-up");
 
         identity.MapPost("/link-attempts/{attemptId:guid}/complete", async (
             Guid attemptId,
@@ -216,6 +292,17 @@ public static class IdentityEndpoints
 
                 return Task.CompletedTask;
             },
+            OnTokenValidated = context =>
+            {
+                ClaimsPrincipal principal = context.Principal ?? throw IdentityErrors.IdentityNotVerified();
+                OidcReauthentication.ValidateToken(
+                    principal,
+                    context.Properties ?? throw IdentityErrors.IdentityNotVerified(),
+                    context.HttpContext.RequestServices
+                        .GetRequiredService<TimeProvider>()
+                        .GetUtcNow());
+                return Task.CompletedTask;
+            },
             OnTicketReceived = CompleteOidcSignInAsync,
             OnRemoteFailure = async context =>
             {
@@ -294,18 +381,83 @@ public static class IdentityEndpoints
             return Results.NoContent();
         }).RequireAuthorization();
 
+        development.MapPost("/step-up-attempts/{attemptId:guid}/complete", async (
+            Guid attemptId,
+            HttpContext context,
+            IAntiforgery antiforgery,
+            IdentityApplicationService service,
+            IdentityDbContext dbContext,
+            TimeProvider timeProvider,
+            CancellationToken cancellationToken) =>
+        {
+            await antiforgery.ValidateRequestAsync(context);
+            AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
+            ExternalIdentity identity = await dbContext.ExternalIdentities
+                .AsNoTracking()
+                .Where(item => item.UserId == current.UserId)
+                .OrderBy(item => item.Id)
+                .FirstAsync(cancellationToken);
+            IssuedSession issued = await service.CompleteStepUpAttemptAsync(
+                attemptId,
+                current,
+                new VerifiedStepUpProof(
+                    identity.Issuer,
+                    identity.Subject,
+                    timeProvider.GetUtcNow(),
+                    IsStrongAuthentication: true),
+                RequestContext(context, current),
+                cancellationToken);
+            AppendSessionCookie(context, issued);
+            AuthenticatedSession rotated = await service.AuthenticateAsync(
+                issued.Token,
+                cancellationToken) ?? throw IdentityErrors.SessionRequired();
+            IdentitySessionResult session = await service.GetSessionAsync(rotated, cancellationToken);
+            return Results.Ok(ToResponse(session));
+        })
+            .RequireAuthorization()
+            .RequireRateLimiting("identity-step-up");
+
         return development;
     }
 
     private static async Task CompleteOidcSignInAsync(TicketReceivedContext context)
     {
         ClaimsPrincipal principal = context.Principal ?? throw IdentityErrors.IdentityNotVerified();
-        string? subject = principal.FindFirstValue("sub");
+        OidcValidatedAuthentication validatedToken =
+            OidcReauthentication.ReadValidatedToken(context.Properties);
+        if (context.Properties?.Items.TryGetValue(StepUpAttemptProperty, out string? stepUpAttemptValue) is true &&
+            Guid.TryParse(stepUpAttemptValue, out Guid stepUpAttemptId))
+        {
+            AuthenticateResult authentication = await context.HttpContext.AuthenticateAsync(
+                IdentityAuthenticationDefaults.SessionScheme);
+            if (!authentication.Succeeded || authentication.Principal is null)
+            {
+                throw IdentityErrors.SessionRequired();
+            }
+
+            AuthenticatedSession current = AuthenticatedSessionClaims.Read(authentication.Principal);
+            IdentityApplicationService stepUpService = context.HttpContext.RequestServices
+                .GetRequiredService<IdentityApplicationService>();
+            IssuedSession issued = await stepUpService.CompleteStepUpAttemptAsync(
+                stepUpAttemptId,
+                current,
+                new VerifiedStepUpProof(
+                    validatedToken.Issuer,
+                    validatedToken.Subject,
+                    validatedToken.AuthenticatedAtUtc,
+                    validatedToken.IsStrongAuthentication),
+                RequestContext(context.HttpContext, current),
+                context.HttpContext.RequestAborted);
+            AppendSessionCookie(context.HttpContext, issued);
+            context.Response.Redirect("/?stepUp=success");
+            context.HandleResponse();
+            return;
+        }
+
         string? verifiedValue = principal.FindFirstValue("email_verified");
         string? connection = null;
         context.Properties?.Items.TryGetValue(ConnectionProperty, out connection);
-        if (subject is null ||
-            connection is null ||
+        if (connection is null ||
             !bool.TryParse(verifiedValue, out bool verified) ||
             !verified)
         {
@@ -319,24 +471,19 @@ public static class IdentityEndpoints
             throw IdentityErrors.ProviderUnavailable();
         }
 
-        string issuer = principal.FindFirstValue("iss") ?? options.Authority.TrimEnd('/');
         string? email = principal.FindFirstValue(ClaimTypes.Email) ?? principal.FindFirstValue("email");
         string label = MaskEmail(email);
         string displayName = principal.FindFirstValue("name") ?? label;
         DateTimeOffset now = context.HttpContext.RequestServices
             .GetRequiredService<TimeProvider>().GetUtcNow();
-        DateTimeOffset authenticatedAtUtc = OidcReauthentication.ValidateCallback(
-            principal,
-            context.Properties,
-            now);
         VerifiedExternalIdentity externalIdentity = new(
             connection,
-            issuer,
-            subject,
+            validatedToken.Issuer,
+            validatedToken.Subject,
             label,
             Limit(displayName, 160),
             now,
-            authenticatedAtUtc);
+            validatedToken.AuthenticatedAtUtc);
         IdentityApplicationService service = context.HttpContext.RequestServices
             .GetRequiredService<IdentityApplicationService>();
         if (context.Properties?.Items.TryGetValue(LinkAttemptProperty, out string? attemptValue) is true &&
@@ -380,6 +527,12 @@ public static class IdentityEndpoints
     private static IdentitySessionResponse ToResponse(IdentitySessionResult session) => new(
         session.UserId,
         session.DisplayName,
+        new AuthenticationAssuranceResponse(
+            session.AuthenticationAssurance.Level,
+            session.AuthenticationAssurance.AuthenticatedAtUtc,
+            session.AuthenticationAssurance.Purpose,
+            session.AuthenticationAssurance.StrongAuthenticatedAtUtc,
+            session.AuthenticationAssurance.ExpiresAtUtc),
         session.Identities
             .Select(identity => new LinkedIdentityResponse(
                 identity.IdentityId,
@@ -451,6 +604,7 @@ public static class IdentityEndpoints
         string Environment,
         bool OidcConfigured,
         bool DevelopmentProviderEnabled,
+        bool StrongAuthenticationAvailable,
         IReadOnlyList<IdentityConnectionResponse> Connections);
 
     private sealed record IdentityConnectionResponse(string Id, string Label, bool Available);
@@ -459,9 +613,17 @@ public static class IdentityEndpoints
 
     private sealed record StartLinkAttemptRequest(string Connection);
 
+    private sealed record StartStepUpAttemptRequest(string Purpose);
+
     private sealed record LinkAttemptResponse(
         Guid AttemptId,
         string Connection,
+        DateTimeOffset ExpiresAtUtc,
+        string AuthorizationUrl);
+
+    private sealed record StepUpAttemptResponse(
+        Guid AttemptId,
+        string Purpose,
         DateTimeOffset ExpiresAtUtc,
         string AuthorizationUrl);
 
@@ -470,8 +632,16 @@ public static class IdentityEndpoints
     private sealed record IdentitySessionResponse(
         Guid UserId,
         string DisplayName,
+        AuthenticationAssuranceResponse Authentication,
         IReadOnlyList<LinkedIdentityResponse> Identities,
         IReadOnlyList<MembershipResponse> Memberships);
+
+    private sealed record AuthenticationAssuranceResponse(
+        string Level,
+        DateTimeOffset AuthenticatedAtUtc,
+        string? Purpose,
+        DateTimeOffset? StrongAuthenticatedAtUtc,
+        DateTimeOffset? ExpiresAtUtc);
 
     private sealed record LinkedIdentityResponse(
         Guid IdentityId,

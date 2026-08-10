@@ -17,6 +17,7 @@ type IdentityViewProps = Readonly<{
   onRetry: () => void;
   onLogin: (connection: IdentityConnection) => void;
   onLink: (connection: IdentityConnection) => void;
+  onStepUp: () => void;
   onUnlink: (identityId: string) => void;
   onRevoke: () => void;
   onSyntheticSignIn: () => void;
@@ -184,11 +185,99 @@ function IdentityRow({
   );
 }
 
+function formatAssuranceTime(value: string): string {
+  return new Intl.DateTimeFormat("es-AR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(new Date(value));
+}
+
+function AuthenticationCard({
+  capabilities,
+  session,
+  pendingAction,
+  onStepUp,
+}: Readonly<{
+  capabilities: IdentityCapabilities;
+  session: IdentitySession;
+  pendingAction: IdentityAction | null;
+  onStepUp: IdentityViewProps["onStepUp"];
+}>) {
+  const assurance = session.authentication;
+  const isStrong = assurance.level === "strong";
+
+  return (
+    <section
+      className={`assurance-card assurance-card--${assurance.level}`}
+      aria-labelledby="assurance-title"
+      aria-busy={pendingAction === "step-up"}
+    >
+      <div className="assurance-card__heading">
+        <div>
+          <p className="section-kicker">Protección reforzada</p>
+          <h2 id="assurance-title">
+            {isStrong
+              ? "Identidad verificada con MFA"
+              : "Verificación principal"}
+          </h2>
+        </div>
+        <span className={`assurance-chip assurance-chip--${assurance.level}`}>
+          {isStrong ? "MFA vigente" : "Nivel básico"}
+        </span>
+      </div>
+
+      <p className="assurance-card__detail">
+        {isStrong
+          ? `La verificación reforzada reserva un contexto seguro para la futura gestión de métodos de acceso${
+              assurance.expiresAtUtc === null
+                ? "."
+                : ` hasta ${formatAssuranceTime(assurance.expiresAtUtc)}.`
+            }`
+          : "Verificá nuevamente con un segundo factor antes de administrar tus métodos de acceso."}
+      </p>
+
+      <div className="assurance-card__provider-note">
+        <span aria-hidden="true">◇</span>
+        <p>
+          Passkeys, TOTP y códigos de recuperación quedan cifrados y custodiados
+          por el proveedor de identidad. AgropecuarIA no recibe esos secretos.
+        </p>
+      </div>
+
+      {!isStrong ? (
+        capabilities.strongAuthenticationAvailable ? (
+          <button
+            className="button button--primary assurance-card__action"
+            disabled={pendingAction !== null}
+            onClick={onStepUp}
+            type="button"
+          >
+            {pendingAction === "step-up" ? <Spinner /> : null}
+            {pendingAction === "step-up"
+              ? "Verificando con MFA"
+              : "Verificar con MFA"}
+          </button>
+        ) : (
+          <div className="empty-state" role="status">
+            <strong>Verificación reforzada no disponible</strong>
+            <p>
+              El proveedor todavía no está configurado. No habilitamos cambios
+              sensibles sin esa comprobación.
+            </p>
+          </div>
+        )
+      ) : null}
+    </section>
+  );
+}
+
 function CurrentSession({
   capabilities,
   session,
   pendingAction,
   onLink,
+  onStepUp,
   onUnlink,
   onRevoke,
 }: Readonly<{
@@ -196,6 +285,7 @@ function CurrentSession({
   session: IdentitySession;
   pendingAction: IdentityAction | null;
   onLink: IdentityViewProps["onLink"];
+  onStepUp: IdentityViewProps["onStepUp"];
   onUnlink: IdentityViewProps["onUnlink"];
   onRevoke: IdentityViewProps["onRevoke"];
 }>) {
@@ -222,6 +312,13 @@ function CurrentSession({
           Activa
         </div>
       </section>
+
+      <AuthenticationCard
+        capabilities={capabilities}
+        onStepUp={onStepUp}
+        pendingAction={pendingAction}
+        session={session}
+      />
 
       <section className="identity-card" aria-labelledby="identities-title">
         <div className="section-heading">
@@ -414,6 +511,7 @@ export function IdentityView({
   onRetry,
   onLogin,
   onLink,
+  onStepUp,
   onUnlink,
   onRevoke,
   onSyntheticSignIn,
@@ -472,7 +570,7 @@ export function IdentityView({
         <Notice notice={notice} />
 
         <div
-          aria-busy={resource.kind === "loading" || pendingAction !== null}
+          aria-busy={resource.kind === "loading"}
           aria-live="polite"
           className="identity-region"
         >
@@ -491,6 +589,7 @@ export function IdentityView({
             <CurrentSession
               capabilities={resource.capabilities}
               onLink={onLink}
+              onStepUp={onStepUp}
               onRevoke={onRevoke}
               onUnlink={onUnlink}
               pendingAction={pendingAction}

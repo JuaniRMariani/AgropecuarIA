@@ -6,7 +6,15 @@ public sealed record IdentitySessionResult(
     Guid UserId,
     string DisplayName,
     IReadOnlyList<LinkedIdentityResult> Identities,
-    IReadOnlyList<MembershipResult> Memberships);
+    IReadOnlyList<MembershipResult> Memberships,
+    AuthenticationAssuranceResult AuthenticationAssurance);
+
+public sealed record AuthenticationAssuranceResult(
+    string Level,
+    DateTimeOffset AuthenticatedAtUtc,
+    string? Purpose,
+    DateTimeOffset? StrongAuthenticatedAtUtc,
+    DateTimeOffset? ExpiresAtUtc);
 
 public sealed record LinkedIdentityResult(
     Guid IdentityId,
@@ -25,13 +33,32 @@ public sealed record AuthenticatedSession(
     Guid SessionId,
     Guid UserId,
     DateTimeOffset AuthenticatedAtUtc,
-    bool IsAuthenticationAssuranceVerified);
+    bool IsAuthenticationAssuranceVerified,
+    DateTimeOffset? StrongAuthenticatedAtUtc = null,
+    string? StrongAuthenticationPurpose = null);
 
 public sealed record StartedLinkAttempt(
     Guid AttemptId,
     string Connection,
     DateTimeOffset ExpiresAtUtc,
     string AuthorizationUrl);
+
+public sealed record StartedStepUpAttempt(
+    Guid AttemptId,
+    string Purpose,
+    DateTimeOffset ExpiresAtUtc,
+    string AuthorizationUrl);
+
+public sealed record StepUpAttemptValidation(
+    Guid AttemptId,
+    string Purpose,
+    DateTimeOffset ExpiresAtUtc);
+
+public sealed record VerifiedStepUpProof(
+    string Issuer,
+    string Subject,
+    DateTimeOffset AuthenticatedAtUtc,
+    bool IsStrongAuthentication);
 
 public sealed record IdentityRequestContext
 {
@@ -140,4 +167,13 @@ public static class IdentityErrors
 
     public static IdentityOperationException ProviderUnavailable() =>
         new("identity.provider_unavailable", 503, "The identity provider is unavailable.");
+
+    public static IdentityOperationException InvalidStepUpPurpose() =>
+        new("identity.invalid_step_up_purpose", 400, "The requested step-up purpose is invalid.");
+
+    public static IdentityOperationException StepUpAttemptConflict() =>
+        new("identity.step_up_attempt_conflict", 409, "The step-up attempt is invalid, expired, consumed, or does not belong to this session.");
+
+    public static IdentityOperationException StrongAuthenticationRequired() =>
+        new("identity.strong_authentication_required", 403, "Strong authentication is required.");
 }

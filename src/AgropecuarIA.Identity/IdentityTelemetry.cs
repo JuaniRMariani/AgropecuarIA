@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using AgropecuarIA.Identity.Domain;
 
 namespace AgropecuarIA.Identity;
 
@@ -26,7 +27,11 @@ public sealed class IdentityTelemetry
         return activity;
     }
 
-    public void Record(string operation, string outcome, string? connection = null)
+    public void Record(
+        string operation,
+        string outcome,
+        string? connection = null,
+        string? purpose = null)
     {
         TagList tags = new()
         {
@@ -39,6 +44,11 @@ public sealed class IdentityTelemetry
         if (connection is not null)
         {
             tags.Add("identity.connection", connection);
+        }
+
+        if (purpose is not null && StepUpPurposes.IsSupported(purpose))
+        {
+            tags.Add("identity.step_up_purpose", purpose);
         }
 
         operations.Add(1, tags);

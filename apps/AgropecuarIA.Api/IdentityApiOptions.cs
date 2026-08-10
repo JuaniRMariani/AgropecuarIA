@@ -62,6 +62,33 @@ public sealed class DevelopmentIdentityProviderOptions
     public bool Enabled { get; set; }
 }
 
+public sealed class StrongAuthenticationOptions
+{
+    public const string SectionName = "Identity:StrongAuthentication";
+
+    public bool Enabled { get; set; }
+}
+
+public sealed class StrongAuthenticationOptionsValidator(
+    IHostEnvironment environment,
+    IOptions<OidcProviderOptions> oidcOptions)
+    : IValidateOptions<StrongAuthenticationOptions>
+{
+    public ValidateOptionsResult Validate(string? name, StrongAuthenticationOptions options)
+    {
+        if (!options.Enabled ||
+            environment.IsDevelopment() ||
+            environment.IsEnvironment("Test") ||
+            oidcOptions.Value.IsConfigured)
+        {
+            return ValidateOptionsResult.Success;
+        }
+
+        return ValidateOptionsResult.Fail(
+            "Identity:StrongAuthentication:Enabled requires a configured OIDC provider outside Development/Test.");
+    }
+}
+
 public sealed class DevelopmentIdentityProviderOptionsValidator(IHostEnvironment environment)
     : IValidateOptions<DevelopmentIdentityProviderOptions>
 {

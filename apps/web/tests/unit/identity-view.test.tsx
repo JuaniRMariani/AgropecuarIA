@@ -13,6 +13,7 @@ const productionCapabilities: IdentityCapabilities = {
   environment: "Production",
   oidcConfigured: true,
   developmentProviderEnabled: true,
+  strongAuthenticationAvailable: true,
   connections: [
     { id: "email", label: "Correo", available: true },
     { id: "google", label: "Google", available: true },
@@ -22,6 +23,13 @@ const productionCapabilities: IdentityCapabilities = {
 const session: IdentitySession = {
   userId: "2e9f14bd-eec9-4bd8-b1ca-da0c6c615f78",
   displayName: "Ana Productora",
+  authentication: {
+    level: "primary",
+    authenticatedAtUtc: "2026-08-05T10:00:00Z",
+    purpose: null,
+    strongAuthenticatedAtUtc: null,
+    expiresAtUtc: null,
+  },
   identities: [
     {
       identityId: "6f0b9239-264a-4237-9d18-b4324a714849",
@@ -43,6 +51,7 @@ function renderView(
     onRetry: vi.fn(),
     onLogin: vi.fn(),
     onLink: vi.fn(),
+    onStepUp: vi.fn(),
     onUnlink: vi.fn(),
     onRevoke: vi.fn(),
     onSyntheticSignIn: vi.fn(),
@@ -153,6 +162,7 @@ describe("IdentityView", () => {
       <IdentityView
         notice={{ kind: "replay", message: "Ese intento ya fue utilizado." }}
         onLink={vi.fn()}
+        onStepUp={vi.fn()}
         onLogin={vi.fn()}
         onRetry={vi.fn()}
         onRevoke={vi.fn()}
@@ -163,5 +173,53 @@ describe("IdentityView", () => {
       />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent("ya fue utilizado");
+  });
+
+  it("keeps MFA loading inside the assurance card", () => {
+    const onStepUp = vi.fn();
+    const { container } = render(
+      <IdentityView
+        notice={{ kind: "none" }}
+        onLink={vi.fn()}
+        onLogin={vi.fn()}
+        onRetry={vi.fn()}
+        onRevoke={vi.fn()}
+        onStepUp={onStepUp}
+        onSyntheticSignIn={vi.fn()}
+        onUnlink={vi.fn()}
+        pendingAction="step-up"
+        resource={{
+          kind: "authenticated",
+          capabilities: productionCapabilities,
+          session,
+        }}
+      />,
+    );
+
+    expect(container.querySelector(".identity-region")).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
+    expect(container.querySelector(".assurance-card")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    expect(
+      screen.getByRole("button", { name: /verificando con mfa/i }),
+    ).toBeDisabled();
+  });
+
+  it("requests a purpose-bound MFA step-up without claiming factor enrollment", () => {
+    const { handlers } = renderView({
+      kind: "authenticated",
+      capabilities: productionCapabilities,
+      session,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Verificar con MFA" }));
+
+    expect(handlers.onStepUp).toHaveBeenCalledOnce();
+    expect(screen.getByText(/custodiados por el proveedor/i)).toBeVisible();
+    expect(screen.queryByRole("button", { name: /crear passkey/i })).toBeNull();
   });
 });

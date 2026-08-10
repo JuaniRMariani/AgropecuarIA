@@ -6,9 +6,18 @@ import {
   parseIdentityCapabilities,
   parseIdentitySession,
   parseLinkStart,
+  parseStepUpAttempt,
   resolveAuthorizationUrl,
   startLink,
 } from "../../features/identity/identity-api";
+
+const primaryAuthentication = {
+  level: "primary",
+  authenticatedAtUtc: "2026-08-05T10:00:00Z",
+  purpose: null,
+  strongAuthenticatedAtUtc: null,
+  expiresAtUtc: null,
+};
 
 afterEach(() => {
   invalidateAntiforgeryToken();
@@ -22,6 +31,7 @@ describe("identity contract parsing", () => {
         environment: "Development",
         oidcConfigured: false,
         developmentProviderEnabled: true,
+        strongAuthenticationAvailable: true,
         connections: [
           { id: "email", label: "Correo", available: true, futureField: 1 },
         ],
@@ -31,6 +41,7 @@ describe("identity contract parsing", () => {
       environment: "Development",
       oidcConfigured: false,
       developmentProviderEnabled: true,
+      strongAuthenticationAvailable: true,
       connections: [{ id: "email", label: "Correo", available: true }],
     });
   });
@@ -40,6 +51,7 @@ describe("identity contract parsing", () => {
       parseIdentitySession({
         userId: "2e9f14bd-eec9-4bd8-b1ca-da0c6c615f78",
         displayName: "Ana Productora",
+        authentication: primaryAuthentication,
         identities: [
           {
             identityId: "6f0b9239-264a-4237-9d18-b4324a714849",
@@ -67,6 +79,7 @@ describe("identity contract parsing", () => {
       parseIdentitySession({
         userId: "2e9f14bd-eec9-4bd8-b1ca-da0c6c615f78",
         displayName: "Ana Productora",
+        authentication: primaryAuthentication,
         identities: [],
         memberships: [],
       }),
@@ -89,6 +102,57 @@ describe("identity contract parsing", () => {
       parseIdentitySession({
         userId: "not-a-uuid",
         displayName: "Ana Productora",
+        authentication: primaryAuthentication,
+        identities: [
+          {
+            identityId: "6f0b9239-264a-4237-9d18-b4324a714849",
+            connection: "email",
+            label: "a***@campo.ar",
+            verifiedAtUtc: "2026-08-05T10:00:00Z",
+          },
+        ],
+        memberships: [],
+      }),
+    ).toThrow(IdentityApiError);
+  });
+
+  it("parses a purpose-bound one-time step-up attempt", () => {
+    expect(
+      parseStepUpAttempt({
+        attemptId: "d68a20db-bae4-4822-99bd-e016517bd0ee",
+        purpose: "manage_authentication_methods",
+        expiresAtUtc: "2026-08-05T10:05:00Z",
+        authorizationUrl:
+          "/api/identity/step-up/d68a20db-bae4-4822-99bd-e016517bd0ee",
+      }),
+    ).toMatchObject({ purpose: "manage_authentication_methods" });
+  });
+
+  it("rejects assurance with an unknown purpose", () => {
+    expect(() =>
+      parseIdentitySession({
+        userId: "2e9f14bd-eec9-4bd8-b1ca-da0c6c615f78",
+        displayName: "Ana Productora",
+        authentication: { ...primaryAuthentication, purpose: "transfer_funds" },
+        identities: [
+          {
+            identityId: "6f0b9239-264a-4237-9d18-b4324a714849",
+            connection: "email",
+            label: "a***@campo.ar",
+            verifiedAtUtc: "2026-08-05T10:00:00Z",
+          },
+        ],
+        memberships: [],
+      }),
+    ).toThrow(IdentityApiError);
+  });
+
+  it("rejects a strong level without a complete purpose-bound window", () => {
+    expect(() =>
+      parseIdentitySession({
+        userId: "2e9f14bd-eec9-4bd8-b1ca-da0c6c615f78",
+        displayName: "Ana Productora",
+        authentication: { ...primaryAuthentication, level: "strong" },
         identities: [
           {
             identityId: "6f0b9239-264a-4237-9d18-b4324a714849",

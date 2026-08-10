@@ -24,6 +24,8 @@ public static class IdentityServiceCollectionExtensions
             .Validate(
                 options => options.SessionLifetime > TimeSpan.Zero &&
                     options.LinkAttemptLifetime > TimeSpan.Zero &&
+                    options.StepUpAttemptLifetime > TimeSpan.Zero &&
+                    options.StrongAuthenticationWindow > TimeSpan.Zero &&
                     options.RecentAuthenticationWindow > TimeSpan.Zero,
                 "Identity runtime durations must be positive.")
             .ValidateOnStart();

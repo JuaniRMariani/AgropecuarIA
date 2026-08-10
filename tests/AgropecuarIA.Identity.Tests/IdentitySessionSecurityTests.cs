@@ -264,6 +264,7 @@ public sealed class IdentitySessionSecurityTests
             var payload = await capabilities.Content.ReadAsStringAsync();
             StringAssert.Contains(payload, "\"oidcConfigured\":true", StringComparison.Ordinal);
             StringAssert.Contains(payload, "\"developmentProviderEnabled\":false", StringComparison.Ordinal);
+            StringAssert.Contains(payload, "\"strongAuthenticationAvailable\":false", StringComparison.Ordinal);
             StringAssert.Contains(
                 payload,
                 "\"id\":\"google\",\"label\":\"Google\",\"available\":false",
@@ -287,6 +288,13 @@ public sealed class IdentitySessionSecurityTests
             new Dictionary<string, string> { ["fixture"] = "google-owner" }))
         {
             Assert.AreEqual(HttpStatusCode.NotFound, verify.StatusCode);
+        }
+
+        using (var syntheticStepUp = await browser.PostAsync(
+            $"/api/development/identity/step-up-attempts/{Guid.NewGuid():D}/complete",
+            new Dictionary<string, string>()))
+        {
+            Assert.AreEqual(HttpStatusCode.NotFound, syntheticStepUp.StatusCode);
         }
     }
 

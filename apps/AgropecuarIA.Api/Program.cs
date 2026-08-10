@@ -39,6 +39,12 @@ builder.Services.AddOptions<OidcProviderOptions>()
     .Bind(builder.Configuration.GetSection(OidcProviderOptions.SectionName))
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<OidcProviderOptions>, OidcProviderOptionsValidator>();
+builder.Services.AddOptions<StrongAuthenticationOptions>()
+    .Bind(builder.Configuration.GetSection(StrongAuthenticationOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<
+    IValidateOptions<StrongAuthenticationOptions>,
+    StrongAuthenticationOptionsValidator>();
 builder.Services.AddOptions<DevelopmentIdentityProviderOptions>()
     .Bind(builder.Configuration.GetSection(DevelopmentIdentityProviderOptions.SectionName))
     .ValidateOnStart();
@@ -51,10 +57,17 @@ OidcProviderOptions oidcConfiguration =
     builder.Configuration.GetSection(OidcProviderOptions.SectionName).Get<OidcProviderOptions>() ?? new();
 int perIpPermitLimit = builder.Configuration.GetValue("Identity:RateLimits:PerIpPerMinute", 120);
 int perSessionPermitLimit = builder.Configuration.GetValue("Identity:RateLimits:PerSessionPerMinute", 30);
-if (perIpPermitLimit <= 0 || perSessionPermitLimit <= 0 || perSessionPermitLimit > perIpPermitLimit)
+int stepUpPermitLimit = builder.Configuration.GetValue(
+    "Identity:RateLimits:StepUpPerSessionPerFiveMinutes",
+    5);
+if (perIpPermitLimit <= 0 ||
+    perSessionPermitLimit <= 0 ||
+    perSessionPermitLimit > perIpPermitLimit ||
+    stepUpPermitLimit <= 0 ||
+    stepUpPermitLimit > perSessionPermitLimit)
 {
     throw new InvalidOperationException(
-        "Identity rate limits must be positive and the per-session limit cannot exceed the per-IP limit.");
+        "Identity rate limits must be positive; step-up cannot exceed the per-session limit and per-session cannot exceed per-IP.");
 }
 AuthenticationBuilder externalAuthentication = builder.Services.AddAuthentication()
     .AddCookie(IdentityAuthenticationDefaults.ExternalScheme, options =>
@@ -118,6 +131,23 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = perSessionPermitLimit,
                 Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            });
+    });
+    options.AddPolicy("identity-step-up", context =>
+    {
+        string partitionKey = context.Request.Cookies.TryGetValue(
+            IdentityAuthenticationDefaults.SessionCookieName,
+            out string? sessionToken)
+            ? $"step-up:{Convert.ToHexString(IdentityTokenService.HashToken(sessionToken))}"
+            : $"step-up-anonymous:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = stepUpPermitLimit,
+                Window = TimeSpan.FromMinutes(5),
                 QueueLimit = 0,
                 AutoReplenishment = true,
             });

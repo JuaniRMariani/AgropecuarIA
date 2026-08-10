@@ -67,3 +67,9 @@ Este archivo se actualizará después de cada corrección del sponsor o de un ha
 - Disparador: el sponsor aclaró que las credenciales y secretos reales se configurarán al publicar un servidor de prueba y pidió iniciar el desarrollo sin esperarlos.
 - Regla: implementar puertos y configuración production-ready con un proveedor sintético exclusivamente habilitable en `Development`/`Test`; ningún secreto real se guarda en el repositorio y los ambientes compartidos fallan cerrados si falta OIDC.
 - Prevención: separar en la DoR la decisión reversible de contrato/proveedor del aprovisionamiento de credenciales; registrar este último como gate de despliegue y probar que el adaptador local no puede activarse fuera de entornos locales.
+
+## Regla: continuar autónomamente hasta el gate final
+
+- Disparador: el sponsor reiteró que no debe esperarse una aprobación intermedia para continuar una tarea ya seleccionada.
+- Regla: dentro del ID activo y de la autoridad ya delegada, resolver hallazgos, ejecutar gates, documentar y publicar sin pedir confirmaciones paso a paso.
+- Prevención: usar checkpoints internos y revisiones independientes; contactar al sponsor solo ante un bloqueo externo real, un riesgo destructivo o una ampliación material de alcance.

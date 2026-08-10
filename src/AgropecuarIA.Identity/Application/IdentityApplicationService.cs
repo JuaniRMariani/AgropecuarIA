@@ -40,7 +40,9 @@ public sealed class IdentityApplicationService(
                 session.Id,
                 session.UserId,
                 session.AuthenticatedAtUtc,
-                session.IsAuthenticationAssuranceVerified))
+                session.IsAuthenticationAssuranceVerified,
+                session.StrongAuthenticatedAtUtc,
+                session.StrongAuthenticationPurpose))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -140,16 +142,18 @@ public sealed class IdentityApplicationService(
         return issuedSession;
     }
 
-    public async Task<IdentitySessionResult> GetSessionAsync(Guid userId, CancellationToken cancellationToken)
+    public async Task<IdentitySessionResult> GetSessionAsync(
+        AuthenticatedSession currentSession,
+        CancellationToken cancellationToken)
     {
         PlatformUser user = await dbContext.Users
             .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == userId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.Id == currentSession.UserId, cancellationToken)
             ?? throw IdentityErrors.SessionRequired();
 
         LinkedIdentityResult[] identities = await dbContext.ExternalIdentities
             .AsNoTracking()
-            .Where(identity => identity.UserId == userId)
+            .Where(identity => identity.UserId == currentSession.UserId)
             .OrderBy(identity => identity.VerifiedAtUtc)
             .Select(identity => new LinkedIdentityResult(
                 identity.Id,
@@ -160,7 +164,7 @@ public sealed class IdentityApplicationService(
 
         MembershipResult[] memberships = await dbContext.Memberships
             .AsNoTracking()
-            .Where(membership => membership.UserId == userId)
+            .Where(membership => membership.UserId == currentSession.UserId)
             .OrderBy(membership => membership.OrganizationName)
             .Select(membership => new MembershipResult(
                 membership.OrganizationId,
@@ -168,7 +172,102 @@ public sealed class IdentityApplicationService(
                 membership.Role))
             .ToArrayAsync(cancellationToken);
 
-        return new IdentitySessionResult(user.Id, user.DisplayName, identities, memberships);
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        DateTimeOffset? strongExpiresAtUtc = currentSession.StrongAuthenticatedAtUtc?.Add(
+            runtimeOptions.StrongAuthenticationWindow);
+        bool hasCurrentStrongAssurance =
+            currentSession.StrongAuthenticatedAtUtc is not null &&
+            StepUpPurposes.IsSupported(currentSession.StrongAuthenticationPurpose ?? string.Empty) &&
+            strongExpiresAtUtc > now;
+
+        return new IdentitySessionResult(
+            user.Id,
+            user.DisplayName,
+            identities,
+            memberships,
+            new AuthenticationAssuranceResult(
+                hasCurrentStrongAssurance ? "strong" : "primary",
+                currentSession.AuthenticatedAtUtc,
+                hasCurrentStrongAssurance ? currentSession.StrongAuthenticationPurpose : null,
+                hasCurrentStrongAssurance ? currentSession.StrongAuthenticatedAtUtc : null,
+                hasCurrentStrongAssurance ? strongExpiresAtUtc : null));
+    }
+
+    public async Task<StartedStepUpAttempt> StartStepUpAttemptAsync(
+        AuthenticatedSession currentSession,
+        string purpose,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        requestContext.RequirePlatformActor(currentSession.UserId);
+        if (!StepUpPurposes.IsSupported(purpose))
+        {
+            await AuditFailureAsync(
+                currentSession,
+                "step_up_started",
+                null,
+                requestContext,
+                cancellationToken,
+                purpose);
+            throw IdentityErrors.InvalidStepUpPurpose();
+        }
+
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        await dbContext.StepUpAttempts
+            .Where(attempt =>
+                attempt.UserId == currentSession.UserId &&
+                attempt.ExpiresAtUtc <= now)
+            .ExecuteDeleteAsync(cancellationToken);
+        DateTimeOffset expiresAtUtc = now.Add(runtimeOptions.StepUpAttemptLifetime);
+        StepUpAttempt attempt = new(
+            Guid.NewGuid(),
+            currentSession.UserId,
+            currentSession.SessionId,
+            purpose,
+            now,
+            expiresAtUtc);
+        dbContext.StepUpAttempts.Add(attempt);
+        dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
+            currentSession.UserId,
+            currentSession.SessionId,
+            "step_up_started",
+            "succeeded",
+            null,
+            requestContext));
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        telemetry.Record("step_up_started", "succeeded", purpose: purpose);
+        return new StartedStepUpAttempt(
+            attempt.Id,
+            attempt.Purpose,
+            attempt.ExpiresAtUtc,
+            $"/api/identity/step-up/{attempt.Id:D}");
+    }
+
+    public async Task<StepUpAttemptValidation> ValidateStepUpAttemptAsync(
+        Guid attemptId,
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        requestContext.RequirePlatformActor(currentSession.UserId);
+        StepUpAttempt? attempt = await dbContext.StepUpAttempts
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == attemptId, cancellationToken);
+        if (!IsValidStepUpAttempt(attempt, currentSession, timeProvider.GetUtcNow()))
+        {
+            await AuditFailureAsync(
+                currentSession,
+                "step_up_validated",
+                null,
+                requestContext,
+                cancellationToken,
+                attempt?.Purpose);
+            throw IdentityErrors.StepUpAttemptConflict();
+        }
+
+        telemetry.Record("step_up_validated", "succeeded", purpose: attempt!.Purpose);
+        return new StepUpAttemptValidation(attempt!.Id, attempt.Purpose, attempt.ExpiresAtUtc);
     }
 
     public async Task<StartedLinkAttempt> StartLinkAttemptAsync(
@@ -414,7 +513,7 @@ public sealed class IdentityApplicationService(
         }
 
         telemetry.Record("identity_linked", "succeeded", attempt.Connection);
-        return await GetSessionAsync(currentSession.UserId, cancellationToken);
+        return await GetSessionAsync(currentSession, cancellationToken);
     }
 
     public async Task UnlinkIdentityAsync(
@@ -498,6 +597,162 @@ public sealed class IdentityApplicationService(
         telemetry.Record("identity_unlinked", "succeeded", identity.Connection);
     }
 
+    public async Task<IssuedSession> CompleteStepUpAttemptAsync(
+        Guid attemptId,
+        AuthenticatedSession currentSession,
+        VerifiedStepUpProof proof,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        requestContext.RequirePlatformActor(currentSession.UserId);
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        if (!IsValidStrongAuthenticationProof(proof, now))
+        {
+            string? purpose = await dbContext.StepUpAttempts
+                .AsNoTracking()
+                .Where(attempt =>
+                    attempt.Id == attemptId &&
+                    attempt.UserId == currentSession.UserId &&
+                    attempt.InitiatingSessionId == currentSession.SessionId)
+                .Select(attempt => attempt.Purpose)
+                .SingleOrDefaultAsync(cancellationToken);
+            await AuditFailureAsync(
+                currentSession,
+                "step_up_completed",
+                null,
+                requestContext,
+                cancellationToken,
+                purpose);
+            throw IdentityErrors.StrongAuthenticationRequired();
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        StepUpAttempt? attempt = await dbContext.StepUpAttempts
+            .SingleOrDefaultAsync(item => item.Id == attemptId, cancellationToken);
+        UserSession? initiatingSession = await dbContext.Sessions
+            .SingleOrDefaultAsync(
+                item => item.Id == currentSession.SessionId &&
+                    item.UserId == currentSession.UserId &&
+                    item.RevokedAtUtc == null &&
+                    item.ExpiresAtUtc > now,
+                cancellationToken);
+
+        if (!IsValidStepUpAttempt(attempt, currentSession, now) ||
+            initiatingSession is null ||
+            proof.AuthenticatedAtUtc < attempt!.StartedAtUtc.Subtract(AuthenticationClockSkew))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await transaction.DisposeAsync();
+            await AuditFailureAsync(
+                currentSession,
+                "step_up_completed",
+                null,
+                requestContext,
+                cancellationToken,
+                attempt?.Purpose);
+            throw IdentityErrors.StepUpAttemptConflict();
+        }
+
+        bool proofBelongsToUser = await dbContext.ExternalIdentities
+            .AsNoTracking()
+            .AnyAsync(
+                identity => identity.UserId == currentSession.UserId &&
+                    identity.Issuer == proof.Issuer &&
+                    identity.Subject == proof.Subject,
+                cancellationToken);
+        if (!proofBelongsToUser)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await transaction.DisposeAsync();
+            await AuditFailureAsync(
+                currentSession,
+                "step_up_completed",
+                null,
+                requestContext,
+                cancellationToken,
+                attempt.Purpose);
+            throw IdentityErrors.StepUpAttemptConflict();
+        }
+
+        string token = tokenService.CreateToken();
+        UserSession rotatedSession = new(
+            Guid.NewGuid(),
+            currentSession.UserId,
+            IdentityTokenService.HashToken(token),
+            initiatingSession.AuthenticatedAtUtc,
+            initiatingSession.ExpiresAtUtc,
+            isAuthenticationAssuranceVerified: true,
+            strongAuthenticatedAtUtc: proof.AuthenticatedAtUtc,
+            strongAuthenticationPurpose: attempt.Purpose);
+        dbContext.Sessions.Add(rotatedSession);
+        initiatingSession.Revoke(now);
+        attempt.Consume(now);
+
+        PlatformUser user = await dbContext.Users
+            .SingleAsync(item => item.Id == currentSession.UserId, cancellationToken);
+        long aggregateVersion = user.NextVersion();
+        dbContext.OutboxMessages.Add(new IdentityOutboxMessage(
+            Guid.NewGuid(),
+            "IdentityStepUpCompleted",
+            1,
+            IdentityOutboxMessage.CurrentSchemaVersion,
+            IdentityOutboxMessage.IdentitySource,
+            requestContext.Scope,
+            now,
+            now,
+            now,
+            requestContext.ActorId!.Value,
+            requestContext.CorrelationId,
+            attempt.Id,
+            nameof(PlatformUser),
+            currentSession.UserId,
+            aggregateVersion,
+            JsonSerializer.Serialize(
+                new IdentityStepUpCompletedEvent(
+                    currentSession.UserId,
+                    currentSession.SessionId,
+                    rotatedSession.Id,
+                    attempt.Purpose,
+                    now),
+                EventSerializerOptions)));
+        dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
+            currentSession.UserId,
+            currentSession.SessionId,
+            "step_up_completed",
+            "succeeded",
+            null,
+            requestContext));
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (Exception exception) when (IsConcurrentStepUpCompletion(exception))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await transaction.DisposeAsync();
+            dbContext.ChangeTracker.Clear();
+            await AuditFailureAsync(
+                currentSession,
+                "step_up_completed",
+                null,
+                requestContext,
+                cancellationToken,
+                attempt.Purpose);
+            throw IdentityErrors.StepUpAttemptConflict();
+        }
+
+        telemetry.Record("step_up_completed", "succeeded", purpose: attempt.Purpose);
+        return new IssuedSession(
+            rotatedSession.Id,
+            rotatedSession.UserId,
+            token,
+            rotatedSession.ExpiresAtUtc);
+    }
+
     public async Task RevokeSessionAsync(
         AuthenticatedSession currentSession,
         IdentityRequestContext requestContext,
@@ -541,12 +796,33 @@ public sealed class IdentityApplicationService(
         session.IsAuthenticationAssuranceVerified &&
         session.AuthenticatedAtUtc.Add(runtimeOptions.RecentAuthenticationWindow) > timeProvider.GetUtcNow();
 
+    private static bool IsValidStepUpAttempt(
+        StepUpAttempt? attempt,
+        AuthenticatedSession currentSession,
+        DateTimeOffset now) =>
+        attempt is not null &&
+        attempt.UserId == currentSession.UserId &&
+        attempt.InitiatingSessionId == currentSession.SessionId &&
+        StepUpPurposes.IsSupported(attempt.Purpose) &&
+        attempt.ExpiresAtUtc > now &&
+        attempt.ConsumedAtUtc is null;
+
+    private static bool IsValidStrongAuthenticationProof(
+        VerifiedStepUpProof proof,
+        DateTimeOffset now) =>
+        proof.IsStrongAuthentication &&
+        !string.IsNullOrWhiteSpace(proof.Issuer) &&
+        !string.IsNullOrWhiteSpace(proof.Subject) &&
+        proof.AuthenticatedAtUtc != default &&
+        proof.AuthenticatedAtUtc <= now.Add(AuthenticationClockSkew);
+
     private async Task AuditFailureAsync(
         AuthenticatedSession session,
         string action,
         string? connection,
         IdentityRequestContext requestContext,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? purpose = null)
     {
         dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
             session.UserId,
@@ -556,7 +832,7 @@ public sealed class IdentityApplicationService(
             connection,
             requestContext));
         await dbContext.SaveChangesAsync(cancellationToken);
-        telemetry.Record(action, "rejected", connection);
+        telemetry.Record(action, "rejected", connection, purpose);
     }
 
     private IdentitySecurityJournalEntry CreateSecurityJournalEntry(
@@ -605,9 +881,23 @@ public sealed class IdentityApplicationService(
             ConstraintName: "IX_external_identities_Issuer_Subject",
         };
 
+    private static bool IsConcurrentStepUpCompletion(Exception exception) =>
+        exception is DbUpdateConcurrencyException or DbUpdateException ||
+        exception is PostgresException
+        {
+            SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected,
+        };
+
     private sealed record IdentityLinkedEvent(
         Guid UserId,
         Guid IdentityId,
         string Connection,
         DateTimeOffset LinkedAtUtc);
+
+    private sealed record IdentityStepUpCompletedEvent(
+        Guid UserId,
+        Guid PreviousSessionId,
+        Guid SessionId,
+        string Purpose,
+        DateTimeOffset CompletedAtUtc);
 }

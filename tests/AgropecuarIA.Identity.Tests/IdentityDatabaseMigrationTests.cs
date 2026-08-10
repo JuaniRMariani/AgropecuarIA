@@ -311,6 +311,184 @@ public sealed class IdentityDatabaseMigrationTests
     }
 
     [TestMethod]
+    public async Task StrongAuthenticationMigrationSupportsNMinusOneAndPreservesSessionsAcrossRollback()
+    {
+        await using var scenario = await IdentityApiScenario.CreateAsync();
+        var options = new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseNpgsql(scenario.ConnectionString)
+            .Options;
+        await using var dbContext = new IdentityDbContext(options);
+        IMigrator migrator = dbContext.Database.GetService<IMigrator>();
+        const string previousMigration = "20260810192543_AddAuthenticationAssuranceToSessions";
+        await migrator.MigrateAsync(previousMigration);
+
+        Guid userId = Guid.NewGuid();
+        Guid legacySessionId = Guid.NewGuid();
+        Guid postUpgradeLegacySessionId = Guid.NewGuid();
+        Guid currentSessionId = Guid.NewGuid();
+        Guid journalEntryId = Guid.NewGuid();
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var legacyWriter = new NpgsqlCommand(
+                """
+                INSERT INTO identity.users ("Id", "DisplayName", "CreatedAtUtc", "Version")
+                VALUES (@userId, 'Strong migration user', now(), 1);
+
+                INSERT INTO identity.sessions
+                    ("Id", "UserId", "TokenHash", "AuthenticatedAtUtc", "ExpiresAtUtc",
+                     "IsAuthenticationAssuranceVerified", "RevokedAtUtc", "Version")
+                VALUES
+                    (@sessionId, @userId, @tokenHash, now(), now() + interval '1 hour',
+                     true, NULL, @version);
+
+                INSERT INTO identity.audit_events
+                    ("Id", "UserId", "SessionId", "Action", "Outcome", "Connection",
+                     "CorrelationId", "OccurredAtUtc")
+                VALUES
+                    (@journalId, @userId, @sessionId, 'n_minus_one_session_created',
+                     'succeeded', NULL, 'strong-migration', now());
+                """,
+                connection);
+            legacyWriter.Parameters.AddWithValue("userId", userId);
+            legacyWriter.Parameters.AddWithValue("sessionId", legacySessionId);
+            legacyWriter.Parameters.AddWithValue("tokenHash", Enumerable.Repeat((byte)0x3c, 32).ToArray());
+            legacyWriter.Parameters.AddWithValue("version", Guid.NewGuid());
+            legacyWriter.Parameters.AddWithValue("journalId", journalEntryId);
+            await legacyWriter.ExecuteNonQueryAsync();
+        }
+
+        await migrator.MigrateAsync();
+
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var verifyLegacy = new NpgsqlCommand(
+                """
+                SELECT "StrongAuthenticatedAtUtc" IS NULL
+                       AND "StrongAuthenticationPurpose" IS NULL
+                FROM identity.sessions
+                WHERE "Id" = @sessionId
+                """,
+                connection);
+            verifyLegacy.Parameters.AddWithValue("sessionId", legacySessionId);
+            Assert.IsTrue((bool)(await verifyLegacy.ExecuteScalarAsync()
+                ?? throw new InvalidOperationException("The N-1 session verification returned null.")));
+
+            await using var postUpgradeLegacyWriter = new NpgsqlCommand(
+                """
+                INSERT INTO identity.sessions
+                    ("Id", "UserId", "TokenHash", "AuthenticatedAtUtc", "ExpiresAtUtc",
+                     "IsAuthenticationAssuranceVerified", "RevokedAtUtc", "Version")
+                VALUES
+                    (@sessionId, @userId, @tokenHash, now(), now() + interval '1 hour',
+                     true, NULL, @version)
+                """,
+                connection);
+            postUpgradeLegacyWriter.Parameters.AddWithValue("sessionId", postUpgradeLegacySessionId);
+            postUpgradeLegacyWriter.Parameters.AddWithValue("userId", userId);
+            postUpgradeLegacyWriter.Parameters.AddWithValue(
+                "tokenHash",
+                Enumerable.Repeat((byte)0x6f, 32).ToArray());
+            postUpgradeLegacyWriter.Parameters.AddWithValue("version", Guid.NewGuid());
+            Assert.AreEqual(1, await postUpgradeLegacyWriter.ExecuteNonQueryAsync());
+
+            await using var verifyCoexistingLegacyWriter = new NpgsqlCommand(
+                """
+                SELECT "StrongAuthenticatedAtUtc" IS NULL
+                       AND "StrongAuthenticationPurpose" IS NULL
+                FROM identity.sessions
+                WHERE "Id" = @sessionId
+                """,
+                connection);
+            verifyCoexistingLegacyWriter.Parameters.AddWithValue(
+                "sessionId",
+                postUpgradeLegacySessionId);
+            Assert.IsTrue((bool)(await verifyCoexistingLegacyWriter.ExecuteScalarAsync()
+                ?? throw new InvalidOperationException(
+                    "The coexisting N-1 writer verification returned null.")));
+
+            await using var currentWriter = new NpgsqlCommand(
+                """
+                INSERT INTO identity.sessions
+                    ("Id", "UserId", "TokenHash", "AuthenticatedAtUtc", "ExpiresAtUtc",
+                     "IsAuthenticationAssuranceVerified", "StrongAuthenticatedAtUtc",
+                     "StrongAuthenticationPurpose", "RevokedAtUtc", "Version")
+                VALUES
+                    (@sessionId, @userId, @tokenHash, now(), now() + interval '1 hour',
+                     true, now(), 'manage_authentication_methods', NULL, @version)
+                """,
+                connection);
+            currentWriter.Parameters.AddWithValue("sessionId", currentSessionId);
+            currentWriter.Parameters.AddWithValue("userId", userId);
+            currentWriter.Parameters.AddWithValue("tokenHash", Enumerable.Repeat((byte)0x4d, 32).ToArray());
+            currentWriter.Parameters.AddWithValue("version", Guid.NewGuid());
+            Assert.AreEqual(1, await currentWriter.ExecuteNonQueryAsync());
+
+            await using var invalidWriter = new NpgsqlCommand(
+                """
+                INSERT INTO identity.sessions
+                    ("Id", "UserId", "TokenHash", "AuthenticatedAtUtc", "ExpiresAtUtc",
+                     "IsAuthenticationAssuranceVerified", "StrongAuthenticatedAtUtc",
+                     "StrongAuthenticationPurpose", "RevokedAtUtc", "Version")
+                VALUES
+                    (@sessionId, @userId, @tokenHash, now(), now() + interval '1 hour',
+                     true, now(), NULL, NULL, @version)
+                """,
+                connection);
+            invalidWriter.Parameters.AddWithValue("sessionId", Guid.NewGuid());
+            invalidWriter.Parameters.AddWithValue("userId", userId);
+            invalidWriter.Parameters.AddWithValue("tokenHash", Enumerable.Repeat((byte)0x5e, 32).ToArray());
+            invalidWriter.Parameters.AddWithValue("version", Guid.NewGuid());
+            PostgresException rejected = await Assert.ThrowsExactlyAsync<PostgresException>(
+                () => invalidWriter.ExecuteNonQueryAsync());
+            Assert.AreEqual(PostgresErrorCodes.CheckViolation, rejected.SqlState);
+        }
+
+        await migrator.MigrateAsync(previousMigration);
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var preservation = new NpgsqlCommand(
+                """
+                SELECT
+                    (SELECT count(*) FROM identity.sessions
+                     WHERE "Id" IN (@legacySessionId, @postUpgradeLegacySessionId, @currentSessionId)) = 3
+                    AND EXISTS (
+                        SELECT 1 FROM identity.audit_events WHERE "Id" = @journalEntryId)
+                    AND to_regclass('identity.step_up_attempts') IS NULL
+                """,
+                connection);
+            preservation.Parameters.AddWithValue("legacySessionId", legacySessionId);
+            preservation.Parameters.AddWithValue("postUpgradeLegacySessionId", postUpgradeLegacySessionId);
+            preservation.Parameters.AddWithValue("currentSessionId", currentSessionId);
+            preservation.Parameters.AddWithValue("journalEntryId", journalEntryId);
+            Assert.IsTrue((bool)(await preservation.ExecuteScalarAsync()
+                ?? throw new InvalidOperationException("The rollback preservation probe returned null.")));
+        }
+
+        await migrator.MigrateAsync();
+        await using (var connection = new NpgsqlConnection(scenario.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var rollForward = new NpgsqlCommand(
+                """
+                SELECT count(*) = 3
+                       AND bool_and("StrongAuthenticatedAtUtc" IS NULL)
+                       AND bool_and("StrongAuthenticationPurpose" IS NULL)
+                FROM identity.sessions
+                WHERE "Id" IN (@legacySessionId, @postUpgradeLegacySessionId, @currentSessionId)
+                """,
+                connection);
+            rollForward.Parameters.AddWithValue("legacySessionId", legacySessionId);
+            rollForward.Parameters.AddWithValue("postUpgradeLegacySessionId", postUpgradeLegacySessionId);
+            rollForward.Parameters.AddWithValue("currentSessionId", currentSessionId);
+            Assert.IsTrue((bool)(await rollForward.ExecuteScalarAsync()
+                ?? throw new InvalidOperationException("The roll-forward verification returned null.")));
+        }
+    }
+
+    [TestMethod]
     public async Task MigrationCanRollbackAndRollForwardOnAnEphemeralDatabase()
     {
         await using var scenario = await IdentityApiScenario.CreateAsync();

@@ -100,6 +100,44 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/ProviderUnavailable' }
+  /api/identity/step-up-attempts:
+    post:
+      summary: Start a purpose-bound strong-authentication attempt
+      description: Creates a one-use attempt tied to the authenticated user and current durable session. It never accepts a user, tenant or return URL from the client.
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/AntiforgeryHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartStepUpAttempt' }
+      responses:
+        '201':
+          description: One-time step-up attempt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StepUpAttempt' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ProviderUnavailable' }
+  /api/identity/step-up/{attemptId}:
+    get:
+      summary: Challenge the provider for fresh MFA on a one-time attempt
+      description: Requests `max_age=0` and the Auth0 MFA `acr_values`; the callback must also contain signed `auth_time` and `amr=mfa` before rotating the application session.
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '302': { description: Redirect to configured OIDC provider }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ProviderUnavailable' }
   /api/identity/link-attempts/{attemptId}/complete:
     post:
       summary: Consume two verified proofs and link the identity atomically
@@ -185,6 +223,26 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '404': { description: Endpoint absent outside Development/Test }
+  /api/development/identity/step-up-attempts/{attemptId}/complete:
+    post:
+      summary: Development/Test-only synthetic MFA proof and session rotation
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/AntiforgeryHeader'
+      responses:
+        '200':
+          description: Rotated synthetic session with purpose-bound strong assurance
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdentitySession' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '404': { description: Endpoint absent outside Development/Test }
 components:
   securitySchemes:
     SessionCookie:
@@ -249,11 +307,12 @@ components:
     IdentityCapabilities:
       type: object
       additionalProperties: false
-      required: [environment, oidcConfigured, developmentProviderEnabled, connections]
+      required: [environment, oidcConfigured, developmentProviderEnabled, strongAuthenticationAvailable, connections]
       properties:
         environment: { type: string }
         oidcConfigured: { type: boolean }
         developmentProviderEnabled: { type: boolean }
+        strongAuthenticationAvailable: { type: boolean }
         connections:
           type: array
           items: { $ref: '#/components/schemas/IdentityConnection' }
@@ -268,10 +327,11 @@ components:
     IdentitySession:
       type: object
       additionalProperties: false
-      required: [userId, displayName, identities, memberships]
+      required: [userId, displayName, authentication, identities, memberships]
       properties:
         userId: { type: string, format: uuid }
         displayName: { type: string }
+        authentication: { $ref: '#/components/schemas/AuthenticationAssurance' }
         identities:
           type: array
           minItems: 1
@@ -296,6 +356,25 @@ components:
         organizationId: { type: string, format: uuid }
         organizationName: { type: string }
         role: { type: string }
+    AuthenticationAssurance:
+      type: object
+      additionalProperties: false
+      required: [level, authenticatedAtUtc, purpose, strongAuthenticatedAtUtc, expiresAtUtc]
+      properties:
+        level: { type: string, enum: [primary, strong] }
+        authenticatedAtUtc: { type: string, format: date-time }
+        purpose:
+          oneOf:
+            - { type: string, enum: [manage_authentication_methods] }
+            - { type: 'null' }
+        strongAuthenticatedAtUtc:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        expiresAtUtc:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
     AntiforgeryToken:
       type: object
       additionalProperties: false
@@ -315,6 +394,21 @@ components:
       properties:
         attemptId: { type: string, format: uuid }
         connection: { type: string, enum: [email, google] }
+        expiresAtUtc: { type: string, format: date-time }
+        authorizationUrl: { type: string, format: uri-reference }
+    StartStepUpAttempt:
+      type: object
+      additionalProperties: false
+      required: [purpose]
+      properties:
+        purpose: { type: string, enum: [manage_authentication_methods] }
+    StepUpAttempt:
+      type: object
+      additionalProperties: false
+      required: [attemptId, purpose, expiresAtUtc, authorizationUrl]
+      properties:
+        attemptId: { type: string, format: uuid }
+        purpose: { type: string, enum: [manage_authentication_methods] }
         expiresAtUtc: { type: string, format: date-time }
         authorizationUrl: { type: string, format: uri-reference }
     DevelopmentFixture:

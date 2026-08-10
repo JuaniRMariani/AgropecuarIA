@@ -852,3 +852,56 @@ No objetivos: passkeys, TOTP, recovery, roles, contexto tenant, delivery de noti
 - Frontend, Playwright, contenedores y CI: N/A; no cambió UI, respuesta consumida, contenedor ni pipeline. El flujo visible conserva el mismo contrato y los fallos usan los estados existentes.
 - Estado final: `En revisión`. El defecto local quedó corregido; Auth0 real aún debe demostrar `state`/nonce/code replay, `max_age=0`, `auth_time` y el comportamiento upstream de Google antes de `Completada` o deploy.
 - Riesgo residual bajo: `OnRemoteFailure` aún agrega la categoría general `provider_unavailable` a rechazos de freshness; el rechazo es seguro pero se recomienda una métrica específica cuando se conecte el sandbox Auth0.
+
+## Iteración 18 — AGRO-ID-002 step-up MFA ligado a propósito (2026-08-10)
+
+Estado inicial: `Propuesto`. El sponsor seleccionó explícitamente `AGRO-ID-002`, delegó los defaults de producto reversibles y confirmó que las credenciales reales se incorporarán en el servidor de prueba. Transición registrada: `Propuesto → Ready` al aprobar la política MFA/recovery de desarrollo y acotar el primer sub-slice; pasará a `En curso` al comenzar la edición productiva. Clasificación: capacidad R1 de tamaño M; este sub-slice habilita assurance fuerte sin declarar implementado el lifecycle completo de factores.
+
+### DoR, política y límites
+
+- [x] Confirmar ID, outcome, actor, requisitos RF-ID-003/004/006, ADR-003, amenazas y criterios observables.
+- [x] Confirmar que `AGRO-ID-001` provee sesión/identidad interna integrada; su gate Auth0 real se hereda como gate externo, pero no bloquea desarrollo local.
+- [x] Fijar passkey como método preferido, TOTP como segundo factor/fallback, recovery codes de un uso y SMS fuera de alcance.
+- [x] Fijar Auth0 como custodio de credenciales, semillas, códigos y factor IDs; AgropecuarIA conserva solo assurance gruesa, instante, propósito y evidencia de auditoría sin PII.
+- [x] Fijar step-up one-shot de cinco minutos para `manage_authentication_methods`, ligado a usuario+sesión+identidad; exigir `max_age=0`, `acr_values` MFA, `amr=mfa` y `auth_time` firmado/fresco.
+- [x] Diferir enforcement owner/admin/contador hasta que `AGRO-ID-003` entregue roles efectivos; no inventar autoridad a partir de strings o claims del IdP.
+- [x] Fijar correo verificado como canal de recuperación/notificación candidato, sin implementar delivery de `AGRO-FND-002` ni afirmar validación real.
+- [x] Acotar este sub-slice a assurance/step-up, rotación de sesión, UI y evidencia local. Alta/revocación passkey/TOTP, recovery real y notificación permanecen dentro de la tarea padre pero fuera de este incremento.
+
+### Plan verificable
+
+- [x] Publicar política y contrato HTTP/OpenAPI de intento, challenge, callback y assurance de sesión.
+- [x] Agregar intento one-shot y assurance fuerte separados de la frescura OIDC de `AGRO-ID-001`.
+- [x] Implementar inicio, validación `acr`/`amr`/`auth_time`/issuer/subject, consumo atómico y rotación de sesión sin extender su expiración absoluta.
+- [x] Agregar migración aditiva N/N-1: nuevas columnas conservadoras y tabla efímera de intentos; ninguna sesión legacy se eleva automáticamente.
+- [x] Emitir journal/outbox/telemetría acotados para inicio, éxito y rechazo sin token, subject, email, claims ni factor IDs.
+- [x] Implementar UI accesible que muestre `primary`/`strong`, vencimiento, loading regional, proveedor caído, expiración/replay y reintento; el fixture fuerte solo existe en Development/Test.
+- [x] Cubrir CSRF, propósito inválido, identidad/sesión cruzada, sesión revocada, `acr`/`amr` ausente, `auth_time` stale/futuro, doble callback, replay y rotación de cookie.
+- [x] Ejecutar migración PostgreSQL real, restore/build/format/tests MTP, pnpm frozen/format/lint/typecheck/unit/build/E2E, SCA/secrets y revisión independiente.
+- [x] Actualizar evidencia, backlog y riesgos; mantener `En curso` si el lifecycle real de factores continúa pendiente.
+
+### Ownership disjunto
+
+- Principal: contrato/política, `IdentityEndpoints.cs`, OIDC compartido, configuración, migración, integración, documentación, estados, gates y Git.
+- Backend .NET: dominio/aplicación/EF no-migración y tests backend asignados; no edita API compartida, migraciones, frontend ni documentación.
+- Frontend Next.js: feature Identity, estilos y tests frontend/E2E; no edita contratos, manifiestos/lockfile ni backend.
+- QA y AppSec/Arquitectura: revisión final read-only sobre el estado combinado; ningún implementador aprueba su propio cambio.
+
+### Baseline y gates previstos
+
+- Baseline Git limpio en `main`, sincronizado con `origin/main`, commit `40b6d4717f2e66fb867e30ea9a033f18fb0a2bb3`.
+- Runtime actual: .NET 10/MTP, PostgreSQL real efímero, 81 tests raíz; Next.js 16.3/React 19.2/TypeScript 6 con pnpm 10.33 y 18 tests Vitest.
+- Comandos: locked restore; build Release 0 warnings; MTP con mínimo actualizado; format/model drift; pnpm frozen, format/lint/typecheck/test/build/E2E; auditoría de dependencias, secretos, `git diff --check` y revisión de migración N/N-1.
+- N/A: deploy, aprovisionamiento Auth0, credenciales reales, delivery de correo y enforcement por rol. Son gates externos/dependencias nominadas, no aprobaciones implícitas.
+
+### Review y evidencia final
+
+- Resultado: sub-slice local de step-up MFA ligado a propósito aprobado. Separa frescura OIDC de assurance fuerte, consume el intento una vez, rota la sesión sin extenderla y presenta estado/vencimiento en una región accesible de la UI.
+- Contrato/arquitectura: Auth0 conserva todo material de factor; AgropecuarIA usa un intento one-shot ligado a usuario+sesión+identidad+propósito, modelo aditivo y endpoint sintético físicamente limitado a `Development`/`Test`.
+- Migración: `20260810195645_AddPurposeBoundStrongAuthentication` validada sobre PostgreSQL 17 efímero con writer N-1 antes/después del expand, writer N, constraints, rollback y roll-forward. El rollback compartido es operativo/roll-forward; `Down` queda limitado a base efímera.
+- Backend: restore locked PASS; build Release 0 warnings/0 errors; MTP raíz 100/100; format PASS; EF sin cambios pendientes.
+- Frontend: pnpm frozen/format/lint/typecheck/build PASS; Vitest 23/23; Playwright 4/4 desktop/mobile con Axe, teclado y viewport angosto. El loader afecta solo la tarjeta de assurance.
+- Seguridad/supply chain: NuGet vulnerable 0, pnpm audit 0, secrets scan 0 y diff-check PASS. CSRF, rate limit, replay, exact-once, expiry, cookie rotada, usuario/sesión cruzados, sesión revocada y claims débiles/ajenos quedan cubiertos.
+- Revisión independiente: QA y AppSec/Arquitectura PASS, 0 hallazgos críticos/altos/medios. Los hallazgos iniciales de CRLF, texto UTF-8 y cobertura negativa fueron corregidos y revalidados.
+- Evidencia reproducible: `tasks/evidence/AGRO-ID-002/validation-report.md`, `mfa-recovery-policy.md` y `factor-loss-runbook.md`.
+- Estado final: `En curso`. El sub-slice está terminado, pero la tarea padre aún requiere lifecycle real de passkeys/TOTP/recovery, sandbox Auth0, notificación, enforcement por roles y matriz de dispositivos/navegadores. No hubo deploy.

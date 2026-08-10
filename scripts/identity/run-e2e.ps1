@@ -19,6 +19,7 @@ $previousEnvironment = @{
     AGRO_API_ORIGIN = $env:AGRO_API_ORIGIN
     Identity__ApplyMigrations = $env:Identity__ApplyMigrations
     Identity__DevelopmentProvider__Enabled = $env:Identity__DevelopmentProvider__Enabled
+    Identity__StrongAuthentication__Enabled = $env:Identity__StrongAuthentication__Enabled
 }
 
 function Resolve-PostgreSqlBin {
@@ -86,6 +87,7 @@ try {
     $env:AGRO_API_ORIGIN = "http://127.0.0.1:$ApiPort"
     $env:Identity__ApplyMigrations = 'true'
     $env:Identity__DevelopmentProvider__Enabled = 'true'
+    $env:Identity__StrongAuthentication__Enabled = 'true'
 
     $apiProcess = Start-Process dotnet -ArgumentList @(
         'run',

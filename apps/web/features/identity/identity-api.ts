@@ -1,4 +1,5 @@
 import type {
+  AuthenticationAssurance,
   AvailableConnection,
   IdentityCapabilities,
   IdentityConnection,
@@ -6,6 +7,8 @@ import type {
   LinkStart,
   LinkedIdentity,
   MembershipSummary,
+  StepUpAttempt,
+  StepUpPurpose,
 } from "./identity-types";
 
 export type IdentityFailureKind =
@@ -53,6 +56,21 @@ function requiredDateTime(record: JsonRecord, key: string): string {
     throw new IdentityApiError("error", 502);
   }
   return value;
+}
+
+function nullableDateTime(record: JsonRecord, key: string): string | null {
+  const value = record[key];
+  if (value === null) {
+    return null;
+  }
+  return requiredDateTime(record, key);
+}
+
+function parseStepUpPurpose(value: unknown): StepUpPurpose {
+  if (value === "manage_authentication_methods") {
+    return value;
+  }
+  throw new IdentityApiError("error", 502);
 }
 
 function requiredBoolean(record: JsonRecord, key: string): boolean {
@@ -125,6 +143,10 @@ export function parseIdentityCapabilities(
       value,
       "developmentProviderEnabled",
     ),
+    strongAuthenticationAvailable: requiredBoolean(
+      value,
+      "strongAuthenticationAvailable",
+    ),
     connections: requiredArray(value, "connections").map(
       parseAvailableConnection,
     ),
@@ -144,8 +166,48 @@ export function parseIdentitySession(value: unknown): IdentitySession {
   return {
     userId: requiredUuid(value, "userId"),
     displayName: requiredString(value, "displayName"),
+    authentication: parseAuthenticationAssurance(value.authentication),
     identities,
     memberships: requiredArray(value, "memberships").map(parseMembership),
+  };
+}
+
+function parseAuthenticationAssurance(value: unknown): AuthenticationAssurance {
+  if (!isRecord(value)) {
+    throw new IdentityApiError("error", 502);
+  }
+  const level = requiredString(value, "level");
+  if (level !== "primary" && level !== "strong") {
+    throw new IdentityApiError("error", 502);
+  }
+  const purposeValue = value.purpose;
+  const purpose =
+    purposeValue === null ? null : parseStepUpPurpose(purposeValue);
+  const strongAuthenticatedAtUtc = nullableDateTime(
+    value,
+    "strongAuthenticatedAtUtc",
+  );
+  const expiresAtUtc = nullableDateTime(value, "expiresAtUtc");
+  const hasStrongContext =
+    purpose !== null &&
+    strongAuthenticatedAtUtc !== null &&
+    expiresAtUtc !== null;
+  const hasPrimaryContext =
+    purpose === null &&
+    strongAuthenticatedAtUtc === null &&
+    expiresAtUtc === null;
+  if (
+    (level === "strong" && !hasStrongContext) ||
+    (level === "primary" && !hasPrimaryContext)
+  ) {
+    throw new IdentityApiError("error", 502);
+  }
+  return {
+    level,
+    authenticatedAtUtc: requiredDateTime(value, "authenticatedAtUtc"),
+    purpose,
+    strongAuthenticatedAtUtc,
+    expiresAtUtc,
   };
 }
 
@@ -156,6 +218,18 @@ export function parseLinkStart(value: unknown): LinkStart {
   return {
     attemptId: requiredUuid(value, "attemptId"),
     connection: parseConnection(value.connection),
+    expiresAtUtc: requiredDateTime(value, "expiresAtUtc"),
+    authorizationUrl: requiredString(value, "authorizationUrl"),
+  };
+}
+
+export function parseStepUpAttempt(value: unknown): StepUpAttempt {
+  if (!isRecord(value)) {
+    throw new IdentityApiError("error", 502);
+  }
+  return {
+    attemptId: requiredUuid(value, "attemptId"),
+    purpose: parseStepUpPurpose(value.purpose),
     expiresAtUtc: requiredDateTime(value, "expiresAtUtc"),
     authorizationUrl: requiredString(value, "authorizationUrl"),
   };
@@ -322,6 +396,33 @@ export async function startLink(
     signal,
   );
   return parseLinkStart(await readJson(response));
+}
+
+export async function startStepUp(
+  purpose: StepUpPurpose,
+  signal?: AbortSignal,
+): Promise<StepUpAttempt> {
+  const response = await mutate(
+    "/api/identity/step-up-attempts",
+    "POST",
+    { purpose },
+    signal,
+  );
+  return parseStepUpAttempt(await readJson(response));
+}
+
+export async function completeDevelopmentStepUp(
+  attempt: StepUpAttempt,
+  signal?: AbortSignal,
+): Promise<IdentitySession> {
+  const response = await mutate(
+    `/api/development/identity/step-up-attempts/${encodeURIComponent(attempt.attemptId)}/complete`,
+    "POST",
+    undefined,
+    signal,
+  );
+  invalidateAntiforgeryToken();
+  return parseIdentitySession(await readJson(response));
 }
 
 export async function completeDevelopmentLink(

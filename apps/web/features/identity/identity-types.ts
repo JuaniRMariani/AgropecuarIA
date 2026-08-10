@@ -10,7 +10,18 @@ export type IdentityCapabilities = Readonly<{
   environment: string;
   oidcConfigured: boolean;
   developmentProviderEnabled: boolean;
+  strongAuthenticationAvailable: boolean;
   connections: readonly AvailableConnection[];
+}>;
+
+export type StepUpPurpose = "manage_authentication_methods";
+
+export type AuthenticationAssurance = Readonly<{
+  level: "primary" | "strong";
+  authenticatedAtUtc: string;
+  purpose: StepUpPurpose | null;
+  strongAuthenticatedAtUtc: string | null;
+  expiresAtUtc: string | null;
 }>;
 
 export type LinkedIdentity = Readonly<{
@@ -29,6 +40,7 @@ export type MembershipSummary = Readonly<{
 export type IdentitySession = Readonly<{
   userId: string;
   displayName: string;
+  authentication: AuthenticationAssurance;
   identities: readonly LinkedIdentity[];
   memberships: readonly MembershipSummary[];
 }>;
@@ -57,11 +69,18 @@ export type IdentityNotice =
   | Readonly<{ kind: "error"; message: string }>;
 
 export type IdentityAction =
-  "link-email" | "link-google" | "unlink" | "revoke" | "synthetic";
+  "link-email" | "link-google" | "step-up" | "unlink" | "revoke" | "synthetic";
 
 export type LinkStart = Readonly<{
   attemptId: string;
   connection: IdentityConnection;
+  expiresAtUtc: string;
+  authorizationUrl: string;
+}>;
+
+export type StepUpAttempt = Readonly<{
+  attemptId: string;
+  purpose: StepUpPurpose;
   expiresAtUtc: string;
   authorizationUrl: string;
 }>;

@@ -15,6 +15,8 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
     public DbSet<LinkAttempt> LinkAttempts => Set<LinkAttempt>();
 
+    public DbSet<StepUpAttempt> StepUpAttempts => Set<StepUpAttempt>();
+
     public DbSet<IdentitySecurityJournalEntry> SecurityJournalEntries =>
         Set<IdentitySecurityJournalEntry>();
 
@@ -64,7 +66,14 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
         modelBuilder.Entity<UserSession>(entity =>
         {
-            entity.ToTable("sessions");
+            entity.ToTable(
+                "sessions",
+                table => table.HasCheckConstraint(
+                    "CK_sessions_StrongAuthentication",
+                    "(\"StrongAuthenticatedAtUtc\" IS NULL AND \"StrongAuthenticationPurpose\" IS NULL) OR " +
+                    "(\"StrongAuthenticatedAtUtc\" IS NOT NULL AND " +
+                    "\"StrongAuthenticationPurpose\" IS NOT NULL AND " +
+                    $"\"StrongAuthenticationPurpose\" = '{StepUpPurposes.ManageAuthenticationMethods}')"));
             entity.HasKey(item => item.Id);
             entity.Property(item => item.TokenHash).HasMaxLength(32).IsRequired();
             entity.Property(item => item.AuthenticatedAtUtc).IsRequired();
@@ -72,12 +81,42 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.Property(item => item.IsAuthenticationAssuranceVerified)
                 .HasDefaultValue(false)
                 .IsRequired();
+            entity.Property(item => item.StrongAuthenticationPurpose).HasMaxLength(64);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.TokenHash).IsUnique();
             entity.HasIndex(item => new { item.UserId, item.ExpiresAtUtc });
             entity.HasOne<PlatformUser>()
                 .WithMany()
                 .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<StepUpAttempt>(entity =>
+        {
+            entity.ToTable(
+                "step_up_attempts",
+                table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_step_up_attempts_Purpose",
+                        $"\"Purpose\" = '{StepUpPurposes.ManageAuthenticationMethods}'");
+                    table.HasCheckConstraint(
+                        "CK_step_up_attempts_Expiry",
+                        "\"ExpiresAtUtc\" > \"StartedAtUtc\"");
+                });
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Purpose).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.StartedAtUtc).IsRequired();
+            entity.Property(item => item.ExpiresAtUtc).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.HasIndex(item => new { item.UserId, item.ExpiresAtUtc });
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<UserSession>()
+                .WithMany()
+                .HasForeignKey(item => item.InitiatingSessionId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

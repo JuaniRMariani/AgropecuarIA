@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "1.0",
+  "taskId": "AGRO-SEC-001",
+  "currentRelease": "R1",
+  "reviewedAt": "2026-08-10",
+  "surfaces": [
+    {
+      "id": "RS-001",
+      "name": "Identity ASP.NET Core API",
+      "status": "integrated-local",
+      "threatIds": ["TM-001", "TM-002", "TM-009", "TM-012", "TM-014"],
+      "owner": "Identity + API + AppSec",
+      "control": "OIDC code plus PKCE, server-bound request context, antiforgery, secure cookies, fixed-window rate limits, purpose-bound step-up, session rotation and neutral errors.",
+      "tests": ["OidcConfigurationContractTests", "StepUpApiIntegrationTests", "IdentitySessionSecurityTests", "IdentityRequestContextTests"],
+      "contractPaths": ["/api/identity/capabilities", "/api/identity/session", "/api/identity/antiforgery", "/api/identity/login/{connection}", "/signin-oidc", "/api/identity/link-attempts", "/api/identity/step-up-attempts", "/api/identity/step-up/{attemptId}", "/api/identity/link-attempts/{attemptId}/complete", "/api/identity/identities/{identityId}", "/api/identity/session/revoke"],
+      "evidence": ["apps/AgropecuarIA.Api/Program.cs", "apps/AgropecuarIA.Api/IdentityEndpoints.cs", "apps/AgropecuarIA.Api/OidcReauthentication.cs", "tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs"],
+      "gate": "Integrated-local only; external OIDC and shared delivery remain NO-GO until RS-005 passes."
+    },
+    {
+      "id": "RS-002",
+      "name": "Identity Next.js web flow",
+      "status": "integrated-local",
+      "threatIds": ["TM-002", "TM-014"],
+      "owner": "Frontend + Identity + AppSec",
+      "control": "Server-mediated authentication flow exposes loading, conflict, forbidden, provider-down and retry states without storing provider secrets or tokens in browser storage.",
+      "tests": ["apps/web/tests/e2e/identity.spec.ts"],
+      "evidence": ["apps/web/package.json", "apps/web/pnpm-lock.yaml", "apps/web/tests/e2e/identity.spec.ts"],
+      "gate": "Integrated-local only; CSP and shared edge behavior remain NO-GO under RS-006."
+    },
+    {
+      "id": "RS-003",
+      "name": "Identity PostgreSQL persistence",
+      "status": "integrated-local",
+      "threatIds": ["TM-001", "TM-009", "TM-011", "TM-012"],
+      "owner": "Identity + Data + AppSec",
+      "control": "EF Core migrations, optimistic concurrency, transactional identity journal and typed outbox are exercised against real local PostgreSQL.",
+      "tests": ["IdentityDatabaseMigrationTests", "IdentityLinkingIntegrationTests", "IdentityPublishedEventContractTests"],
+      "evidence": ["src/AgropecuarIA.Identity/Infrastructure/IdentityDbContext.cs", "src/AgropecuarIA.Identity/Infrastructure/Migrations/IdentityDbContextModelSnapshot.cs", "tests/AgropecuarIA.Identity.Tests/IdentityDatabaseMigrationTests.cs", "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/IdentityPublishedEventContractTests.cs"],
+      "gate": "Platform-scoped Identity is integrated locally; tenant RLS, split runtime roles, managed backup and shared PostgreSQL remain NO-GO."
+    },
+    {
+      "id": "RS-004",
+      "name": "Synthetic identity provider",
+      "status": "development-test-only",
+      "threatIds": ["TM-002"],
+      "owner": "Identity + AppSec",
+      "control": "Synthetic provider routes are registered only in Development/Test and production-like environments fail closed without approved OIDC configuration.",
+      "tests": ["DevelopmentIdentityEndpointSecurityTests", "IdentitySessionSecurityTests", "OidcConfigurationContractTests"],
+      "contractPaths": ["/api/development/identity/sign-in", "/api/development/identity/link-attempts/{attemptId}/verify", "/api/development/identity/step-up-attempts/{attemptId}/complete"],
+      "evidence": ["apps/AgropecuarIA.Api/Program.cs", "tests/AgropecuarIA.Identity.Tests/DevelopmentIdentityEndpointSecurityTests.cs", "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs", "tests/AgropecuarIA.Identity.Tests/OidcConfigurationContractTests.cs"],
+      "gate": "Must remain Development/Test-only; any registration in another environment blocks release."
+    },
+    {
+      "id": "RS-005",
+      "name": "External OIDC provider and lifecycle",
+      "status": "external-no-go",
+      "threatIds": ["TM-002", "TM-013", "TM-014"],
+      "owner": "Identity + AppSec + Privacy/Legal + Sponsor",
+      "control": "Provider adapter and sandbox gate are specified; no external account, credential, region or contract is treated as approved.",
+      "tests": ["TST-ID-AUTH external sandbox", "Recovery, factor loss, revocation and provider-outage scenarios"],
+      "evidence": ["tasks/evidence/AGRO-DIS-003/idp-decision-matrix.md", "docs/adr/ADR-003-identidad.md"],
+      "gate": "NO-GO until sandbox callbacks and lifecycle pass and region, DPA, retention, subprocessors, plan, SLA and exportability are approved."
+    },
+    {
+      "id": "RS-006",
+      "name": "Shared hosting, edge and telemetry backend",
+      "status": "external-no-go",
+      "threatIds": ["TM-002", "TM-008", "TM-010", "TM-014"],
+      "owner": "Platform/SRE + AppSec + Privacy",
+      "control": "Local OpenTelemetry emission and delivery security requirements are specified without inventing a collector, edge or provider.",
+      "tests": ["TST-OTEL-REDACTION end-to-end", "CSP, cache-isolation, secret-canary and provider-outage tests"],
+      "evidence": ["src/AgropecuarIA.Identity/IdentityTelemetry.cs", "tests/AgropecuarIA.Identity.Tests/IdentityTelemetryTests.cs", "tasks/evidence/AGRO-DIS-007/sli-slo-catalog.md"],
+      "gate": "NO-GO until hosting/collector region, access, DPA, retention, CSP, edge isolation and redaction are verified end-to-end."
+    },
+    {
+      "id": "RS-007",
+      "name": "Locked product dependency graph",
+      "status": "integrated-local",
+      "threatIds": ["TM-010"],
+      "owner": "Platform + module owners + AppSec",
+      "control": "NuGet and pnpm dependency graphs are locked for API, Identity, tests, architecture fitness and web.",
+      "tests": ["Frozen dotnet restore", "pnpm frozen-lockfile install", "Local SCA and secret scan"],
+      "evidence": ["apps/AgropecuarIA.Api/packages.lock.json", "src/AgropecuarIA.Identity/packages.lock.json", "tests/AgropecuarIA.Identity.Tests/packages.lock.json", "apps/web/pnpm-lock.yaml", "tasks/evidence/AGRO-FND-001/fitness/src/AgropecuarIA.ArchitectureFitness/packages.lock.json", "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/packages.lock.json"],
+      "gate": "Local reproducibility only; CI identity, protected review, SBOM, provenance, signing and artifact registry remain NO-GO."
+    },
+    {
+      "id": "RS-008",
+      "name": "CI and release artifact chain",
+      "status": "external-no-go",
+      "threatIds": ["TM-010"],
+      "owner": "Platform + AppSec",
+      "control": "Required CI security gates are documented; absence is explicit and cannot be substituted by local lockfiles.",
+      "tests": ["TST-SEC-GATES", "SBOM, provenance and signature verification"],
+      "evidence": ["tasks/evidence/AGRO-SEC-001/release-security-gates.md", "tasks/backlog/EPIC-16-plataforma-observabilidad-operacion.md"],
+      "gate": "NO-GO for release promotion until a least-privilege CI identity and immutable signed artifact chain enforce every required gate."
+    }
+  ]
+}

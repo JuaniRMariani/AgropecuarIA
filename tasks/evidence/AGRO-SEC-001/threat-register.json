@@ -1,9 +1,9 @@
 {
   "schemaVersion": "1.0",
   "taskId": "AGRO-SEC-001",
-  "currentRelease": "R0",
-  "reviewedAt": "2026-08-05",
-  "scope": "Documented target architecture and disposable R0 evidence; no production runtime exists.",
+  "currentRelease": "R1",
+  "reviewedAt": "2026-08-10",
+  "scope": "Integrated local R1 Identity/API/web/PostgreSQL runtime plus disposable R0 evidence; external providers, shared hosting, CI/CD and tenant RLS remain unapproved or absent.",
   "openQuestions": ["Q-054", "Q-055", "Q-058", "Q-060"],
   "threats": [
     {
@@ -18,13 +18,13 @@
       "owner": "AppSec + Identity",
       "riskIds": ["RSK-001"],
       "affectedCapabilities": ["R1 identity/tenancy", "Every tenant-scoped module"],
-      "existingControls": ["Server-derived Organization context", "Default-deny resource authorization", "FORCE RLS contract proven in the disposable identity spike"],
-      "gaps": ["No production API, job, cache, export, storage or AI retrieval path exists yet"],
-      "requiredTests": ["TST-TENANT-NEG", "BOLA tests for every resource path", "Pool and worker context-leak tests"],
+      "existingControls": ["Integrated Identity runtime discriminates platform and tenant request context and binds the actor server-side", "Platform-scoped Identity operations authorize actor and resource before lookup and return neutral conflicts", "FORCE RLS, NOBYPASSRLS and pool/job isolation remain proven only in disposable AGRO-DIS-003 evidence"],
+      "gaps": ["Integrated Identity data is platform-scoped; no tenant resource endpoint, runtime RLS policy, SET LOCAL context, split app/job/migrator roles, cache, export, storage or AI retrieval path exists", "ADR-PEND-007 and safe membership discovery remain open"],
+      "requiredTests": ["IdentityRequestContextTests and platform/tenant scope architecture-fitness tests", "TST-TENANT-NEG before the first tenant mutation", "Runtime FORCE RLS A/B/no-context/pool/job/cancellation and role-catalog tests"],
       "detection": ["Redacted denied-access anomaly metric", "Cross-tenant invariant alerts without resource identifiers"],
       "residualRisk": "critical until each production surface passes negative isolation tests",
       "blockingGate": "No affected capability can be enabled with a known cross-tenant path",
-      "evidence": ["docs/05-arquitectura.md#multi-tenancy", "docs/07-seguridad-y-privacidad.md#autorización-y-tenancy", "tasks/risk-register.md#registro-de-riesgos", "tasks/evidence/AGRO-DIS-003/validation-report.md"]
+      "evidence": ["docs/05-arquitectura.md#multi-tenancy", "docs/07-seguridad-y-privacidad.md#autorización-y-tenancy", "src/AgropecuarIA.Identity/Application/IdentityContracts.cs", "tests/AgropecuarIA.Identity.Tests/IdentityRequestContextTests.cs", "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/IdentityRuntimeArchitectureTests.cs", "tasks/evidence/AGRO-DIS-003/validation-report.md"]
     },
     {
       "id": "TM-002",
@@ -38,13 +38,13 @@
       "owner": "Identity + AppSec",
       "riskIds": ["RSK-002"],
       "affectedCapabilities": ["R1 authentication", "R1 account linking", "R1 privileged administration"],
-      "existingControls": ["OIDC Authorization Code with PKCE target", "Secure HttpOnly SameSite cookie, CSRF/origin, CORS and CSP targets", "Dual reauthentication for linking", "One-shot recovery and anti-enumeration proven in disposable evidence"],
-      "gaps": ["No production edge, CSP, CSRF/CORS, cookie policy, IdP, email provider, DPA or session lifecycle is approved"],
-      "requiredTests": ["TST-ID-AUTH", "CSP, XSS, CSRF, CORS, cookie and clickjacking tests", "Linking race and replay tests", "Recovery email, enumeration and revocation tests"],
+      "existingControls": ["Integrated ASP.NET Core OIDC relying party uses Authorization Code with PKCE, framework state/nonce/token validation and custom auth_time/acr/amr checks", "Secure HttpOnly SameSite cookies, antiforgery, fixed-window rate limits, purpose-bound step-up, session rotation and replay/concurrency tests", "Synthetic identity-provider routes are registered only in Development and Test"],
+      "gaps": ["No Auth0 sandbox, shared edge/hosting, provider email/recovery/factor lifecycle, DPA, region, plan, SLA, exportability or production callback has been exercised", "CSP and external delivery/provider outage remain deployment gates"],
+      "requiredTests": ["OidcConfigurationContractTests and StepUpApiIntegrationTests", "IdentitySessionSecurityTests and IdentityLinkingIntegrationTests", "DevelopmentIdentityEndpointSecurityTests and apps/web/tests/e2e/identity.spec.ts", "TST-ID-AUTH against the approved external sandbox, including recovery, revocation, CSP and provider outage"],
       "detection": ["Rate and anomaly signals for recovery/linking", "Redacted session-revocation audit"],
       "residualRisk": "critical until the real IdP and session lifecycle pass the R1 gate",
       "blockingGate": "Identity cannot enter production without sandbox evidence and explicit IdP decision",
-      "evidence": ["docs/05-arquitectura.md#identidad", "docs/07-seguridad-y-privacidad.md#identidad-y-acceso", "tasks/evidence/AGRO-DIS-003/AGRO-DIS-003-threat-model.md", "tasks/decisions-and-gaps.md#defaults-operativos-para-agro-dis-003--2026-08-05"]
+      "evidence": ["docs/05-arquitectura.md#identidad", "apps/AgropecuarIA.Api/Program.cs", "apps/AgropecuarIA.Api/IdentityEndpoints.cs", "apps/AgropecuarIA.Api/OidcReauthentication.cs", "tests/AgropecuarIA.Identity.Tests/OidcConfigurationContractTests.cs", "tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs", "apps/web/tests/e2e/identity.spec.ts", "tasks/evidence/AGRO-DIS-003/AGRO-DIS-003-threat-model.md"]
     },
     {
       "id": "TM-003",
@@ -158,13 +158,13 @@
       "owner": "Platform + Privacy",
       "riskIds": ["RSK-019"],
       "affectedCapabilities": ["R1-R6 observability", "Product analytics"],
-      "existingControls": ["Allow-listed low-cardinality telemetry policy", "No payloads and pseudonymized tenant target"],
-      "gaps": ["No production SDK, collector, backend access or retention policy exists"],
-      "requiredTests": ["TST-OTEL-REDACTION", "Secret/PII canary tests", "Cardinality policy tests"],
+      "existingControls": ["Integrated Identity runtime emits allow-listed OpenTelemetry activities and metrics with tests rejecting PII and high-cardinality attributes", "No payloads or raw tenant/resource identifiers are allowed in telemetry"],
+      "gaps": ["No OTLP exporter, collector, backend, browser analytics, access model, region, sampling or retention policy exists; local SDK emission is not end-to-end observability"],
+      "requiredTests": ["IdentityTelemetryTests for local allow-list and correlation", "TST-OTEL-REDACTION against the selected collector/backend", "Secret/PII canary and cardinality-budget tests"],
       "detection": ["Automated sensitive-field scan over telemetry samples", "Cardinality and exporter anomaly alert"],
       "residualRisk": "high until emitted telemetry is inspected end-to-end",
       "blockingGate": "No production telemetry path may emit sensitive payloads or raw tenant/resource identifiers",
-      "evidence": ["docs/05-arquitectura.md#operación", "docs/07-seguridad-y-privacidad.md#auditoría", "tasks/evidence/AGRO-DIS-007/sli-slo-catalog.md"]
+      "evidence": ["docs/05-arquitectura.md#operación", "apps/AgropecuarIA.Api/Program.cs", "src/AgropecuarIA.Identity/IdentityTelemetry.cs", "tests/AgropecuarIA.Identity.Tests/IdentityTelemetryTests.cs", "tasks/evidence/AGRO-DIS-007/sli-slo-catalog.md"]
     },
     {
       "id": "TM-009",
@@ -178,13 +178,13 @@
       "owner": "AppSec + Audit/Compliance",
       "riskIds": ["RSK-001"],
       "affectedCapabilities": ["R1 administration", "R5 exports", "R7 support JIT"],
-      "existingControls": ["Default-deny and step-up target", "Append-only business/security audit contract", "Support JIT is disabled and out of MVP scope"],
-      "gaps": ["No production separation of duties, immutable audit store or incident channel exists"],
-      "requiredTests": ["Privileged-action authorization tests", "Audit append-only/tamper tests", "Export and support consent tests"],
+      "existingControls": ["A purpose-bound strong-assurance grant and session rotation are integrated locally, but no real tenant or factor-administration action enforces that grant yet", "Successful linking and step-up decisions persist a trigger-protected local security journal and typed outbox in the same transaction", "Support JIT is disabled and out of MVP scope"],
+      "gaps": ["Database append-only privileges, a central Audit/Compliance module, tenant audit, separation of duties, immutable external audit storage and incident channel do not exist"],
+      "requiredTests": ["Privileged-action authorization and step-up tests", "Database grant, append-only/tamper and audit-outbox atomic-failure tests", "Export and support consent tests before those surfaces exist"],
       "detection": ["Privileged action and bulk-access alerts", "Audit-chain integrity signal"],
       "residualRisk": "critical until privileged paths and audit immutability are proven",
       "blockingGate": "Sensitive administration/export requires reauthorization and immutable audit evidence",
-      "evidence": ["docs/02-dominio-actores-y-flujos.md#actores", "docs/07-seguridad-y-privacidad.md#auditoría", "tasks/backlog/EPIC-02-identidad-tenancy-autorizacion.md#agro-id-005"]
+      "evidence": ["docs/02-dominio-actores-y-flujos.md#actores", "src/AgropecuarIA.Identity/Infrastructure/IdentityDbContext.cs", "src/AgropecuarIA.Identity/Application/IdentityApplicationService.cs", "tests/AgropecuarIA.Identity.Tests/IdentityLinkingIntegrationTests.cs", "tasks/backlog/EPIC-02-identidad-tenancy-autorizacion.md#agro-id-005"]
     },
     {
       "id": "TM-010",
@@ -198,13 +198,13 @@
       "owner": "Platform + AppSec",
       "riskIds": ["RSK-026"],
       "affectedCapabilities": ["R1-R6 build and release"],
-      "existingControls": ["Pinned SDK/dependency evidence in spikes", "No real secrets allowed in repository", "Future SCA/SBOM/secret gates specified"],
-      "gaps": ["No root product lockfiles, CI identity, provenance or artifact signing exists"],
-      "requiredTests": ["TST-SEC-GATES", "SCA/SAST/secret scan", "SBOM and provenance verification"],
+      "existingControls": ["Product NuGet dependencies and pnpm dependencies are locked in committed lockfiles", "No real secrets are allowed in the repository and local SCA/secret gates are defined", "SDK and package versions are explicit"],
+      "gaps": ["No CI workflow or identity, protected review, provenance, artifact signing, SBOM publication or artifact registry policy exists"],
+      "requiredTests": ["Frozen restore/install and lockfile-drift gates", "TST-SEC-GATES with SCA/SAST/secret scan", "SBOM, provenance and signature verification when CI/artifacts exist"],
       "detection": ["Dependency and secret scanner alerts", "Artifact provenance verification failures"],
       "residualRisk": "critical until a product pipeline enforces the gates",
       "blockingGate": "High/critical vulnerabilities or exposed secrets block release unless formally accepted by authorized owners",
-      "evidence": ["docs/07-seguridad-y-privacidad.md#aplicación-y-api", "tasks/backlog/EPIC-15-seguridad-privacidad.md#agro-sec-003", "tasks/risk-register.md#registro-de-riesgos"]
+      "evidence": ["global.json", "apps/AgropecuarIA.Api/packages.lock.json", "src/AgropecuarIA.Identity/packages.lock.json", "tests/AgropecuarIA.Identity.Tests/packages.lock.json", "apps/web/package.json", "apps/web/pnpm-lock.yaml", "tasks/evidence/AGRO-FND-001/fitness/src/AgropecuarIA.ArchitectureFitness/packages.lock.json", "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/packages.lock.json"]
     },
     {
       "id": "TM-011",
@@ -238,13 +238,13 @@
       "owner": "Architecture + Data",
       "riskIds": ["RSK-012", "RSK-013", "RSK-021"],
       "affectedCapabilities": ["R1 mutations", "R2/R3 operations", "R4 livestock"],
-      "existingControls": ["Idempotency/event-order/ETag contracts defined by ADR-009", "Confirmed facts must be rectified rather than overwritten"],
-      "gaps": ["No production mutation, outbox/inbox or N/N-1 migration drill exists"],
-      "requiredTests": ["TST-IDEMPOTENCY", "TST-CONTRACT-N-N1", "Concurrent update and crash-window tests"],
+      "existingControls": ["Integrated Identity platform mutations use PostgreSQL transactions, concurrency tokens and a typed outbox with strictly increasing aggregate versions", "AGRO-FND-001 exercises an actual N/N-1 payload and schema migration path", "Confirmed facts must be rectified rather than overwritten"],
+      "gaps": ["Tenant-scoped AGRO-FND-002 idempotency ledger/inbox/dispatcher, retry policy, poison handling and temporal-history mutation do not exist"],
+      "requiredTests": ["IdentityDatabaseMigrationTests and IdentityLinkingIntegrationTests", "IdentityPublishedEventContractTests for N/N-1 coexistence and outbox ordering", "TST-IDEMPOTENCY plus concurrent update and crash-window tests for the first tenant mutation"],
       "detection": ["Conflict/idempotency replay metrics", "Outbox gap and duplicate alerts"],
       "residualRisk": "high until a real resource and persistence path pass the R1 tests",
       "blockingGate": "A duplicate or stale command cannot create a second effect or overwrite a confirmed fact",
-      "evidence": ["docs/adr/ADR-009-limites-modulares-y-compatibilidad.md", "docs/04-reglas-y-modelo-de-datos.md", "tasks/evidence/AGRO-FND-001/validation-report.md"]
+      "evidence": ["docs/adr/ADR-009-limites-modulares-y-compatibilidad.md", "src/AgropecuarIA.Identity/Infrastructure/IdentityDbContext.cs", "tests/AgropecuarIA.Identity.Tests/IdentityDatabaseMigrationTests.cs", "tests/AgropecuarIA.Identity.Tests/IdentityLinkingIntegrationTests.cs", "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/IdentityPublishedEventContractTests.cs", "tasks/evidence/AGRO-FND-001/validation-report.md"]
     },
     {
       "id": "TM-013",
@@ -278,13 +278,13 @@
       "owner": "SRE + Product",
       "riskIds": ["RSK-009", "RSK-024", "RSK-027"],
       "affectedCapabilities": ["R1-R6 online product", "Climate", "AI", "Documents"],
-      "existingControls": ["Online-only scope with explicit degraded states", "Synthetic capacity/error-budget/cost policies", "Timeout/cache/circuit-breaker targets"],
-      "gaps": ["Real load, rural connectivity, budgets, provider quotas and alerts are unmeasured"],
-      "requiredTests": ["TST-CAPACITY-MODEL", "TST-NETWORK-PWA", "Cross-tenant edge-cache and cache-poisoning tests", "Load, rate-limit and provider-degradation tests"],
+      "existingControls": ["Online-only scope with explicit degraded states", "Integrated Identity API applies fixed-window rate limits and the web flow exposes provider-down/error states", "Synthetic capacity/error-budget/cost policies and timeout/cache/circuit-breaker targets"],
+      "gaps": ["Representative load, rural connectivity, shared edge/cache behavior, budgets, external provider quotas and alerts are unmeasured"],
+      "requiredTests": ["Identity rate-limit and web provider-down tests", "TST-CAPACITY-MODEL and TST-NETWORK-PWA", "Cross-tenant edge-cache/cache-poisoning and representative provider-degradation tests"],
       "detection": ["Rate-limit, quota, cost and dependency-health alerts", "Error-budget burn signal"],
       "residualRisk": "high until representative load, cost and connectivity evidence replace synthetic assumptions",
       "blockingGate": "A dependency failure must not fabricate data or corrupt core transactions; budget inputs missing produce NO-GO",
-      "evidence": ["docs/05-arquitectura.md#conectividad-del-mvp", "tasks/evidence/AGRO-DIS-007/capacity-plan.md", "tasks/evidence/AGRO-DIS-007/sli-slo-catalog.md"]
+      "evidence": ["docs/05-arquitectura.md#conectividad-del-mvp", "apps/AgropecuarIA.Api/Program.cs", "tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs", "apps/web/tests/e2e/identity.spec.ts", "tasks/evidence/AGRO-DIS-007/capacity-plan.md", "tasks/evidence/AGRO-DIS-007/sli-slo-catalog.md"]
     }
   ]
 }

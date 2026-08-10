@@ -148,11 +148,17 @@ public sealed class StepUpApiIntegrationTests
         {
             HttpStatusCode[] statuses = responses
                 .Select(response => response.StatusCode)
-                .OrderBy(status => (int)status)
                 .ToArray();
-            CollectionAssert.AreEqual(
-                new[] { HttpStatusCode.OK, HttpStatusCode.Conflict },
-                statuses);
+
+            Assert.AreEqual(
+                1,
+                statuses.Count(status => status == HttpStatusCode.OK),
+                "Exactly one callback must consume the attempt.");
+
+            HttpStatusCode rejectedStatus = statuses.Single(status => status != HttpStatusCode.OK);
+            Assert.IsTrue(
+                rejectedStatus is HttpStatusCode.Unauthorized or HttpStatusCode.Conflict,
+                $"The losing callback must fail closed, but returned {(int)rejectedStatus}.");
         }
         finally
         {

@@ -935,3 +935,50 @@ Estado inicial: `En curso`. La auditoría posterior a `AGRO-ID-002` detectó que
 - Revisión independiente: QA y AppSec/Arquitectura PASS, cero críticos/altos/medios. Los blockers de catálogo eludible, JSON libre, payload breaking y fixture N/N-1 vacío se corrigieron y revalidaron.
 - Autoevaluación: 97/100 — contexto/selección 15/15, arquitectura/código 20/20, multiagente 10/10, contrato/datos/observabilidad 14/15, tests/seguridad 20/20, preservación/cierre 18/20. Cero gate obligatorio fallido.
 - Estado: `En curso → En revisión → Completada`. FND-002 conserva delivery/idempotencia/RLS; FND-003 conserva ETag/backfill/contract; PLT-004 conserva staging/backup/restore. No hubo frontend, API, migración ni deploy.
+
+## Iteración 20 — AGRO-SEC-001 gate incremental R1 del runtime Identity/FND (2026-08-10)
+
+Estado inicial: `En curso`. La selección autónoma descartó `AGRO-FND-002` porque todavía carece de una mutación tenant real y su primer consumidor pertenece a `AGRO-ID-003`; también descartó cerrar `AGRO-ID-001/002` porque sus siguientes gates requieren Auth0 real. `AGRO-SEC-001` sí tiene DoR para revisar la frontera ya integrada y su evidencia todavía describe un repositorio sin runtime, lockfiles ni controles emitidos.
+
+### Assumption-validation check-in
+
+- AgropecuarIA sigue siendo un SaaS online multiempresa para Argentina; el runtime local no está desplegado ni expuesto a Internet.
+- API ASP.NET Core, web Next.js, PostgreSQL, OIDC Auth0 objetivo y adaptadores sintéticos Development/Test son las únicas superficies productivas integradas.
+- Los datos de prueba son sintéticos; no existen secretos, PII real, proveedor contratado, CI productiva, edge ni telemetría remota.
+- El sponsor delegó decisiones técnicas reversibles y pidió continuar sin checkpoints; las preguntas de región, DPA, retención, roles legales, ambiente compartido y Auth0 real permanecen explícitas y condicionan despliegue, no este gate local.
+- No se implementan RLS tenant, idempotencia/delivery, passkeys/TOTP/recovery reales, CI ni deploy dentro de esta tarea continua.
+
+### Plan verificable
+
+- [x] Inventariar entrypoints, fronteras, datos, proveedores y controles del runtime Identity/FND con anclas a código, contratos y pruebas.
+- [x] Reconciliar threat model, clasificación e inventario de procesamiento: separar runtime local, Development/Test, build/CI futuro y servicios externos no aprovisionados.
+- [x] Actualizar amenazas existentes y, solo si el flujo lo exige, agregar abusos estables para sesión/OIDC, step-up, outbox, migraciones y supply chain.
+- [x] Hacer que el validador falle si el runtime obligatorio, sus controles/pruebas o el gate R1 desaparecen de la evidencia.
+- [x] Reproducir abuse tests dirigidos, suite de seguridad documental, build/test/format, SCA, secretos, JSON y diff-check.
+- [x] Obtener revisión independiente QA y AppSec/Arquitectura; corregir hallazgos y documentar evidencia final.
+- [x] Mantener `AGRO-SEC-001` en `En curso`, publicar commit/push autorizado y detenerse sin iniciar otra tarea.
+
+### Ownership y no objetivos
+
+- Principal: alcance, `tasks/todo .md`, integración, threat model narrativo, estado, gates y Git.
+- Security/Data: registro JSON, inventario/clasificación y validador con ownership exclusivo de esos artefactos.
+- Architecture/QA: revisión read-only del runtime y revisión final independiente; no editan evidencia poseída por Security/Data.
+- No se cambia código productivo, OpenAPI, migraciones, frontend, configuración, manifiestos/lockfiles ni backlog normativo. Un hallazgo de código crítico/alto detiene el gate y se corrige dentro de SEC-001 solo si pertenece inequívocamente al control revisado.
+
+### Baseline y gates previstos
+
+- Baseline Git limpio en `main`, sincronizado con `origin/main`, commit `08b764de40fb8eaa5af432969929edf83cc5b49c`.
+- Baseline documental: validador SEC `PASS`, 14 amenazas (7 críticas/7 altas), 7/7 mutation tests; ese verde cubre R0 pero no detecta drift contra el runtime R1.
+- Gates: validador/mutation tests SEC; JSON/enlaces; restore locked; build Release sin warnings; MTP raíz con mínimo 114 y pruebas de abuso dirigidas; format/model drift; pnpm frozen/audit si la evidencia referencia el lockfile; NuGet vulnerable, secrets scan y `git diff --check`.
+
+### Review final
+
+- Resultado: `PASS` del gate local R1 para Identity/FND. El modelo, registro, clasificación e inventario distinguen superficies integradas, Development/Test y dependencias externas `NO-GO`; no se presenta el bootstrap local como despliegue aprobado.
+- Gate de drift: 15/15 mutation tests, 14 amenazas (7 críticas/7 altas) y cobertura exacta de los 14 paths OpenAPI. El validador comprueba artefactos, paths y símbolos reales; la revisión humana conserva responsabilidad por la correspondencia semántica control↔test.
+- Backend/datos: restore locked PASS; build Release 0 warnings/0 errors; suite raíz MTP 114/114; format PASS; EF sin drift. La carrera exact-once pasó 5/5 y ahora acepta las dos posiciones seguras del callback perdedor: `401` tras rotación o `409` tras autenticación previa.
+- Frontend: pnpm frozen, format, lint, typecheck y build PASS; Vitest 23/23; Playwright 4/4 desktop/mobile con PostgreSQL 17 efímero. No se modificó frontend.
+- Supply chain/calidad: NuGet vulnerable 0, pnpm audit 0, ambos JSON válidos, UTF-8 estricto 13/13, secret scan 0 y `git diff --check` PASS. No hay migración ni cambio de contrato/runtime productivo.
+- Revisión independiente QA y AppSec/Arquitectura: `PASS`, 0 hallazgos críticos/altos/medios. Los blockers iniciales —drift no detectable, reporte R0 obsoleto, sobreafirmación de step-up, evidencia Production faltante y aserción concurrente rígida— quedaron corregidos y revalidados.
+- Riesgos residuales: Auth0/factores reales, tenant/RLS/roles, edge/HSTS/hosts/key ring/limiter distribuido, OTLP, CI/SBOM/provenance, auditoría central, backup/restore, región/DPA/retención y notificación permanecen `NO-GO` para ambiente compartido o Internet.
+- Autoevaluación: 96/100 — contexto/selección 15/15, arquitectura/código 19/20, multiagente 10/10, full-stack/datos/observabilidad 14/15, tests/seguridad 20/20, preservación/cierre 18/20. Cero gate obligatorio fallido.
+- Estado: `En curso`. El incremento local está terminado; la tarea padre R0–R6 continúa y se reevaluará por slice. No hubo deploy.

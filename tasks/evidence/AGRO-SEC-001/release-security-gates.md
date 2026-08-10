@@ -1,6 +1,6 @@
 # Gates de seguridad por release
 
-Estado: baseline R0 de `AGRO-SEC-001`. Es un mecanismo de decisión, no una aprobación legal ni evidencia de controles que todavía no tienen runtime.
+Estado: baseline R0 más gate local R1 de `AGRO-SEC-001`. Es un mecanismo de decisión; separa controles integrados y reproducidos localmente de proveedores, plataforma y decisiones todavía no aprobados.
 
 ## Regla transversal
 
@@ -17,6 +17,20 @@ Los gates conservan explícitas las preguntas abiertas: Q-054/Q-055 para modelo 
 | R4 — ganadería y rotación | Historia temporal, agua/seguridad, abstención y autorización de cada transición | Evals determinísticas y casos de bloqueo profesional aprobados | Ingreso habilitado sin agua/seguridad o recomendación exacta sin evidencia | Livestock/Grazing + Vet/Agronomy |
 | R5 — economía, privacidad y portabilidad | Cierre/reapertura, exportes, derechos, hold/purge/restore y paquete canónico | Controles conciliados y `VAL-CON`/`VAL-LEG` aplicables | Borrado rompe obligación/hold, exporte cruza tenant o semántica contable inventada | Finance/Privacy + Legal/Accountant |
 | R6 — IA y piloto integral | Retrieval reautorizado, tools read-only, evals/red-team, kill switch, proveedor/DPA | Cero críticos, evidencia/confianza/faltantes y fallback sin LLM | Prompt injection con fuga/acción, cita falsa no detectada o incapacidad de apagar | AI/AppSec + Product/Domain |
+
+### Gate R1 local por capacidad
+
+El gate agregado no declara R1 completa: evita que una capacidad ya integrada siga tratándose como spike y exige evidencia ejecutable proporcional.
+
+| Capacidad local | Evidencia GO local | Condición que sigue NO-GO |
+|---|---|---|
+| Identity/OIDC y sesiones | API/configuración fail-closed, cookie/CSRF/rate limit/no-store, reauth `max_age/auth_time`, sesión revocada y ausencia de endpoints sintéticos en Production | Auth0 real, edge/TLS, email, DPA/región, logout y provider-down en ambiente compartido |
+| Linking y step-up | Binding usuario+sesión+identidad+purpose, TTL, one-shot, replay/concurrencia, ACR/AMR y rotación de sesión contra PostgreSQL real | Lifecycle passkey/TOTP/recovery, notificación y enforcement por roles |
+| Persistencia y contratos FND | Migraciones aditivas N/N-1, trigger local que bloquea UPDATE/DELETE del journal, outbox tipado, schema/mapa/fitness y modelo EF sin drift | WORM/principal separado, RLS tenant, dispatcher/inbox/idempotency genérica, backfill contract, backup/restore compartido |
+| Web Identity | pnpm frozen, TypeScript estricto, estados accesibles, loader regional y E2E desktop/mobile | Matriz de navegador/dispositivo aprobada, CSP/edge real y contextos tenant |
+| Supply chain local | SDK/tools/dependencias fijados, restore locked/frozen, SCA y secrets scan | CI protegida, workload identity, SBOM, provenance, firma y registro |
+
+Para registrar `GO local`, el validador SEC, las pruebas de abuso afectadas y los gates build/format/SCA deben pasar desde el estado combinado. Un test omitido, un endpoint runtime sin amenaza/control o una declaración que degrade runtime a “futuro” falla el incremento.
 
 ## Revisión de una nueva frontera
 

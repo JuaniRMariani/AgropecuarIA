@@ -1,12 +1,14 @@
-# Inventario R0 de proveedores y tratamiento de datos
+# Inventario R0/R1 de proveedores y tratamiento de datos
 
-Fecha de corte: 2026-08-05  
+Fecha de corte: 2026-08-10  
 Tarea: `AGRO-SEC-001`  
 Estado: evidencia de discovery; no constituye selección, contratación, DPA ni autorización productiva.
 
 ## Alcance y regla de decisión
 
-Este inventario describe superficies previstas y candidatas a partir de la arquitectura y los spikes del repositorio. No existe todavía runtime productivo: `AGRO-DIS-003/004/005/007` son pruebas aisladas o sintéticas y no demuestran región, residencia, retención, subencargados, SLA ni controles de una cuenta contratada.
+Este inventario describe superficies previstas, candidatas y el runtime R1 local integrado. `apps/AgropecuarIA.Api`, `src/AgropecuarIA.Identity` y `apps/web` son código de producto ejecutable; el proveedor OIDC sintético y su configuración pertenecen solo a Development/Test. `AGRO-DIS-003/004/005/007` continúan siendo pruebas descartables o sintéticas. Ninguna de estas evidencias demuestra región, residencia, retención, subencargados, SLA ni controles de una cuenta contratada o un despliegue compartido.
+
+La evidencia se rotula así: `R1 local` para runtime integrado verificable en el workspace; `Development/Test` para adaptadores sintéticos que deben fallar cerrados fuera de esos ambientes; `R0 descartable` para spikes; `externo pendiente` para proveedores/cuentas no seleccionados; y `CI ausente` para controles que requieren pipeline o artefactos publicados.
 
 Un estado tiene esta semántica:
 
@@ -20,24 +22,24 @@ Un estado tiene esta semántica:
 
 ### PI-01 — Proveedor de identidad OIDC
 
-- **Estado/fase:** Auth0 es candidato condicionado para sandbox R0/R1; ZITADEL Cloud es alternativa y AWS Cognito comparador. Ninguno está seleccionado para producción.
+- **Estado/fase:** el relying party OIDC R1 local está integrado con Authorization Code + PKCE y un proveedor sintético limitado a Development/Test. Auth0 es candidato condicionado para sandbox; ZITADEL Cloud es alternativa y AWS Cognito comparador. Ninguno está seleccionado, configurado ni aprobado para un entorno compartido/productivo.
 - **Datos y dirección:** navegador ↔ IdP para autenticación; IdP → backend mediante callback OIDC; backend conserva `(issuer, subject)`, usuario, membresías, permisos y sesión propios. Pueden procesarse email verificado, factores, recovery, IP/dispositivo y eventos de autenticación. El IdP no recibe autoridad sobre tenant ni recurso.
 - **Región, credenciales, retención y subencargados:** plan, región, DPA, retención, logs, subencargados, exportabilidad y SLA no están aprobados. Client secrets/keys y credenciales administrativas deben residir en secret manager, con scopes mínimos y rotación; tokens no van a `localStorage` ni logs.
 - **Egress/SSRF:** endpoints de issuer, authorization, token, JWKS y logout se fijan por configuración aprobada; HTTPS, issuer/audience/nonce/state/PKCE S256 y redirects exactos. No se descubre ni consulta una URL aportada por usuario.
 - **Degradación:** sesión existente puede conservar solo las capacidades que su política autorice; login, linking, recovery y step-up fallan cerrados y muestran proveedor no disponible. Nunca se vinculan cuentas solo por email.
 - **Owner:** Identity/Tenancy + AppSec; Privacy/Legal/Procurement aprueban tratamiento y contrato; Sponsor aprueba costo/plan.
-- **Evidencia R0:** [`AGRO-DIS-003/idp-decision-matrix.md`](../AGRO-DIS-003/idp-decision-matrix.md), [`AGRO-DIS-003/validation-report.md`](../AGRO-DIS-003/validation-report.md), [`docs/adr/ADR-003-identidad.md`](../../../docs/adr/ADR-003-identidad.md).
+- **Evidencia R1 local + R0 descartable:** [`apps/AgropecuarIA.Api/Program.cs`](../../../apps/AgropecuarIA.Api/Program.cs), [`apps/AgropecuarIA.Api/IdentityEndpoints.cs`](../../../apps/AgropecuarIA.Api/IdentityEndpoints.cs), [`apps/AgropecuarIA.Api/OidcReauthentication.cs`](../../../apps/AgropecuarIA.Api/OidcReauthentication.cs), [`tests/AgropecuarIA.Identity.Tests/OidcConfigurationContractTests.cs`](../../../tests/AgropecuarIA.Identity.Tests/OidcConfigurationContractTests.cs), [`tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs`](../../../tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs), [`AGRO-DIS-003/idp-decision-matrix.md`](../AGRO-DIS-003/idp-decision-matrix.md).
 - **Gate:** sandbox real con OIDC Authorization Code + PKCE, linking con doble reautenticación, recovery/factor perdido/revocación/failover, claims y callback; DPA/región/retención/subencargados/plan/SLA/exportación aprobados. Hasta entonces: `NO-GO productivo`.
 
 ### PI-02 — PostgreSQL/PostGIS administrado
 
-- **Estado/fase:** PostgreSQL/PostGIS es baseline arquitectónico; proveedor, servicio administrado, región y topología siguen sin seleccionar. El runtime PostgreSQL 17/PostGIS 3.6.2 local solo es una herramienta de prueba.
+- **Estado/fase:** PostgreSQL/PostGIS es baseline arquitectónico; proveedor, servicio administrado, región y topología siguen sin seleccionar. Identity posee persistencia, migraciones, concurrencia y outbox R1 integrados y probados contra PostgreSQL local real. No existen todavía datos tenant, políticas RLS runtime, `SET LOCAL` ni roles separados app/job/migrator; la prueba de RLS de `AGRO-DIS-003` sigue siendo descartable.
 - **Datos y dirección:** API/worker ↔ base transaccional. Procesará datos tenant confidenciales —ubicación, productividad, stock, finanzas, documentos metadata y auditoría— y datos platform separados. Backups/replicas recibirán el mismo nivel de clasificación.
 - **Región, credenciales, retención y subencargados:** sin región, DPA, PITR, retención, réplica, soporte ni subencargados aprobados. Roles runtime sin ownership, superuser o `BYPASSRLS`; credenciales distintas de migración/runtime/jobs en secret manager y rotadas.
 - **Egress/SSRF:** no acepta URLs de conexión del cliente. Red privada/allow-list entre workloads y base; migraciones son una ruta privilegiada separada. Extensiones, FDW y network egress no se habilitan sin revisión.
 - **Degradación:** una pérdida de conexión rechaza mutaciones; no se confirma ni encola negocio offline. Lecturas stale solo cuando el contrato del slice lo permita y lo rotule; corrupción/pérdida activa incidente y restore/roll-forward.
 - **Owner:** Data/DBA + Platform/SRE; cada módulo posee schema/migraciones; AppSec revisa roles/RLS y Privacy/Legal región/retención.
-- **Evidencia R0:** [`AGRO-DIS-003/validation-report.md`](../AGRO-DIS-003/validation-report.md), [`AGRO-DIS-005/runbook.md`](../AGRO-DIS-005/runbook.md), [`docs/adr/ADR-002-postgis.md`](../../../docs/adr/ADR-002-postgis.md), [`docs/adr/ADR-009-limites-modulares-y-compatibilidad.md`](../../../docs/adr/ADR-009-limites-modulares-y-compatibilidad.md).
+- **Evidencia R1 local + R0 descartable:** [`src/AgropecuarIA.Identity/Infrastructure/IdentityDbContext.cs`](../../../src/AgropecuarIA.Identity/Infrastructure/IdentityDbContext.cs), [`tests/AgropecuarIA.Identity.Tests/IdentityDatabaseMigrationTests.cs`](../../../tests/AgropecuarIA.Identity.Tests/IdentityDatabaseMigrationTests.cs), [`AGRO-FND-001/validation-report.md`](../AGRO-FND-001/validation-report.md), [`AGRO-DIS-003/validation-report.md`](../AGRO-DIS-003/validation-report.md), [`docs/adr/ADR-002-postgis.md`](../../../docs/adr/ADR-002-postgis.md).
 - **Gate:** proveedor/región/DPA/retención aprobados; conexión cifrada y roles productivos; RLS `default deny`/`FORCE RLS` con pool/jobs negativos; migración N/N-1; PITR/backup inmutable y restore representativo con RPO/RTO aceptados. Los probes loopback con `trust` no se promueven.
 
 ### PI-03 — Object storage, antimalware y KMS
@@ -108,7 +110,7 @@ Un estado tiene esta semántica:
 
 ### PI-09 — Hosting, edge, CDN y WAF
 
-- **Estado/fase:** `FUTURO/NO SELECCIONADO`. La arquitectura prevé plataforma administrada, CDN y WAF, pero no existe cuenta, región, contrato ni runtime productivo.
+- **Estado/fase:** `EXTERNO PENDIENTE/NO SELECCIONADO`. API y web existen como runtime R1 local, pero no existe cuenta de hosting/edge, región, contrato, origen compartido ni despliegue productivo.
 - **Datos y dirección:** Internet ↔ edge/CDN/WAF ↔ web/API. Cruzan IP, headers, cookies de sesión, rutas, status, tamaños y contenido público; el edge no debe cachear respuestas tenant/privadas ni registrar query, cookie, body, coordenadas o identificadores de recurso.
 - **Región, credenciales, retención y subencargados:** hosting, regiones, DPA, logs, retención, subencargados, soporte y SLA desconocidos. Certificados, DNS, WAF/API tokens y credenciales de origen requieren workload identity/secret manager, rotación y mínimo privilegio.
 - **Egress/SSRF:** origen inaccesible salvo desde edge/red aprobada; headers de forwarding se aceptan solo del proxy confiable. No hay proxy de URL libre. CSP/CORS/origin/redirects y cache keys se fijan por configuración versionada.
@@ -119,24 +121,24 @@ Un estado tiene esta semántica:
 
 ### PI-10 — Observabilidad y product analytics
 
-- **Estado/fase:** `FUTURO/NO SELECCIONADO`. OpenTelemetry/OTLP es el contrato objetivo; collector/backend y analítica de producto no están elegidos.
+- **Estado/fase:** el SDK OpenTelemetry está integrado localmente en Identity y emite señales allow-listed verificadas por tests. Collector/exporter/backend y analítica de producto son `EXTERNO PENDIENTE/NO SELECCIONADO`.
 - **Datos y dirección:** browser/runtime/worker → collector/backend con ruta template, método, clase de status, dependencia, latencia, correlation y tenant seudonimizado. Payload, query, CUIT, email, coordenadas, filename, UUID de recurso, tokens y secretos están prohibidos.
 - **Región, credenciales, retención y subencargados:** región, DPA, subencargados, acceso, sampling, retención, borrado y costo desconocidos. API keys/certificados OTLP son server-side, separados por ambiente y rotados.
 - **Egress/SSRF:** exporter a endpoint fijo/mTLS o autenticado; no acepta destino por tenant/request. El navegador no carga analytics de tercero sin decisión de privacidad, CSP y minimización aprobadas.
 - **Degradación:** exporter caído descarta/bufferiza solo dentro de límites sin bloquear transacciones ni volcar payload a disco/log. Alta cardinalidad o presupuesto excedido activa sampling/disable, no remueve redacción.
 - **Owner:** Platform/SRE + Privacy/AppSec; cada módulo define señales de bajo riesgo; Product decide si existe analytics opcional sin dark patterns.
-- **Evidencia R0:** [`docs/05-arquitectura.md`](../../../docs/05-arquitectura.md), [`docs/07-seguridad-y-privacidad.md`](../../../docs/07-seguridad-y-privacidad.md), [`AGRO-DIS-007/sli-slo-catalog.md`](../AGRO-DIS-007/sli-slo-catalog.md).
+- **Evidencia R1 local + R0 descartable:** [`src/AgropecuarIA.Identity/IdentityTelemetry.cs`](../../../src/AgropecuarIA.Identity/IdentityTelemetry.cs), [`tests/AgropecuarIA.Identity.Tests/IdentityTelemetryTests.cs`](../../../tests/AgropecuarIA.Identity.Tests/IdentityTelemetryTests.cs), [`apps/AgropecuarIA.Api/Program.cs`](../../../apps/AgropecuarIA.Api/Program.cs), [`AGRO-DIS-007/sli-slo-catalog.md`](../AGRO-DIS-007/sli-slo-catalog.md).
 - **Gate:** backend/región/DPA/retención/acceso/costo; allow-list schema, secret/PII canaries, cardinalidad, sampling y outage end-to-end; consentimiento/base aplicable para analytics. Hasta entonces: `NO-GO productivo`.
 
 ### PI-11 — CI, registros de paquetes y artefactos
 
-- **Estado/fase:** `FUTURO/NO SELECCIONADO`. No existe pipeline productivo, identidad CI, registro OCI, firma ni provenance; los lockfiles actuales pertenecen a spikes aislados.
+- **Estado/fase:** `CI AUSENTE/NO SELECCIONADO`. El producto fija dependencias con `packages.lock.json` para API/Identity/tests/fitness y `apps/web/pnpm-lock.yaml`; no existe pipeline, identidad CI, registro OCI, firma, SBOM publicada ni provenance.
 - **Datos y dirección:** developer/repository → CI; package registries → build; CI → artifact registry/deployment. Cruzan código, manifests, dependencias, SBOM, resultados de scan, artefactos y credenciales de promoción; nunca datos tenant reales.
 - **Región, credenciales, retención y subencargados:** proveedor/región/retención de logs/artefactos, runners y subencargados pendientes. Preferir OIDC/workload identity efímera, scopes por ambiente, branches/protections y ningún secreto de larga vida en repo.
 - **Egress/SSRF:** runners con egress mínimo a registries/repositorios allow-listed; builds no descargan scripts no fijados ni acceden a metadata/cloud innecesaria. Instalación frozen/locked y fuentes aprobadas.
 - **Degradación:** registry/scanner/provenance caído bloquea promoción; no se omite el gate. Artefacto vulnerable o sin firma/SBOM permanece no promovible.
 - **Owner:** Platform + AppSec; owners de módulo mantienen dependencias; QA consume artefactos inmutables.
-- **Evidencia R0:** [`docs/07-seguridad-y-privacidad.md`](../../../docs/07-seguridad-y-privacidad.md), [`tasks/backlog/EPIC-16-plataforma-observabilidad-operacion.md`](../../backlog/EPIC-16-plataforma-observabilidad-operacion.md), [`AGRO-DIS-007/validation-report.md`](../AGRO-DIS-007/validation-report.md).
+- **Evidencia R1 local:** [`apps/AgropecuarIA.Api/packages.lock.json`](../../../apps/AgropecuarIA.Api/packages.lock.json), [`src/AgropecuarIA.Identity/packages.lock.json`](../../../src/AgropecuarIA.Identity/packages.lock.json), [`tests/AgropecuarIA.Identity.Tests/packages.lock.json`](../../../tests/AgropecuarIA.Identity.Tests/packages.lock.json), [`apps/web/pnpm-lock.yaml`](../../../apps/web/pnpm-lock.yaml), [`AGRO-FND-001/validation-report.md`](../AGRO-FND-001/validation-report.md).
 - **Gate:** proveedor/runner/IAM aprobados; protected review, frozen install, SAST/SCA/secrets/SBOM/licencias, firma/provenance, reproducibilidad, permisos mínimos y revocación probados. Alta/crítica o secreto expuesto bloquea release.
 
 ### PI-12 — Backup, archivo inmutable y recuperación administrada
@@ -154,7 +156,7 @@ Un estado tiene esta semántica:
 
 | Amenaza/impacto | Superficies | Controles mínimos antes de runtime | Evidencia/prueba exigida |
 |---|---|---|---|
-| Toma de cuenta, linking indebido, sesión web o recovery enumerable | PI-01, PI-07, PI-09 | OIDC/PKCE, CSP/CSRF/CORS/cookie segura, doble reautenticación, tokens one-shot, rate limit, sesión revocable, respuesta neutral | callbacks issuer/audience/state/nonce/PKCE; XSS/CSRF/cookie/clickjacking; replay/linking/factor perdido; email conocido/desconocido idéntico; outage/failover |
+| Toma de cuenta, linking indebido, sesión web o recovery enumerable | PI-01, PI-07, PI-09 | OIDC/PKCE, CSP/CSRF/CORS/cookie segura, doble reautenticación, tokens one-shot, rate limit, sesión revocable, respuesta neutral | PASS local para contrato OIDC, step-up, replay/concurrencia y aislamiento de endpoint sintético; PENDIENTE sandbox externo para callback/factor/recovery/revocación, CSP/edge y outage/failover |
 | Fuga cross-tenant/BOLA o privilegio platform↔tenant | PI-01, PI-02, PI-03, PI-08, PI-09 | authz por recurso antes de acceso/ETag/tool, RLS, claves compuestas, binding tenant, scope discriminado y cache privada deshabilitada o tenant-safe | dos tenants por API/DB/job/cache/edge/storage/AI; rol sin contexto; pool reutilizado; cache poisoning/cross-leak; grants y tools ajenos; error neutral |
 | Robo/abuso de credencial o clave | PI-01–PI-12 | secret manager/KMS, workload identity, scope mínimo, rotación, no secretos en cliente/log/URL | secret scan; permisos efectivos; rotación/revocación; token/key ausente de errores, trazas, bundles y snapshots |
 | SSRF/egress no controlado y exfiltración | PI-04–PI-11 | hosts/esquemas/redirects allow-listed, resolución segura, sin URL libre, payload/response limits | loopback, link-local/metadata, IPv6 local, DNS rebinding, redirect externo, body oversized, timeout |

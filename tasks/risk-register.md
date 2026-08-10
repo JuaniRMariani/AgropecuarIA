@@ -46,3 +46,11 @@ El modelo reproducible, error budget, FinOps fail-closed, cardinalidad cerrada y
 El threat model central registra 14 rutas `TM-001`–`TM-014`, con owner, control, prueba, detección, riesgo residual y gate por capacidad. Traza explícitamente RSK-001/002/007/009/010/012/013/016–021/024/026/027 y cubre además abuso privilegiado. La validación fail-closed confirma 7 amenazas críticas y 7 altas, sin críticos huérfanos; no reduce su severidad porque todavía no existe runtime productivo integrado. Q-054/055/058/060, `VAL-LEG`, proveedor/región/DPA/retención, pipeline y restore administrado siguen abiertos y bloquean únicamente las capacidades afectadas.
 
 Evidencia: `tasks/evidence/AGRO-SEC-001/AgropecuarIA-threat-model.md`, `threat-register.json`, `data-classification-and-privacy.md`, `provider-processing-inventory.md` y `release-security-gates.md`.
+
+### Evidencia incremental R1 AGRO-SEC-001 — 2026-08-10
+
+El bootstrap productivo local Identity/FND reemplaza parte de la incertidumbre R0 con controles reproducibles: cookie/sesión opaca, CSRF, rate limits, reautenticación OIDC fresca, linking/step-up one-shot, rotación/revocación, migraciones N/N-1, journal local protegido por trigger, outbox tipado, telemetría acotada y locks/SCA. Esto aporta evidencia a RSK-002/012/019/021/026, pero no cambia sus severidades porque falta despliegue compartido y el primer recurso tenant.
+
+El gate mantiene NO-GO explícito para RSK-001 hasta integrar autorización por recurso, `FORCE RLS`, roles DB y `SET LOCAL`; para RSK-002 hasta Auth0/factores/recovery reales; y para RSK-019/026 hasta collector/retención y CI/SBOM/provenance. Etiquetar un ambiente compartido como Development habilitaría endpoints sintéticos de autenticación y es un blocker de despliegue crítico. `AllowedHosts=*`, ausencia de HSTS/key ring compartido, rate limit local y CSP con `unsafe-inline` también requieren tratamiento en plataforma antes de exposición pública.
+
+Evidencia: `tasks/evidence/AGRO-SEC-001/runtime-surface-register.json`, `tasks/evidence/AGRO-SEC-001/validation-report.md` y suites bajo `tests/AgropecuarIA.Identity.Tests`.

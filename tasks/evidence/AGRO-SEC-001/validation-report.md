@@ -1,6 +1,8 @@
-# Reporte de validación R0 — AGRO-SEC-001
+# Reporte de validación incremental — AGRO-SEC-001
 
-Fecha: 2026-08-05. Alcance: baseline documental del modelo de amenazas y clasificación por release. No existe runtime productivo raíz; este resultado no certifica controles desplegados, Legal, proveedor, región, SLA ni retención.
+## Baseline histórico R0 — 2026-08-05
+
+Alcance histórico: baseline documental del modelo de amenazas y clasificación por release. Al 2026-08-05 no existía runtime productivo raíz; este resultado no certificaba controles desplegados, Legal, proveedor, región, SLA ni retención.
 
 ## Resultado
 
@@ -57,3 +59,78 @@ El principal repitió desde el estado combinado: 7/7 mutation tests, 14 amenazas
 - Todas las amenazas críticas/altas siguen abiertas para producción. El owner y gate existen, pero los controles deben demostrarse en el slice real.
 - Q-054/055/058/060, `GAP-003`, `GAP-008`, `VAL-LEG`, IdP/proveedores/regiones/DPA/retención, pipeline y restore administrado permanecen pendientes.
 - `AGRO-SEC-001` continúa `En curso` por ser una tarea R0–R6; el baseline R0 no completa el padre.
+
+## Incremento local R1 Identity/FND — 2026-08-10
+
+### Resultado y alcance
+
+`PASS` del gate local para la capacidad Identity/FND integrada. El repositorio contiene un bootstrap ejecutable local, todavía no desplegado: API ASP.NET Core, web Next.js, módulo Identity, PostgreSQL efímero, contratos OpenAPI, journal/outbox y telemetría en proceso. El resultado no constituye aprobación de R1 completa ni autoriza un ambiente compartido o Internet.
+
+El registro mantiene los 14 IDs estables (`TM-001`–`TM-014`, 7 críticos y 7 altos) y agrega un inventario comprobable de ocho superficies: tres integradas localmente, una exclusiva de Development/Test y cuatro externas o de cadena de entrega en estado `NO-GO`. Los 14 paths OpenAPI quedan cubiertos exactamente por las superficies API y sintéticas.
+
+### Controles demostrados
+
+- Sesión opaca revocable con hash en PostgreSQL, cookie segura, expiración server-side, CSRF, rate limiting y respuestas no-store.
+- OIDC Authorization Code + PKCE con state/nonce del framework, `max_age=0`, `auth_time` firmado y validación `acr`/`amr` para el grant fuerte.
+- Step-up ligado a usuario, sesión, identidad y propósito; consumo exact-once, rechazo de replay y rotación sin extender la expiración absoluta.
+- Journal local protegido por trigger contra `UPDATE`/`DELETE` y outbox tipado en la misma transacción para linking y step-up exitosos. No se afirma WORM, separación de principal ni auditoría central.
+- Contratos de evento cerrados, migraciones N/N-1 y telemetría con tags acotados sin claims, tokens, correo ni UUID de tenant/recurso.
+- Dependencias .NET/pnpm fijadas y auditables localmente.
+
+No existe todavía una acción real de administración tenant o factores que exija el grant fuerte; link/unlink conserva la reautenticación reciente de ID-001. Esa distinción queda alineada en Markdown y JSON.
+
+### Gate ejecutable de drift
+
+`runtime-surface-register.json` enlaza cada superficie con amenaza, owner, control, prueba y gate. `validate-threat-model.ps1` valida el registro narrativo/JSON, existencia real de paths y símbolos de pruebas, proyectos/lockfiles PostgreSQL/API/web/Identity, cobertura exacta de paths OpenAPI y fronteras `development-test-only`/`external-no-go`.
+
+Los 15 mutation tests pasan y prueban: owner/test crítico, arrays vacíos, ID duplicado, riesgo/pregunta, tabla humana, superficie/path/test faltante, drift OpenAPI, gate R1 sin test, frontera sintética degradada, gate externo eliminado y declaración R0 obsoleta.
+
+### Comandos y resultados
+
+```text
+dotnet tool restore
+PASS — dotnet-ef 10.0.4.
+
+dotnet restore AgropecuarIA.slnx --locked-mode
+PASS.
+
+dotnet build AgropecuarIA.slnx --configuration Release --no-restore
+PASS — 0 warnings, 0 errors.
+
+dotnet test --solution AgropecuarIA.slnx --configuration Release --no-build --minimum-expected-tests 114
+PASS — 114/114, 0 failed, 0 skipped.
+
+dotnet format AgropecuarIA.slnx --no-restore --verify-no-changes
+PASS.
+
+dotnet ef migrations has-pending-model-changes ... --configuration Release --no-build
+PASS — No changes have been made to the model since the last migration.
+
+pnpm install --frozen-lockfile; pnpm format; pnpm lint; pnpm typecheck; pnpm test; pnpm build
+PASS — Vitest 23/23 y Next.js 3/3 rutas.
+
+scripts/identity/run-e2e.ps1
+PASS — Playwright 4/4 desktop/mobile con PostgreSQL 17 efímero.
+
+dotnet list AgropecuarIA.slnx package --vulnerable --include-transitive --no-restore
+PASS — 0 vulnerabilidades conocidas en 5 proyectos.
+
+pnpm audit --prod --audit-level high
+PASS — 0 vulnerabilidades conocidas.
+
+validate-threat-model.ps1 -SelfTest
+PASS — 15/15 mutaciones; 14 amenazas; 7 críticas; 7 altas.
+
+JSON parse; secret scan dirigido; git diff --check
+PASS.
+```
+
+### Revisión y riesgos residuales
+
+La revisión independiente encontró tres fallos de evidencia: símbolos inexistentes no rompían el validador, no se comparaban los paths OpenAPI y `TM-009` sobreafirmaba enforcement fuerte. También reprodujo una carrera válida donde el callback perdedor puede recibir `401` tras la rotación o `409` si ya se autenticó. El validador ahora comprueba fuentes/contrato reales, la afirmación de `TM-009` quedó acotada y la prueba exige exactamente un éxito más un rechazo fail-closed (`401` o `409`).
+
+La reauditoría final QA y AppSec/Arquitectura fue `PASS`: 0 hallazgos críticos, altos o medios. La prueba concurrente pasó 5/5 después de reconstruir el binario y la suite combinada pasó 114/114.
+
+Permanecen `NO-GO` para ambiente compartido/Internet: Auth0 real y lifecycle de factores; tenant/RLS/roles/grants DB; edge, HSTS, allow-list de hosts/proxy, key ring compartido y limiter distribuido; collector/retención OTLP; CI/SBOM/provenance/firma; auditoría central, backup/restore administrado, región/DPA/retención y canales de notificación. Los endpoints sintéticos deben estar físicamente ausentes fuera de Development/Test.
+
+`AGRO-SEC-001` permanece `En curso`: este incremento demuestra el gate local Identity/FND, pero la tarea multirelease exige reevaluación por slice y conserva gates externos R1–R6.

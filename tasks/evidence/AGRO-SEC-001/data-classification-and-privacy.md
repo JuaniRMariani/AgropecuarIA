@@ -1,14 +1,22 @@
-# Clasificación de datos y evaluación de privacidad R0
+# Clasificación de datos y evaluación de privacidad R0/R1
 
 **Tarea:** `AGRO-SEC-001`  
-**Fecha de revisión:** 2026-08-05  
-**Alcance:** baseline de decisión para revisar nuevas superficies; no es dictamen legal, aviso de privacidad ni autorización productiva.
+**Fecha de revisión:** 2026-08-10  
+**Alcance:** baseline de decisión reconciliada con el runtime R1 local de Identity/API/web/PostgreSQL; no es dictamen legal, aviso de privacidad, aprobación de proveedor ni autorización de despliegue compartido/productivo.
+
+## Niveles de evidencia
+
+- **Runtime R1 local integrado:** `apps/AgropecuarIA.Api`, `src/AgropecuarIA.Identity`, `apps/web` y sus pruebas ejecutan autenticación/sesión, linking y step-up contra PostgreSQL local. Es código de producto ejecutable, no evidencia de un entorno compartido.
+- **Solo Development/Test:** el proveedor OIDC sintético, endpoints de autenticación sintética y configuración local existen únicamente para desarrollo/pruebas; no constituyen un IdP externo ni pueden habilitarse en otro ambiente.
+- **Evidencia R0 descartable:** `tasks/evidence/AGRO-DIS-*` demuestra contratos o mecánica con fixtures sintéticos. No es runtime integrado ni se promueve como scaffold.
+- **Externo/compartido/productivo:** Auth0, hosting, edge, collector OTLP, PostgreSQL administrado, regiones, DPA, retención y credenciales reales siguen ausentes o sin aprobación.
+- **CI/release:** existen lockfiles de NuGet y pnpm para el producto, pero no pipeline, identidad de workload, SBOM, provenance, firma ni registro de artefactos.
 
 ## Reglas de uso
 
 La clasificación de referencia conserva las cinco clases de `docs/07-seguridad-y-privacidad.md`. Una superficie adopta la clase más restrictiva presente; cifrado no reduce la clase. `Organization` es el tenant técnico y controla operativamente acceso, pero no resuelve propiedad, responsable legal ni relación propietario/productor/asesor: esas decisiones continúan condicionadas por Q-054/Q-055 y GAP-008 en `docs/11-preguntas-discovery.md` y `tasks/decisions-and-gaps.md`.
 
-Escala C/I/A: `A`, impacto alto; `M`, medio; `B`, bajo. Es una valoración R0 cualitativa que cada slice debe revisar contra datos y operación reales.
+Escala C/I/A: `A`, impacto alto; `M`, medio; `B`, bajo. Es una valoración cualitativa iniciada en R0 y reconciliada con el runtime local R1; cada slice debe revisarla contra sus datos y operación reales.
 
 | Clase | Ejemplos del producto | C/I/A | Scope permitido | Regla mínima |
 |---|---|---|---|---|
@@ -22,11 +30,11 @@ El scope discriminado `platform | tenant` y la prohibición de usar CUIT, IDs de
 
 ## Finalidad y minimización
 
-- **Identidad y tenancy:** conservar identificador estable del IdP, contacto verificado, membresía, alcance y metadatos de factor/revocación. No persistir contraseña, OTP, recovery code ni token en claro. Q-054/Q-055 no autorizan fusionar clientes de un asesor en un tenant; el default R0 mantiene una `Organization` separada por cliente (`tasks/decisions-and-gaps.md`).
+- **Identidad y tenancy:** el runtime R1 conserva issuer/subject externos, label mínimo, hash de sesión opaca/revocable, `AuthenticatedAtUtc`, assurance gruesa, `StrongAuthenticatedAtUtc`, purpose, membresías platform de fixture, journal de seguridad y outbox tipado. `acr`/`amr`/`auth_time` se validan en el callback pero no se persisten como claims crudos. No persiste contraseña, OTP, recovery code, token en claro ni set de claims completo; email, claims, tokens y subject crudo no se copian a logs o telemetría. Los payloads outbox v1 sí incluyen UUID internos de user/session como parte del contrato compatible, no como autoridad ni telemetría. Q-054/Q-055 no autorizan fusionar clientes de un asesor en un tenant; el default mantiene una `Organization` separada por cliente (`tasks/decisions-and-gaps.md`).
 - **Operación agropecuaria:** recolectar solo identidad del recurso, fecha efectiva/registro, origen, unidad, evidencia y campos requeridos por el caso de uso. Mantener ubicación legal, operación y geometría separadas (`tasks/lessons .md`; `docs/04-reglas-y-modelo-de-datos.md`).
 - **GIS y clima:** enviar al proveedor solo precisión/coordenada necesaria; conservar procedencia, vigencia y tipo `observed|estimated|forecast`. Los proveedores candidatos siguen condicionados por región/DPA/cuota (`tasks/evidence/AGRO-DIS-004/validation-report.md`).
 - **Archivos:** almacenar binario privado y metadatos/hash mínimos, con vínculo opaco al recurso. No deduplicar entre tenants ni habilitar descarga sin veredicto `clean` (`tasks/evidence/AGRO-DIS-005/README.md`).
-- **Telemetría y auditoría:** telemetría solo con allow-list de ruta/clase de resultado/correlación seudonimizada; sin payload, CUIT, coordenadas, UUID de negocio, token u OTP. Auditoría append-only conserva actor/acción/recurso/tiempo y antes/después únicamente permitido (`docs/07-seguridad-y-privacidad.md`; `tasks/evidence/AGRO-DIS-007/validation-report.md`).
+- **Telemetría y auditoría:** el runtime Identity emite localmente actividades/métricas OpenTelemetry con allow-list y tests de baja cardinalidad; no hay exporter, collector ni backend, por lo que todavía no existe validación end-to-end. Sin payload, CUIT, email, coordenadas, UUID de negocio, token u OTP. El journal/outbox local cubre acciones Identity, pero no reemplaza la auditoría append-only central ni sus privilegios de DB (`docs/07-seguridad-y-privacidad.md`; `tests/AgropecuarIA.Identity.Tests/IdentityTelemetryTests.cs`).
 - **IA:** solo paquetes de evidencia autorizados y mínimos; sin claves, payload fiscal completo ni coordenadas/identidades innecesarias. No entrenamiento compartido por defecto; proveedor, región, retención y subencargados deben aprobarse antes de enviar datos (`docs/08-estrategia-ia.md`).
 - **Soporte:** acceso implícito deshabilitado. El acceso JIT pertenece a `AGRO-ID-005` R7 y requiere consentimiento, motivo, alcance, caducidad, step-up y auditoría (`tasks/decisions-and-gaps.md`).
 
@@ -78,19 +86,19 @@ El drill sintético de `AGRO-DIS-005` demuestra mecánica local de hold/purga/re
 - Errores de recurso ajeno/inexistente/no autorizado no revelan existencia ni diff. La UI no muestra payload, secreto, coordenada, tenant o identificador completo; aplica la política 401/403/404/409/412 de `tasks/evidence/AGRO-FND-001/contract-policy.md`.
 - Registrar versión y timestamp de la decisión, finalidad y mecanismo de retiro sin copiar texto libre o contenido sensible a telemetría.
 
-## Evaluación R0 por superficie
+## Evaluación R0/R1 por superficie
 
 | Superficie | Datos/riesgo principal | Evidencia actual | Decisión R0 / gate pendiente |
 |---|---|---|---|
-| Identidad/tenancy | personal, sesión, account linking y acceso cruzado | spike sintético con RLS/BOLA/recovery en `tasks/evidence/AGRO-DIS-003/validation-report.md` | GO para contrato; NO-GO IdP productivo hasta sandbox, DPA/región/retención/subprocesadores/exportabilidad |
+| Identidad/tenancy | personal, sesión, account linking y acceso cruzado | runtime R1 local API/web/PostgreSQL con OIDC/PKCE, CSRF, rate limit, step-up, replay y concurrencia; RLS tenant solo en spike `AGRO-DIS-003` | GO para desarrollo local del slice platform; NO-GO tenant/RLS hasta ADR-PEND-007 y pruebas runtime; NO-GO IdP externo/entorno compartido hasta sandbox, DPA/región/retención/subprocesadores/exportabilidad |
 | Catálogo | baseline global, fuentes, aprobadores; contaminación por extensión tenant | candidato trazable en `tasks/evidence/AGRO-DIS-001/README.md` | GO para revisión; NO-GO publicación hasta acta y firmas nominadas |
 | GIS/clima/mapa | ubicación exacta, historial espacial y envío a terceros | contratos/fixtures sin campos reales en `tasks/evidence/AGRO-DIS-004/README.md` | GO condicional al port; NO-GO proveedor hasta Q-058, DPA/región/cuota y minimización verificada |
 | Archivos/backups/exports | documentos, malware, URL, restauración y fuga masiva | storage local/restore sintético en `tasks/evidence/AGRO-DIS-005/validation-report.md` | GO para contrato; NO-GO cloud/AV/retención/exporte real hasta sandbox, IAM/KMS, región/DPA/hold/purge |
-| Telemetría | fuga por payload/IDs y cardinalidad | allow-list sintética en `tasks/evidence/AGRO-DIS-007/validation-report.md` | GO para política; NO-GO exporter/backend hasta redacción, región/DPA, presupuesto y prueba productiva |
+| Telemetría | fuga por payload/IDs y cardinalidad | SDK local y tests de allow-list en `src/AgropecuarIA.Identity/IdentityTelemetry.cs`; política sintética en `AGRO-DIS-007` | GO para emisión local; NO-GO exporter/backend hasta redacción end-to-end, región/DPA, acceso, presupuesto y retención |
 | IA/analítica | prompt injection, exfiltración, inferencias y entrenamiento | estrategia read-only en `docs/08-estrategia-ia.md`; sin proveedor/runtime | NO-GO envío de datos hasta caso, paquete autorizado, eval/threat model, Q-058, no-training y kill switch |
 | Exporte/privacidad | descarga masiva, destinatario erróneo, rectificación/supresión | requisitos en `docs/07-seguridad-y-privacidad.md`; sin slice productivo | NO-GO hasta política, step-up/authz, manifest/auditoría, retención/hold y E2E de derechos |
 
-Los artefactos bajo `tasks/evidence/AGRO-DIS-*` son spikes descartables y usan fixtures sintéticos. Sus controles prueban contratos o mecánica local; no son la aplicación, no almacenan datos productivos y no autorizan reutilizar el scaffold. La futura implementación debe repetir los gates desde el estado productivo integrado.
+Los artefactos bajo `tasks/evidence/AGRO-DIS-*` son spikes descartables y usan fixtures sintéticos. Sus controles prueban contratos o mecánica local; no son la aplicación, no almacenan datos productivos y no autorizan reutilizar el scaffold. El runtime R1 integrado debe repetir cualquier gate que todavía dependa del spike, especialmente tenant/RLS. Los lockfiles del producto habilitan restore reproducible local, no prueban CI, provenance ni artefactos confiables.
 
 ## Checklist de privacidad para toda nueva superficie
 

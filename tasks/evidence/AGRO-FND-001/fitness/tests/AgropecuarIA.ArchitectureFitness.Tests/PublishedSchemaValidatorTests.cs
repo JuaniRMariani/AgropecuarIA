@@ -58,6 +58,9 @@ public sealed class PublishedSchemaValidatorTests
     [DataRow("identity-linked.v1.schema.json", "userId")]
     [DataRow("identity-step-up-completed.v1.schema.json", "completedAtUtc")]
     [DataRow("identity-step-up-completed.v1.schema.json", "previousSessionId")]
+    [DataRow("organization-created.v1.schema.json", "organizationId")]
+    [DataRow("organization-created.v1.schema.json", "ownerMembershipId")]
+    [DataRow("organization-created.v1.schema.json", "createdAtUtc")]
     public void IdentityEventPayloadSchemasRejectMissingExtraAndWronglyTypedFields(
         string fileName,
         string requiredProperty)

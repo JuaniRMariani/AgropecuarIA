@@ -8,7 +8,7 @@
       "contracts": [
         {
           "path": "contracts/identity.openapi.yaml",
-          "version": "1.0.0"
+          "version": "1.1.0"
         },
         {
           "path": "tasks/evidence/AGRO-FND-001/contracts/identity-linked.v1.schema.json",
@@ -16,6 +16,10 @@
         },
         {
           "path": "tasks/evidence/AGRO-FND-001/contracts/identity-step-up-completed.v1.schema.json",
+          "version": "1.0.0"
+        },
+        {
+          "path": "tasks/evidence/AGRO-FND-001/contracts/organization-created.v1.schema.json",
           "version": "1.0.0"
         }
       ]

@@ -152,8 +152,8 @@
   "firstConsumer": {
     "taskId": "AGRO-ID-003",
     "capability": "CreateOrganization",
-    "status": "future",
-    "implemented": false,
+    "status": "integrated_local",
+    "implemented": true,
     "ownsProductRlsMigration": true,
     "spikePromotionAllowed": false
   },

@@ -61,10 +61,18 @@ public sealed class IdentityLinkingIntegrationTests
         await using var scenario = await IdentityApiScenario.CreateAsync();
         using var emailBrowser = scenario.CreateBrowser();
         var antiforgeryToken = await IdentityApiTestActions.SignInAsync(emailBrowser, "email-owner");
+        Guid organizationId = await IdentityApiTestActions.CreateOrganizationAsync(
+            emailBrowser,
+            "Establecimiento de vinculación",
+            "linking-membership-preservation",
+            antiforgeryToken);
         using var before = await IdentityApiTestActions.GetSessionAsync(emailBrowser);
         var userId = before.RootElement.GetProperty("userId").GetGuid();
         var memberships = IdentityApiTestActions.Memberships(before.RootElement);
-        Assert.IsNotEmpty(memberships, "The owner fixture must exercise membership preservation.");
+        Assert.HasCount(1, memberships, "The real organization membership must be present before linking.");
+        Assert.AreEqual(
+            organizationId,
+            before.RootElement.GetProperty("memberships")[0].GetProperty("organizationId").GetGuid());
 
         var attemptId = await IdentityApiTestActions.StartLinkAsync(
             emailBrowser,

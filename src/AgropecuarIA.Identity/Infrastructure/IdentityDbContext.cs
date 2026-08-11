@@ -11,6 +11,17 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
     public DbSet<OrganizationMembership> Memberships => Set<OrganizationMembership>();
 
+    public DbSet<OrganizationDirectoryEntry> Organizations => Set<OrganizationDirectoryEntry>();
+
+    public DbSet<OrganizationMembershipAssignment> AuthoritativeMemberships =>
+        Set<OrganizationMembershipAssignment>();
+
+    public DbSet<OrganizationCreationLedger> OrganizationCreationLedgers =>
+        Set<OrganizationCreationLedger>();
+
+    public DbSet<OrganizationCreationKeyAlias> OrganizationCreationKeyAliases =>
+        Set<OrganizationCreationKeyAlias>();
+
     public DbSet<UserSession> Sessions => Set<UserSession>();
 
     public DbSet<LinkAttempt> LinkAttempts => Set<LinkAttempt>();
@@ -61,6 +72,139 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.HasOne<PlatformUser>()
                 .WithMany()
                 .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OrganizationDirectoryEntry>(entity =>
+        {
+            entity.ToTable(
+                "organizations",
+                table => table.HasCheckConstraint(
+                    "CK_organizations_Status",
+                    $"\"Status\" = '{OrganizationStatuses.Active}'"));
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.DisplayName).HasMaxLength(160).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.HasIndex(item => new { item.CreatedByUserId, item.CreatedAtUtc });
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<OrganizationMembershipAssignment>(entity =>
+        {
+            entity.ToTable(
+                "memberships",
+                table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_memberships_Role",
+                        $"\"Role\" = '{OrganizationMembershipRoles.Owner}'");
+                    table.HasCheckConstraint(
+                        "CK_memberships_Status",
+                        $"\"Status\" = '{OrganizationStatuses.Active}'");
+                    table.HasCheckConstraint(
+                        "CK_memberships_SecurityVersion",
+                        "\"SecurityVersion\" > 0");
+                });
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Role).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.SecurityVersion).IsRequired();
+            entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.HasIndex(item => new { item.OrganizationId, item.UserId }).IsUnique();
+            entity.HasIndex(item => new { item.UserId, item.Status });
+            entity.HasIndex(item => new { item.OrganizationId, item.Status });
+            entity.HasOne<OrganizationDirectoryEntry>()
+                .WithMany()
+                .HasForeignKey(item => item.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<OrganizationCreationLedger>(entity =>
+        {
+            entity.ToTable(
+                "organization_creation_ledgers",
+                table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_organization_creation_ledgers_Protocol",
+                        $"\"ScopeKind\" = '{OrganizationCreationProtocol.ScopeKind}' AND " +
+                        $"\"Namespace\" = '{OrganizationCreationProtocol.Namespace}' AND " +
+                        $"\"Operation\" = '{OrganizationCreationProtocol.Operation}' AND " +
+                        "\"ContractVersion\" > 0 AND \"CanonicalizationVersion\" > 0");
+                    table.HasCheckConstraint(
+                        "CK_organization_creation_ledgers_State",
+                        $"(\"State\" = '{OrganizationCreationProtocol.States.InProgress}' AND " +
+                        "\"OrganizationId\" IS NULL AND \"MembershipId\" IS NULL AND " +
+                        "\"CompletedAtUtc\" IS NULL) OR " +
+                        $"(\"State\" = '{OrganizationCreationProtocol.States.Succeeded}' AND " +
+                        "\"OrganizationId\" IS NOT NULL AND \"MembershipId\" IS NOT NULL AND " +
+                        "\"CompletedAtUtc\" IS NOT NULL) OR " +
+                        $"(\"State\" = '{OrganizationCreationProtocol.States.FailedTerminal}' AND " +
+                        "\"OrganizationId\" IS NULL AND \"MembershipId\" IS NULL AND " +
+                        "\"CompletedAtUtc\" IS NOT NULL) OR " +
+                        $"(\"State\" = '{OrganizationCreationProtocol.States.ResponseExpired}' AND " +
+                        "\"OrganizationId\" IS NOT NULL AND \"MembershipId\" IS NOT NULL AND " +
+                        "\"CompletedAtUtc\" IS NOT NULL)");
+                    table.HasCheckConstraint(
+                        "CK_organization_creation_ledgers_Fence",
+                        "\"FenceToken\" > 0 AND \"LeaseUntilUtc\" > \"StartedAtUtc\"");
+                });
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.ScopeKind).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.Namespace).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Operation).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.RequestFingerprint).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.State).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.HasIndex(item => new { item.ActorUserId, item.StartedAtUtc });
+            entity.HasIndex(item => new { item.State, item.LeaseUntilUtc });
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.ActorUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<UserSession>()
+                .WithMany()
+                .HasForeignKey(item => item.SessionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<OrganizationCreationKeyAlias>(entity =>
+        {
+            entity.ToTable(
+                "organization_creation_key_aliases",
+                table => table.HasCheckConstraint(
+                    "CK_organization_creation_key_aliases_Protocol",
+                    $"\"ScopeKind\" = '{OrganizationCreationProtocol.ScopeKind}' AND " +
+                    $"\"Namespace\" = '{OrganizationCreationProtocol.Namespace}' AND " +
+                    $"\"Operation\" = '{OrganizationCreationProtocol.Operation}'"));
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.ScopeKind).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.Namespace).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Operation).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.KeyVersion).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.KeyDigest).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.HasIndex(item => new
+            {
+                item.ScopeKind,
+                item.Namespace,
+                item.Operation,
+                item.KeyVersion,
+                item.KeyDigest,
+            }).IsUnique();
+            entity.HasIndex(item => new { item.LedgerId, item.KeyVersion }).IsUnique();
+            entity.HasOne<OrganizationCreationLedger>()
+                .WithMany()
+                .HasForeignKey(item => item.LedgerId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

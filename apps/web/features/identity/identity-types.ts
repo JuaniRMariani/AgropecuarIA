@@ -37,6 +37,36 @@ export type MembershipSummary = Readonly<{
   role: string;
 }>;
 
+export type OrganizationSummary = Readonly<{
+  organizationId: string;
+  displayName: string;
+  status: "active";
+}>;
+
+export type CreatedOwnerMembership = Readonly<{
+  membershipId: string;
+  role: "owner";
+  status: "active";
+  authorizationVersion: number;
+}>;
+
+export type CreatedOrganization = Readonly<{
+  organization: OrganizationSummary;
+  membership: CreatedOwnerMembership;
+}>;
+
+export type OrganizationCreationState =
+  | Readonly<{ kind: "idle" }>
+  | Readonly<{ kind: "submitting" }>
+  | Readonly<{ kind: "validation"; message: string }>
+  | Readonly<{ kind: "reauthentication-required"; message: string }>
+  | Readonly<{ kind: "in-progress"; message: string }>
+  | Readonly<{ kind: "conflict"; message: string }>
+  | Readonly<{ kind: "reconciliation-required"; message: string }>
+  | Readonly<{ kind: "rate-limited"; message: string }>
+  | Readonly<{ kind: "offline"; message: string }>
+  | Readonly<{ kind: "error"; message: string }>;
+
 export type IdentitySession = Readonly<{
   userId: string;
   displayName: string;

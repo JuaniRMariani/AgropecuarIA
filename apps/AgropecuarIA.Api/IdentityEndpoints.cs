@@ -250,6 +250,40 @@ public static class IdentityEndpoints
             return Results.NoContent();
         }).RequireAuthorization();
 
+        identity.MapPost("/organizations", async (
+            CreateOrganizationRequest request,
+            HttpContext context,
+            IAntiforgery antiforgery,
+            IdentityApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            await antiforgery.ValidateRequestAsync(context);
+            if (!context.Request.Headers.TryGetValue("Idempotency-Key", out var idempotencyKeys) ||
+                idempotencyKeys.Count != 1)
+            {
+                throw IdentityErrors.InvalidIdempotencyKey();
+            }
+
+            AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
+            CreatedOrganizationResult created = await service.CreateOrganizationAsync(
+                new CreateOrganizationCommand(request.DisplayName, idempotencyKeys[0]!),
+                current,
+                RequestContext(context, current),
+                cancellationToken);
+            return Results.Json(
+                new CreatedOrganizationResponse(
+                    new OrganizationSummaryResponse(
+                        created.OrganizationId,
+                        created.DisplayName,
+                        created.OrganizationStatus),
+                    new CreatedOwnerMembershipResponse(
+                        created.MembershipId,
+                        created.MembershipRole,
+                        created.MembershipStatus,
+                        created.AuthorizationVersion)),
+                statusCode: StatusCodes.Status201Created);
+        }).RequireAuthorization();
+
         IHostEnvironment hostEnvironment = endpoints.ServiceProvider.GetRequiredService<IHostEnvironment>();
         DevelopmentIdentityProviderOptions developmentProvider = endpoints.ServiceProvider
             .GetRequiredService<IOptions<DevelopmentIdentityProviderOptions>>().Value;
@@ -341,20 +375,18 @@ public static class IdentityEndpoints
             HttpContext context,
             IAntiforgery antiforgery,
             IdentityApplicationService service,
-            IdentityDbContext dbContext,
+            DevelopmentIdentityFixtureAllocator fixtureAllocator,
             TimeProvider timeProvider,
             CancellationToken cancellationToken) =>
         {
             await antiforgery.ValidateRequestAsync(context);
-            VerifiedExternalIdentity identity = IdentityFixtures.Resolve(request.Fixture, timeProvider.GetUtcNow());
+            VerifiedExternalIdentity identity = fixtureAllocator.Resolve(
+                context,
+                request.Fixture,
+                timeProvider.GetUtcNow());
             IssuedSession issued = await service.SignInAsync(
                 identity,
                 RequestContext(context),
-                cancellationToken);
-            await IdentityFixtures.EnsureOwnerMembershipAsync(
-                request.Fixture,
-                issued.UserId,
-                dbContext,
                 cancellationToken);
             AppendSessionCookie(context, issued);
             return Results.NoContent();
@@ -366,12 +398,16 @@ public static class IdentityEndpoints
             HttpContext context,
             IAntiforgery antiforgery,
             IdentityApplicationService service,
+            DevelopmentIdentityFixtureAllocator fixtureAllocator,
             TimeProvider timeProvider,
             CancellationToken cancellationToken) =>
         {
             await antiforgery.ValidateRequestAsync(context);
             AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
-            VerifiedExternalIdentity identity = IdentityFixtures.Resolve(request.Fixture, timeProvider.GetUtcNow());
+            VerifiedExternalIdentity identity = fixtureAllocator.Resolve(
+                context,
+                request.Fixture,
+                timeProvider.GetUtcNow());
             await service.AttachCandidateProofAsync(
                 attemptId,
                 current,
@@ -615,6 +651,8 @@ public static class IdentityEndpoints
 
     private sealed record StartStepUpAttemptRequest(string Purpose);
 
+    private sealed record CreateOrganizationRequest(string DisplayName);
+
     private sealed record LinkAttemptResponse(
         Guid AttemptId,
         string Connection,
@@ -650,4 +688,19 @@ public static class IdentityEndpoints
         DateTimeOffset VerifiedAtUtc);
 
     private sealed record MembershipResponse(Guid OrganizationId, string OrganizationName, string Role);
+
+    private sealed record CreatedOrganizationResponse(
+        OrganizationSummaryResponse Organization,
+        CreatedOwnerMembershipResponse Membership);
+
+    private sealed record OrganizationSummaryResponse(
+        Guid OrganizationId,
+        string DisplayName,
+        string Status);
+
+    private sealed record CreatedOwnerMembershipResponse(
+        Guid MembershipId,
+        string Role,
+        string Status,
+        long AuthorizationVersion);
 }

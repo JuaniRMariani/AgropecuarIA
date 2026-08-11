@@ -119,8 +119,8 @@ function Test-RepositoryReferences {
             $Errors.Add("AGRO-FND-002 backlog state must be Propuesto, Ready or En curso while the protocol gate is in progress; found '$taskStatus'.")
         }
         $consumerStatus = Get-BacklogStatus -Backlog $backlog -TaskId 'AGRO-ID-003'
-        if ($consumerStatus -ne 'Propuesto') {
-            $Errors.Add("AGRO-ID-003 must remain Propuesto while it is only the future first consumer; found '$consumerStatus'.")
+        if ($consumerStatus -ne 'En curso') {
+            $Errors.Add("AGRO-ID-003 must be En curso while its first consumer implementation is active; found '$consumerStatus'.")
         }
     }
 
@@ -171,7 +171,7 @@ function Test-RepositoryReferences {
     $readmePath = Join-Path $evidenceRoot 'README.md'
     if (Test-Path -LiteralPath $readmePath -PathType Leaf) {
         $content = Get-Content -LiteralPath $readmePath -Raw -Encoding UTF8
-        foreach ($required in @('AGRO-ID-003', 'CreateOrganization', 'permanece `En curso`', 'No implementa', 'RLS productiva')) {
+        foreach ($required in @('AGRO-ID-003', 'CreateOrganization', 'permanece `En curso`', 'primer producer real', 'dispatcher, inbox')) {
             if (-not $content.Contains($required)) {
                 $Errors.Add("README.md is missing required sequencing or scope evidence: $required.")
             }
@@ -387,8 +387,8 @@ function Test-Protocol {
 
     Add-Error $errors ($Protocol.firstConsumer.taskId -ceq 'AGRO-ID-003') 'The nominated first consumer must be AGRO-ID-003.'
     Add-Error $errors ($Protocol.firstConsumer.capability -ceq 'CreateOrganization') 'The nominated first capability must be CreateOrganization.'
-    Add-Error $errors ($Protocol.firstConsumer.status -ceq 'future') 'The first consumer must remain future in this increment.'
-    Add-Error $errors ($Protocol.firstConsumer.implemented -eq $false) 'The protocol must not claim the future consumer is implemented.'
+    Add-Error $errors ($Protocol.firstConsumer.status -ceq 'integrated_local') 'The first consumer must reflect its locally integrated implementation state.'
+    Add-Error $errors ($Protocol.firstConsumer.implemented -eq $true) 'The first consumer must retain its locally verified runtime evidence.'
     Add-Error $errors ($Protocol.firstConsumer.ownsProductRlsMigration -eq $true) 'AGRO-ID-003 must own its product RLS migration.'
     Add-Error $errors ($Protocol.firstConsumer.spikePromotionAllowed -eq $false) 'The disposable spike must not be promoted into runtime.'
 
@@ -473,7 +473,8 @@ function Invoke-MutationTests {
         @{ Name = 'invented-legal-days'; Mutate = { param($p) $p.retention.legalRetentionDays = 365 } },
         @{ Name = 'local-auto-purge-enabled'; Mutate = { param($p) $p.retention.localDevelopmentAutomaticPurge = $true } },
         @{ Name = 'false-production-retention-approval'; Mutate = { param($p) $p.retention.productionPolicyApproved = $true } },
-        @{ Name = 'fake-consumer'; Mutate = { param($p) $p.firstConsumer.implemented = $true } },
+        @{ Name = 'consumer-implementation-lost'; Mutate = { param($p) $p.firstConsumer.implemented = $false } },
+        @{ Name = 'consumer-regressed-to-future'; Mutate = { param($p) $p.firstConsumer.status = 'future' } },
         @{ Name = 'wrong-first-consumer'; Mutate = { param($p) $p.firstConsumer.taskId = 'AGRO-CAT-001' } },
         @{ Name = 'spike-promotion'; Mutate = { param($p) $p.firstConsumer.spikePromotionAllowed = $true } },
         @{ Name = 'no-N-minus-1-coexistence'; Mutate = { param($p) $p.compatibility.coexistence = 'N-only' } },
@@ -513,4 +514,4 @@ if ($validationErrors.Count -gt 0) {
     throw "Foundation protocol validation failed with $($validationErrors.Count) error(s)."
 }
 
-Write-Output 'VALIDATION PASS: protocol 1.0.0; discriminated tenant|platform scope; 4 ledger states; runtimeImplemented=false; AGRO-ID-003/CreateOrganization future; parent remains En curso.'
+Write-Output 'VALIDATION PASS: protocol 1.0.0; discriminated tenant|platform scope; 4 ledger states; runtimeImplemented=false; AGRO-ID-003/CreateOrganization integrated locally; parent remains En curso.'

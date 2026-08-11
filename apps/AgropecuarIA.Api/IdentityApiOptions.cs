@@ -60,6 +60,8 @@ public sealed class DevelopmentIdentityProviderOptions
     public const string SectionName = "Identity:DevelopmentProvider";
 
     public bool Enabled { get; set; }
+
+    public int SyntheticProfileCount { get; set; } = 4;
 }
 
 public sealed class StrongAuthenticationOptions
@@ -94,6 +96,12 @@ public sealed class DevelopmentIdentityProviderOptionsValidator(IHostEnvironment
 {
     public ValidateOptionsResult Validate(string? name, DevelopmentIdentityProviderOptions options)
     {
+        if (options.SyntheticProfileCount is < 1 or > 4)
+        {
+            return ValidateOptionsResult.Fail(
+                "Identity:DevelopmentProvider:SyntheticProfileCount must be between 1 and 4.");
+        }
+
         if (!options.Enabled || environment.IsDevelopment() || environment.IsEnvironment("Test"))
         {
             return ValidateOptionsResult.Success;

@@ -4,6 +4,7 @@ public enum IdentityIntegrationEventKind
 {
     IdentityLinked = 1,
     IdentityStepUpCompleted = 2,
+    OrganizationCreated = 3,
 }
 
 public sealed record IdentityIntegrationEventEnvelope(
@@ -30,6 +31,11 @@ public sealed record IdentityStepUpCompletedIntegrationEventPayload(
     Guid SessionId,
     string Purpose,
     DateTimeOffset CompletedAtUtc);
+
+public sealed record OrganizationCreatedIntegrationEventPayload(
+    Guid OrganizationId,
+    Guid OwnerMembershipId,
+    DateTimeOffset CreatedAtUtc);
 
 public sealed class IdentityIntegrationEventDefinition
 {
@@ -124,6 +130,15 @@ public static class IdentityIntegrationEvents
         nameof(PlatformUser),
         "tasks/evidence/AGRO-FND-001/contracts/identity-step-up-completed.v1.schema.json");
 
+    public static IdentityIntegrationEventDefinition OrganizationCreated { get; } = new(
+        "OrganizationCreated",
+        1,
+        SchemaVersion,
+        Source,
+        PlatformScope,
+        "OrganizationDirectoryEntry",
+        "tasks/evidence/AGRO-FND-001/contracts/organization-created.v1.schema.json");
+
     public static IReadOnlyList<IdentityIntegrationEventDefinition> All { get; } =
         Array.AsReadOnly(
             Enum.GetValues<IdentityIntegrationEventKind>()
@@ -135,6 +150,7 @@ public static class IdentityIntegrationEvents
         {
             IdentityIntegrationEventKind.IdentityLinked => IdentityLinked,
             IdentityIntegrationEventKind.IdentityStepUpCompleted => IdentityStepUpCompleted,
+            IdentityIntegrationEventKind.OrganizationCreated => OrganizationCreated,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(kind),
                 kind,

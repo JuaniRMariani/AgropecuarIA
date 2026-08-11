@@ -1107,7 +1107,7 @@ Estado inicial: `Propuesto`. El sponsor indicó continuar después de recibir el
 ### Contrato preliminar a validar
 
 - Unicidad tenant: `(tenant_id, operation, idempotency_key)`; `CreateOrganization` usa la excepción discriminada platform con namespace constante del servidor porque el tenant aún no existe. Actor, recurso/colección, versión de autorización y fingerprint quedan ligados y se reautorizan antes de cualquier replay. No hay lookup ni oracle de conflicto entre tenants.
-- `Idempotency-Key`: Structured Field String opaco generado por cliente, 16–128 caracteres ASCII visibles, nunca UUID/tenant/actor derivado ni label/log. La API sigue validación estricta y documenta que el draft IETF es referencia, no estándar publicado.
+- `Idempotency-Key`: valor opaco generado por cliente, 16–128 caracteres ASCII visibles, nunca UUID/tenant/actor derivado ni label/log. La API sigue validación estricta; RFC 9651 y el draft IETF son antecedentes no normativos y no convierten el valor en `sf-string`.
 - Fingerprint: SHA-256 de una serialización canónica definida por operación sobre método, route template, versión de contrato y payload normalizado; no se persiste ni registra el payload crudo.
 - Misma key+fingerprint tras autorización vigente reproduce status/body/header allow-listed; misma key con fingerprint distinto devuelve `409`; in-flight devuelve `409` retryable con `Retry-After`; respuesta expirada no reejecuta el hecho y exige conciliación/lookup del recurso.
 - Negocio, ledger terminal, journal local y outbox se confirman en una transacción PostgreSQL. Audit/Compliance central es proyección at-least-once; una caída posterior no revierte el hecho ya confirmado.
@@ -1138,3 +1138,78 @@ Estado inicial: `Propuesto`. El sponsor indicó continuar después de recibir el
 - Gates .NET/frontend/EF/PostgreSQL/E2E/SCA: `N/A`; no se modificó runtime, contrato HTTP, migración, paquete, lockfile, infraestructura o UI.
 - Estado: `AGRO-FND-002` queda `En curso`. Faltan `AGRO-ID-003/CreateOrganization`, migraciones/principals/RLS productivos y pruebas reales de concurrencia, crash/replay, delivery y telemetría; no se inició esa tarea.
 - Autoevaluación: 94/100; cero gate obligatorio fallido y cero cambio ajeno.
+
+## Iteración 24 — AGRO-ID-003 CreateOrganization (2026-08-10)
+
+Estado inicial: `Propuesto`. El sponsor confirmó registro público con datos privados, creación autónoma de múltiples organizaciones, creador como `owner` tenant y un posible superadmin futuro separado. El ID activo es `AGRO-ID-003`; se ejecuta un único sub-slice R1 cohesivo y la tarea padre permanecerá `En curso` porque invitaciones, matriz completa de roles y alcances por campo no forman parte de este incremento.
+
+### DoR, outcome y decisiones vinculantes
+
+- [x] Confirmar que `AGRO-FND-002` nominó `AGRO-ID-003/CreateOrganization` como primer consumidor real de su protocolo y conserva `runtimeImplemented=false` hasta esta integración.
+- [x] Confirmar que la sesión local de `AGRO-ID-001` deriva usuario, verificación y `AuthenticatedAtUtc` del proveedor; los gates Auth0 externos siguen siendo de despliegue, no bloquean el slice local.
+- [x] Fijar registro público como creación de cuenta, no exposición pública de organizaciones ni datos productivos.
+- [x] Fijar que cualquier usuario autenticado, verificado y con autenticación reciente menor a 15 minutos puede crear múltiples organizaciones; no se exige MFA fuerte para este bootstrap.
+- [x] Fijar que el creador queda como único `owner` activo inicial. `owner` es un rol tenant y jamás concede `platform superadmin`.
+- [x] Fijar la regla de último owner para mutaciones posteriores: no podrá removerse, demoverse ni abandonar si dejaría la organización sin owner activo.
+- [x] Confirmar que nombres de organización no son únicos globalmente, CUIT no autoriza y no se inventa un límite comercial de organizaciones.
+- [x] Obtener GO read-only de Architecture, Product/QA y Security/Data para el sub-slice; conservar superadmin, soporte JIT, observabilidad global, invitaciones, cambios de rol y campos fuera de alcance.
+
+Outcome observable: un usuario con sesión verificada y reciente crea una organización privada y queda owner en una única transacción PostgreSQL idempotente; la UI muestra 0/1/N organizaciones sin bloquear el shell y ningún usuario, tenant, job o principal DB puede observar o reproducir datos de otro tenant.
+
+### Aceptación del sub-slice
+
+- [x] `POST /api/identity/organizations` acepta solo `displayName`; actor, scope, owner y tenant se derivan en servidor. Cookie, CSRF, rate limit e `Idempotency-Key` son obligatorios.
+- [x] Autenticación verificada y reciente `< 15 minutos` permite crear; frontera de 15 minutos, sesión no verificada, stale, expirada o revocada fallan sin efecto.
+- [x] Organización, owner membership, ledger FND-002 terminal, journal local y outbox tipado se confirman atómicamente; cualquier fallo inyectado deja cero parcial.
+- [x] Misma key+fingerprint concurrente produce una organización, una membresía, un journal y un outbox; mismatch, in-flight, commit desconocido, replay stale y response expirada siguen el protocolo 1.0.0 sin oracle cross-tenant.
+- [x] El mismo usuario puede crear Org A y B con claves distintas; nombres duplicados son válidos y el discovery de sesión devuelve exclusivamente membresías activas propias en orden determinista.
+- [x] PostgreSQL usa principals mínimos, `FORCE RLS`, contexto actor/organización transaction-local y falla cerrado para tenant A/B/sin contexto, pool reutilizado, job sin scope y principal owner/BYPASS.
+- [x] La migración es expand/N-N-1 compatible: el writer previo sigue funcionando, rollback de aplicación y roll-forward preservan datos y no duplican efectos.
+- [x] La UI cubre 0/1/N organizaciones, crear otra, submitting localizado, validación, unauthorized, reauth requerida, rate-limit, conflicto/in-flight, reconciliación y offline; teclado, foco, lector, 390 px y UUID corto cumplen las reglas globales.
+- [x] Telemetría usa outcomes allow-listed sin nombre, UUID, user/tenant, key, digest ni payload; evidencia local diagnostica éxito, denegación, replay, conflicto y commit desconocido.
+- [x] Contrato HTTP, evento, schema, consumer/runtime maps, migración, clientes, fixtures y documentación quedan alineados y revisados independientemente.
+
+### Plan verificable
+
+- [x] Diseñar primero OpenAPI, errores Problem Details, evento `OrganizationCreated` v1 y modelo persistente mínimo compatible.
+- [x] Implementar dominio/aplicación/persistencia/API con autorización previa al lookup, ledger HMAC/fencing, transacción y RLS.
+- [x] Integrar onboarding/selector en Identity Hub con cliente TypeScript estricto y estados accesibles/localizados.
+- [x] Agregar pruebas unitarias, PostgreSQL/API/seguridad/concurrencia/migración, frontend y Playwright desktop/mobile.
+- [x] Integrar temprano y ejecutar gates parciales después de contrato, backend y frontend.
+- [x] Someter el sub-slice a Ola 3 independiente, resolver hallazgos y repetir todos los gates sin sacar a la tarea padre de `En curso`.
+- [x] Documentar evidencia, mantener `AGRO-ID-003` `En curso`, reconciliar `AGRO-FND-002` sin cerrarla prematuramente y publicar commit/push autorizado.
+
+### Ownership disjunto
+
+- Principal: plan/estados, OpenAPI, contratos/eventos compartidos, migration/snapshot, configuración transversal, integración, gates y Git.
+- Backend .NET: dominio/aplicación/persistencia/API y pruebas backend asignadas; no edita OpenAPI, migraciones ni frontend.
+- Frontend Next.js: feature Identity/Organization y pruebas unitarias; no edita backend, OpenAPI, manifiestos ni lockfiles.
+- Database/Security: revisión y pruebas RLS/principals/migración bajo archivos exclusivos; no comparte migration con el principal.
+- QA Automation: fixtures/E2E y revisión reproducible; no modifica implementación salvo corrección expresamente reasignada.
+
+### Baseline antes de editar código
+
+- Git: `main`, HEAD `30bc893edeff70d6670945413c01518d871fa1c5`, worktree limpio.
+- Backend: restore locked `PASS`; build Release 0 warnings/errores; MTP 114/114; format `PASS`.
+- Frontend: pnpm frozen `PASS`; format/lint/typecheck `PASS`; Vitest 23/23; Next.js 16.3.0 build `PASS`.
+- Transición autorizada por selección explícita y DoR acotada: `Propuesto → Ready → En curso` al publicar este plan. La tarea padre no será `Completada` en este incremento.
+
+### No objetivos
+
+- No implementar invitaciones, aceptación/revocación, otros roles, democión/transferencia/último-owner runtime, scopes por campo ni creación GIS.
+- No implementar superadmin, impersonación, soporte cross-tenant, collector/dashboard global, CI, Docker, deploy ni secretos reales.
+- No afirmar que un owner posee legalmente el establecimiento o CUIT; Organization es el tenant técnico y los datos siguen privados.
+
+### Review final
+
+- Resultado: `PASS` local del sub-slice `CreateOrganization`; `AGRO-ID-003` permanece `En curso` por invitaciones, matriz de roles, último-owner runtime y scopes por campo.
+- Valor: cualquier usuario con sesión verificada y autenticación reciente puede crear múltiples organizaciones privadas y queda como `owner` tenant, sin capacidad platform/superadmin.
+- Atomicidad e idempotencia: Organization, membership autoritativa y legacy, ledger/aliases HMAC, journal y `OrganizationCreated` se confirman juntos; replay, rotación, conflicto, expiración, commit desconocido y fallos inyectados quedan cubiertos y fail-closed.
+- Datos y seguridad: principals mínimos, grants por columna, `SET LOCAL`, `FORCE RLS`, A/B/sin contexto, pool/job y rollback N/N-1 demostrados en PostgreSQL real.
+- Backend: restore locked, build Release 0 warnings/errores, MTP 142/142, format y EF pending-model `PASS`.
+- Frontend: pnpm frozen, format/lint/typecheck/build `PASS`; Vitest 50/50; Playwright 4/4 desktop/mobile con Axe, teclado y 390 px.
+- Contratos/seguridad: FND 45/45, SEC 25/25, SCA NuGet/pnpm, JSON, UTF-8, secrets y diff-check `PASS`; revisión independiente sin críticos/altos/medios abiertos.
+- Compatibilidad: migración expand, writer N-1 coexistente, app rollback y roll-forward demostrados; `Down` destructivo queda limitado a base efímera.
+- Riesgos externos: Auth0/edge, secretos administrados, principal de ambiente compartido, rate limit distribuido, Audit central y retención legal siguen NO-GO de deploy, no de desarrollo local.
+- Publicación: commit/push autorizados; sin deploy. No se inició una segunda tarea.
+- Autoevaluación: 96/100; cero gate obligatorio fallido y cero cambio ajeno conocido.

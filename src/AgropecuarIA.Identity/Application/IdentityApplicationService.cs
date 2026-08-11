@@ -1,5 +1,7 @@
 using System.Data;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using AgropecuarIA.Identity.Domain;
 using AgropecuarIA.Identity.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -13,10 +15,19 @@ public sealed class IdentityApplicationService(
     IdentityTokenService tokenService,
     IdentityTelemetry telemetry,
     TimeProvider timeProvider,
-    IOptions<IdentityRuntimeOptions> options)
+    IOptions<IdentityRuntimeOptions> options,
+    IOptions<OrganizationBootstrapOptions> organizationBootstrapOptions,
+    IOrganizationCreationCommitBoundary? organizationCommitBoundary = null,
+    IOrganizationCreationRecoveryContextFactory? organizationRecoveryContextFactory = null)
 {
     private static readonly TimeSpan AuthenticationClockSkew = TimeSpan.FromMinutes(1);
     private readonly IdentityRuntimeOptions runtimeOptions = options.Value;
+    private readonly OrganizationBootstrapOptions bootstrapOptions = organizationBootstrapOptions.Value;
+    private readonly IOrganizationCreationCommitBoundary commitBoundary =
+        organizationCommitBoundary ?? new OrganizationCreationCommitBoundary();
+    private readonly IOrganizationCreationRecoveryContextFactory recoveryContextFactory =
+        organizationRecoveryContextFactory
+        ?? new OrganizationCreationRecoveryContextFactory(dbContext);
 
     public async Task<AuthenticatedSession?> AuthenticateAsync(string token, CancellationToken cancellationToken)
     {
@@ -160,15 +171,20 @@ public sealed class IdentityApplicationService(
                 identity.VerifiedAtUtc))
             .ToArrayAsync(cancellationToken);
 
-        MembershipResult[] memberships = await dbContext.Memberships
+        MembershipResult[] legacyMemberships = await dbContext.Memberships
             .AsNoTracking()
             .Where(membership => membership.UserId == currentSession.UserId)
             .OrderBy(membership => membership.OrganizationName)
+            .ThenBy(membership => membership.OrganizationId)
             .Select(membership => new MembershipResult(
                 membership.OrganizationId,
                 membership.OrganizationName,
                 membership.Role))
             .ToArrayAsync(cancellationToken);
+
+        // N/N-1 readers remain on the legacy projection while creation dual-writes the
+        // authoritative membership. Tenant discovery becomes authoritative in its own slice.
+        MembershipResult[] memberships = legacyMemberships;
 
         DateTimeOffset now = timeProvider.GetUtcNow();
         DateTimeOffset? strongExpiresAtUtc = currentSession.StrongAuthenticatedAtUtc?.Add(
@@ -739,6 +755,218 @@ public sealed class IdentityApplicationService(
             rotatedSession.ExpiresAtUtc);
     }
 
+    public async Task<CreatedOrganizationResult> CreateOrganizationAsync(
+        CreateOrganizationCommand command,
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken) =>
+        await CreateOrganizationAsync(
+            command,
+            currentSession,
+            requestContext,
+            retryAfterUnknownRollback: true,
+            cancellationToken);
+
+    private async Task<CreatedOrganizationResult> CreateOrganizationAsync(
+        CreateOrganizationCommand command,
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        bool retryAfterUnknownRollback,
+        CancellationToken cancellationToken)
+    {
+        requestContext.RequirePlatformActor(currentSession.UserId);
+        using Activity? activity = IdentityTelemetry.Start("identity.organization_create");
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        string displayName = NormalizeOrganizationDisplayName(command.DisplayName);
+        ValidateIdempotencyKey(command.IdempotencyKey);
+        Dictionary<string, byte[]> keyRing = GetOrganizationIdempotencyKeyRing();
+        Dictionary<string, byte[]> aliases = CreateIdempotencyAliases(command.IdempotencyKey, keyRing);
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        try
+        {
+            await SetOrganizationBootstrapDatabaseContextAsync(
+                currentSession.UserId,
+                null,
+                cancellationToken);
+            OrganizationCreationAuthorization authorization =
+                await RequireOrganizationCreationAuthorizationAsync(
+                    currentSession,
+                    now,
+                    cancellationToken);
+            if (!bootstrapOptions.Enabled)
+            {
+                telemetry.RecordOrganizationCreate("unavailable");
+                throw IdentityErrors.OrganizationCreationUnavailable();
+            }
+
+            await RequireRetainedOrganizationKeyCoverageAsync(
+                keyRing.Keys,
+                cancellationToken);
+
+            byte[] fingerprint = CreateOrganizationRequestFingerprint(displayName, authorization);
+            Guid? existingLedgerId = await FindOrganizationCreationLedgerIdAsync(
+                aliases,
+                cancellationToken);
+            if (existingLedgerId is not null)
+            {
+                CreatedOrganizationResult replay = await ResolveOrganizationCreationReplayAsync(
+                    existingLedgerId.Value,
+                    authorization,
+                    fingerprint,
+                    cancellationToken);
+                await AddMissingOrganizationCreationAliasesAsync(
+                    existingLedgerId.Value,
+                    aliases,
+                    now,
+                    cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                telemetry.RecordOrganizationCreate("replayed");
+                return replay;
+            }
+
+            Guid organizationId = Guid.NewGuid();
+            Guid membershipId = Guid.NewGuid();
+            Guid ledgerId = Guid.NewGuid();
+            Guid leaseOwner = Guid.NewGuid();
+            OrganizationDirectoryEntry organization = new(
+                organizationId,
+                displayName,
+                currentSession.UserId,
+                now);
+            OrganizationMembershipAssignment membership = new(
+                membershipId,
+                organizationId,
+                currentSession.UserId,
+                now);
+            OrganizationCreationLedger ledger = new(
+                ledgerId,
+                currentSession.UserId,
+                currentSession.SessionId,
+                authorization.AuthorizationVersion,
+                fingerprint,
+                leaseOwner,
+                now,
+                now.AddMinutes(1));
+            await SetOrganizationBootstrapOrganizationContextAsync(
+                organizationId,
+                cancellationToken);
+
+            dbContext.Organizations.Add(organization);
+            dbContext.AuthoritativeMemberships.Add(membership);
+            dbContext.Memberships.Add(new OrganizationMembership(
+                currentSession.UserId,
+                organizationId,
+                displayName,
+                OrganizationMembershipRoles.Owner));
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            dbContext.OrganizationCreationLedgers.Add(ledger);
+            foreach ((string keyVersion, byte[] keyDigest) in aliases)
+            {
+                dbContext.OrganizationCreationKeyAliases.Add(new OrganizationCreationKeyAlias(
+                    Guid.NewGuid(),
+                    ledgerId,
+                    keyVersion,
+                    keyDigest,
+                    now));
+            }
+
+            ledger.Complete(
+                leaseOwner,
+                ledger.FenceToken,
+                organizationId,
+                membershipId,
+                now);
+            dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
+                currentSession.UserId,
+                currentSession.SessionId,
+                "organization_created",
+                "succeeded",
+                null,
+                requestContext));
+            dbContext.OutboxMessages.Add(IdentityOutboxMessage.CreateOrganizationCreated(
+                new IdentityIntegrationEventEnvelope(
+                    Guid.NewGuid(),
+                    requestContext.Scope,
+                    now,
+                    now,
+                    now,
+                    currentSession.UserId,
+                    requestContext.CorrelationId,
+                    ledgerId,
+                    organizationId,
+                    1),
+                new OrganizationCreatedIntegrationEventPayload(
+                    organizationId,
+                    membershipId,
+                    now)));
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await commitBoundary.CommitAsync(
+                transaction.CommitAsync,
+                transaction.RollbackAsync,
+                cancellationToken);
+            telemetry.RecordOrganizationCreate("succeeded");
+            return ToCreatedOrganizationResult(organization, membership);
+        }
+        catch (DbUpdateException exception) when (IsOrganizationIdempotencyRace(exception))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await transaction.DisposeAsync();
+            dbContext.ChangeTracker.Clear();
+            CreatedOrganizationResult replay = await ResolveOrganizationCreationRaceAsync(
+                currentSession,
+                displayName,
+                aliases,
+                timeProvider.GetUtcNow(),
+                missingIsKeyReused: true,
+                cancellationToken);
+            telemetry.RecordOrganizationCreate("replayed");
+            return replay;
+        }
+        catch (Exception exception) when (IsOrganizationSerializationRace(exception))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await transaction.DisposeAsync();
+            dbContext.ChangeTracker.Clear();
+            CreatedOrganizationResult replay = await ResolveOrganizationCreationRaceAsync(
+                currentSession,
+                displayName,
+                aliases,
+                timeProvider.GetUtcNow(),
+                missingIsKeyReused: false,
+                cancellationToken);
+            telemetry.RecordOrganizationCreate("replayed");
+            return replay;
+        }
+        catch (PostgresException exception) when (IsOrganizationBootstrapRoleUnavailable(exception))
+        {
+            dbContext.ChangeTracker.Clear();
+            telemetry.RecordOrganizationCreate("unavailable");
+            throw IdentityErrors.OrganizationCreationUnavailable();
+        }
+        catch (Exception exception) when (IsIndeterminateCommit(exception))
+        {
+            dbContext.ChangeTracker.Clear();
+            return await RecoverUnknownOrganizationCommitAsync(
+                command,
+                currentSession,
+                requestContext,
+                retryAfterUnknownRollback,
+                cancellationToken);
+        }
+        catch (IdentityOperationException exception) when (
+            IsOrganizationIdempotencyRejection(exception.Code))
+        {
+            telemetry.RecordOrganizationCreate(OrganizationIdempotencyOutcome(exception.Code));
+            throw;
+        }
+    }
+
     public async Task RevokeSessionAsync(
         AuthenticatedSession currentSession,
         IdentityRequestContext requestContext,
@@ -838,6 +1066,548 @@ public sealed class IdentityApplicationService(
             requestContext.CorrelationId,
             timeProvider.GetUtcNow());
 
+    private async Task<OrganizationCreationAuthorization> RequireOrganizationCreationAuthorizationAsync(
+        AuthenticatedSession currentSession,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        OrganizationCreationAuthorization? authorization = await dbContext.Sessions
+            .AsNoTracking()
+            .Where(session =>
+                session.Id == currentSession.SessionId &&
+                session.UserId == currentSession.UserId &&
+                session.RevokedAtUtc == null &&
+                session.ExpiresAtUtc > now)
+            .Select(session => new OrganizationCreationAuthorization(
+                session.UserId,
+                session.Id,
+                session.Version,
+                session.AuthenticatedAtUtc,
+                session.IsAuthenticationAssuranceVerified))
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (authorization is null)
+        {
+            throw IdentityErrors.SessionRequired();
+        }
+
+        TimeSpan authenticationAge = now - authorization.AuthenticatedAtUtc;
+        if (!authorization.IsAuthenticationAssuranceVerified ||
+            authenticationAge < TimeSpan.Zero ||
+            authenticationAge >= runtimeOptions.RecentAuthenticationWindow)
+        {
+            telemetry.RecordOrganizationCreate("reauthentication_required");
+            throw IdentityErrors.RecentAuthenticationRequired();
+        }
+
+        return authorization;
+    }
+
+    private static string NormalizeOrganizationDisplayName(string? displayName)
+    {
+        if (displayName is null)
+        {
+            throw IdentityErrors.InvalidOrganizationDisplayName();
+        }
+
+        string normalized = displayName.Trim().Normalize(NormalizationForm.FormC);
+        int characterCount = normalized.EnumerateRunes().Count();
+        if (characterCount is < 2 or > 160)
+        {
+            throw IdentityErrors.InvalidOrganizationDisplayName();
+        }
+
+        return normalized;
+    }
+
+    private static void ValidateIdempotencyKey(string? idempotencyKey)
+    {
+        if (idempotencyKey is null ||
+            idempotencyKey.Length is < 16 or > 128 ||
+            idempotencyKey.Any(character => character is < '!' or > '~'))
+        {
+            throw IdentityErrors.InvalidIdempotencyKey();
+        }
+    }
+
+    private Dictionary<string, byte[]> GetOrganizationIdempotencyKeyRing()
+    {
+        if (bootstrapOptions.IdempotencyHmacKeys.Count is < 1 or > 8 ||
+            string.IsNullOrWhiteSpace(bootstrapOptions.CurrentKeyVersion) ||
+            !bootstrapOptions.IdempotencyHmacKeys.ContainsKey(bootstrapOptions.CurrentKeyVersion))
+        {
+            throw IdentityErrors.OrganizationCreationUnavailable();
+        }
+
+        Dictionary<string, byte[]> decoded = new(StringComparer.Ordinal);
+        HashSet<string> uniqueKeys = new(StringComparer.Ordinal);
+        foreach ((string version, string encodedKey) in bootstrapOptions.IdempotencyHmacKeys)
+        {
+            if (string.IsNullOrWhiteSpace(version) || version.Length > 32 ||
+                string.IsNullOrWhiteSpace(encodedKey))
+            {
+                throw IdentityErrors.OrganizationCreationUnavailable();
+            }
+
+            byte[] key;
+            try
+            {
+                key = Convert.FromBase64String(encodedKey);
+            }
+            catch (FormatException)
+            {
+                throw IdentityErrors.OrganizationCreationUnavailable();
+            }
+
+            if (key.Length < 32 || !uniqueKeys.Add(Convert.ToHexString(key)))
+            {
+                throw IdentityErrors.OrganizationCreationUnavailable();
+            }
+
+            decoded.Add(version, key);
+        }
+
+        return decoded;
+    }
+
+    private static Dictionary<string, byte[]> CreateIdempotencyAliases(
+        string idempotencyKey,
+        Dictionary<string, byte[]> keyRing)
+    {
+        byte[] keyBytes = Encoding.ASCII.GetBytes(idempotencyKey);
+        Dictionary<string, byte[]> aliases = new(StringComparer.Ordinal);
+        foreach ((string version, byte[] secret) in keyRing)
+        {
+            aliases.Add(version, HMACSHA256.HashData(secret, keyBytes));
+        }
+
+        return aliases;
+    }
+
+    private static byte[] CreateOrganizationRequestFingerprint(
+        string displayName,
+        OrganizationCreationAuthorization authorization)
+    {
+        string canonicalRequest = string.Join(
+            '|',
+            "create-organization-v1",
+            authorization.UserId.ToString("D"),
+            authorization.SessionId.ToString("D"),
+            authorization.AuthorizationVersion.ToString("D"),
+            Convert.ToBase64String(Encoding.UTF8.GetBytes(displayName)));
+        return SHA256.HashData(Encoding.UTF8.GetBytes(canonicalRequest));
+    }
+
+    private async Task<Guid?> FindOrganizationCreationLedgerIdAsync(
+        IReadOnlyDictionary<string, byte[]> aliases,
+        CancellationToken cancellationToken)
+    {
+        HashSet<Guid> ledgerIds = [];
+        foreach ((string keyVersion, byte[] keyDigest) in aliases)
+        {
+            Guid[] matches = await dbContext.OrganizationCreationKeyAliases
+                .AsNoTracking()
+                .Where(alias =>
+                    alias.ScopeKind == OrganizationCreationProtocol.ScopeKind &&
+                    alias.Namespace == OrganizationCreationProtocol.Namespace &&
+                    alias.Operation == OrganizationCreationProtocol.Operation &&
+                    alias.KeyVersion == keyVersion &&
+                    alias.KeyDigest == keyDigest)
+                .OrderBy(alias => alias.LedgerId)
+                .Select(alias => alias.LedgerId)
+                .Take(2)
+                .ToArrayAsync(cancellationToken);
+            foreach (Guid ledgerId in matches)
+            {
+                ledgerIds.Add(ledgerId);
+            }
+        }
+
+        return ledgerIds.Count switch
+        {
+            0 => null,
+            1 => ledgerIds.Single(),
+            _ => throw IdentityErrors.ReconciliationRequired(),
+        };
+    }
+
+    private async Task RequireRetainedOrganizationKeyCoverageAsync(
+        IEnumerable<string> retainedKeyVersions,
+        CancellationToken cancellationToken)
+    {
+        foreach (string keyVersion in retainedKeyVersions.Order(StringComparer.Ordinal))
+        {
+            bool covered = await dbContext.Database
+                .SqlQueryRaw<bool>(
+                    "SELECT identity.organization_creation_current_key_covered({0}) AS \"Value\"",
+                    keyVersion)
+                .SingleAsync(cancellationToken);
+            if (covered)
+            {
+                return;
+            }
+        }
+
+        telemetry.RecordOrganizationCreate("unavailable");
+        throw IdentityErrors.OrganizationCreationUnavailable();
+    }
+
+    private async Task AddMissingOrganizationCreationAliasesAsync(
+        Guid ledgerId,
+        IReadOnlyDictionary<string, byte[]> aliases,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        OrganizationCreationKeyAlias[] existingAliases = await dbContext
+            .OrganizationCreationKeyAliases
+            .Where(alias => alias.LedgerId == ledgerId)
+            .OrderBy(alias => alias.KeyVersion)
+            .ToArrayAsync(cancellationToken);
+        Dictionary<string, OrganizationCreationKeyAlias> existingByVersion = existingAliases
+            .ToDictionary(alias => alias.KeyVersion, StringComparer.Ordinal);
+
+        foreach ((string keyVersion, byte[] keyDigest) in aliases.OrderBy(
+            item => item.Key,
+            StringComparer.Ordinal))
+        {
+            if (existingByVersion.TryGetValue(
+                keyVersion,
+                out OrganizationCreationKeyAlias? existingAlias))
+            {
+                if (!CryptographicOperations.FixedTimeEquals(existingAlias.KeyDigest, keyDigest))
+                {
+                    throw IdentityErrors.ReconciliationRequired();
+                }
+
+                continue;
+            }
+
+            dbContext.OrganizationCreationKeyAliases.Add(new OrganizationCreationKeyAlias(
+                Guid.NewGuid(),
+                ledgerId,
+                keyVersion,
+                keyDigest,
+                now));
+        }
+    }
+
+    private async Task<CreatedOrganizationResult> ResolveOrganizationCreationReplayAsync(
+        Guid ledgerId,
+        OrganizationCreationAuthorization authorization,
+        byte[] fingerprint,
+        CancellationToken cancellationToken)
+    {
+        OrganizationCreationLedger? ledger = await dbContext.OrganizationCreationLedgers
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == ledgerId, cancellationToken);
+        if (ledger is null)
+        {
+            throw IdentityErrors.IdempotencyKeyReused();
+        }
+
+        if (ledger.ActorUserId != authorization.UserId ||
+            ledger.SessionId != authorization.SessionId ||
+            ledger.AuthorizationVersion != authorization.AuthorizationVersion ||
+            !CryptographicOperations.FixedTimeEquals(ledger.RequestFingerprint, fingerprint))
+        {
+            throw IdentityErrors.IdempotencyKeyReused();
+        }
+
+        if (ledger.State == OrganizationCreationProtocol.States.InProgress)
+        {
+            throw IdentityErrors.IdempotencyInProgress();
+        }
+
+        if (ledger.State == OrganizationCreationProtocol.States.FailedTerminal)
+        {
+            throw IdentityErrors.IdempotencyFailedTerminal();
+        }
+
+        if (ledger.State == OrganizationCreationProtocol.States.ResponseExpired)
+        {
+            throw IdentityErrors.ReconciliationRequired();
+        }
+
+        if (ledger.State != OrganizationCreationProtocol.States.Succeeded ||
+            ledger.OrganizationId is null ||
+            ledger.MembershipId is null)
+        {
+            throw IdentityErrors.ReconciliationRequired();
+        }
+
+        await SetOrganizationBootstrapOrganizationContextAsync(
+            ledger.OrganizationId.Value,
+            cancellationToken);
+
+        OrganizationDirectoryEntry? organization = await dbContext.Organizations
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == ledger.OrganizationId, cancellationToken);
+        OrganizationMembershipAssignment? membership = await dbContext.AuthoritativeMemberships
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item =>
+                item.Id == ledger.MembershipId &&
+                item.OrganizationId == ledger.OrganizationId &&
+                item.UserId == authorization.UserId,
+                cancellationToken);
+        if (organization is null || membership is null)
+        {
+            throw IdentityErrors.ReconciliationRequired();
+        }
+
+        return ToCreatedOrganizationResult(organization, membership);
+    }
+
+    private async Task<CreatedOrganizationResult> ResolveOrganizationCreationRaceAsync(
+        AuthenticatedSession currentSession,
+        string displayName,
+        Dictionary<string, byte[]> aliases,
+        DateTimeOffset now,
+        bool missingIsKeyReused,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted,
+            cancellationToken);
+        await SetOrganizationBootstrapDatabaseContextAsync(
+            currentSession.UserId,
+            null,
+            cancellationToken);
+        OrganizationCreationAuthorization authorization =
+            await RequireOrganizationCreationAuthorizationAsync(
+                currentSession,
+                now,
+                cancellationToken);
+        Guid? ledgerId = await FindOrganizationCreationLedgerIdAsync(
+            aliases,
+            cancellationToken);
+        if (ledgerId is null)
+        {
+            throw missingIsKeyReused
+                ? IdentityErrors.IdempotencyKeyReused()
+                : IdentityErrors.ReconciliationRequired();
+        }
+
+        byte[] fingerprint = CreateOrganizationRequestFingerprint(displayName, authorization);
+        CreatedOrganizationResult replay = await ResolveOrganizationCreationReplayAsync(
+            ledgerId.Value,
+            authorization,
+            fingerprint,
+            cancellationToken);
+        await AddMissingOrganizationCreationAliasesAsync(
+            ledgerId.Value,
+            aliases,
+            now,
+            cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return replay;
+    }
+
+    private async Task<CreatedOrganizationResult> RecoverUnknownOrganizationCommitAsync(
+        CreateOrganizationCommand command,
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        bool retryAfterUnknownRollback,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using IdentityDbContext recoveryDbContext =
+                await recoveryContextFactory.CreateDbContextAsync(cancellationToken);
+            IdentityApplicationService recoveryService = new(
+                recoveryDbContext,
+                tokenService,
+                telemetry,
+                timeProvider,
+                Options.Create(runtimeOptions),
+                Options.Create(bootstrapOptions),
+                commitBoundary,
+                recoveryContextFactory);
+            CreatedOrganizationResult? committed;
+            try
+            {
+                committed = await recoveryService.TryResolveUnknownOrganizationCommitAsync(
+                    command,
+                    currentSession,
+                    cancellationToken);
+            }
+            catch (IdentityOperationException exception) when (
+                IsOrganizationIdempotencyRejection(exception.Code))
+            {
+                telemetry.RecordOrganizationCreate(OrganizationIdempotencyOutcome(exception.Code));
+                throw;
+            }
+            if (committed is not null)
+            {
+                telemetry.RecordOrganizationCreate("replayed");
+                return committed;
+            }
+
+            if (!retryAfterUnknownRollback)
+            {
+                telemetry.RecordOrganizationCreate("reconciliation_required");
+                throw IdentityErrors.ReconciliationRequired();
+            }
+
+            return await recoveryService.CreateOrganizationAsync(
+                command,
+                currentSession,
+                requestContext,
+                retryAfterUnknownRollback: false,
+                cancellationToken);
+        }
+        catch (Exception exception) when (IsIndeterminateCommit(exception))
+        {
+            telemetry.RecordOrganizationCreate("reconciliation_required");
+            throw IdentityErrors.ReconciliationRequired();
+        }
+    }
+
+    private async Task<CreatedOrganizationResult?> TryResolveUnknownOrganizationCommitAsync(
+        CreateOrganizationCommand command,
+        AuthenticatedSession currentSession,
+        CancellationToken cancellationToken)
+    {
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        string displayName = NormalizeOrganizationDisplayName(command.DisplayName);
+        ValidateIdempotencyKey(command.IdempotencyKey);
+        Dictionary<string, byte[]> keyRing = GetOrganizationIdempotencyKeyRing();
+        Dictionary<string, byte[]> aliases = CreateIdempotencyAliases(
+            command.IdempotencyKey,
+            keyRing);
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted,
+            cancellationToken);
+        await SetOrganizationBootstrapDatabaseContextAsync(
+            currentSession.UserId,
+            null,
+            cancellationToken);
+        OrganizationCreationAuthorization authorization =
+            await RequireOrganizationCreationAuthorizationAsync(
+                currentSession,
+                now,
+                cancellationToken);
+        await RequireRetainedOrganizationKeyCoverageAsync(
+            keyRing.Keys,
+            cancellationToken);
+        Guid? ledgerId = await FindOrganizationCreationLedgerIdAsync(
+            aliases,
+            cancellationToken);
+        if (ledgerId is null)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return null;
+        }
+
+        byte[] fingerprint = CreateOrganizationRequestFingerprint(displayName, authorization);
+        CreatedOrganizationResult replay = await ResolveOrganizationCreationReplayAsync(
+            ledgerId.Value,
+            authorization,
+            fingerprint,
+            cancellationToken);
+        await AddMissingOrganizationCreationAliasesAsync(
+            ledgerId.Value,
+            aliases,
+            now,
+            cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return replay;
+    }
+
+    private async Task SetOrganizationBootstrapDatabaseContextAsync(
+        Guid actorUserId,
+        Guid? organizationId,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "SET LOCAL ROLE agro_identity_app",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_actor_id', {actorUserId.ToString("D")}, true)",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_scope_kind', {OrganizationCreationProtocol.ScopeKind}, true)",
+            cancellationToken);
+        if (organizationId is not null)
+        {
+            await SetOrganizationBootstrapOrganizationContextAsync(
+                organizationId.Value,
+                cancellationToken);
+        }
+    }
+
+    private async Task SetOrganizationBootstrapOrganizationContextAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken) =>
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_organization_id', {organizationId.ToString("D")}, true)",
+            cancellationToken);
+
+    private static CreatedOrganizationResult ToCreatedOrganizationResult(
+        OrganizationDirectoryEntry organization,
+        OrganizationMembershipAssignment membership) =>
+        new(
+            organization.Id,
+            organization.DisplayName,
+            organization.Status,
+            membership.Id,
+            membership.Role,
+            membership.Status,
+            membership.SecurityVersion);
+
+    private static bool IsOrganizationIdempotencyRace(DbUpdateException exception) =>
+        exception.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: string constraintName,
+        } && constraintName.Contains("organization_creation_key_aliases", StringComparison.Ordinal);
+
+    private static bool IsOrganizationIdempotencyRejection(string code) => code is
+        "idempotency.key_reused" or
+        "idempotency.in_progress" or
+        "idempotency.failed_terminal" or
+        "idempotency.reconciliation_required";
+
+    private static string OrganizationIdempotencyOutcome(string code) => code switch
+    {
+        "idempotency.key_reused" => "conflict",
+        "idempotency.in_progress" => "in_progress",
+        "idempotency.failed_terminal" => "failed_terminal",
+        "idempotency.reconciliation_required" => "reconciliation_required",
+        _ => throw new ArgumentOutOfRangeException(nameof(code), code, "Unknown idempotency code."),
+    };
+
+    private static bool IsIndeterminateCommit(Exception exception) =>
+        exception is OrganizationCommitOutcomeUnknownException ||
+        FindNpgsqlException(exception) is { IsTransient: true };
+
+    private static bool IsOrganizationSerializationRace(Exception exception) =>
+        FindNpgsqlException(exception) is PostgresException
+        {
+            SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected,
+        };
+
+    private static NpgsqlException? FindNpgsqlException(Exception exception)
+    {
+        Exception? current = exception;
+        while (current is not null)
+        {
+            if (current is NpgsqlException npgsqlException)
+            {
+                return npgsqlException;
+            }
+
+            current = current.InnerException;
+        }
+
+        return null;
+    }
+
+    private static bool IsOrganizationBootstrapRoleUnavailable(PostgresException exception) =>
+        exception.SqlState is PostgresErrorCodes.InsufficientPrivilege or "42704";
+
     private void ValidateVerifiedIdentity(VerifiedExternalIdentity identity)
     {
         ValidateConnection(identity.Connection);
@@ -873,5 +1643,12 @@ public sealed class IdentityApplicationService(
         {
             SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected,
         };
+
+    private sealed record OrganizationCreationAuthorization(
+        Guid UserId,
+        Guid SessionId,
+        Guid AuthorizationVersion,
+        DateTimeOffset AuthenticatedAtUtc,
+        bool IsAuthenticationAssuranceVerified);
 
 }

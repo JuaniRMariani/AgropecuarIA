@@ -7,6 +7,7 @@ import type {
   IdentityNotice,
   IdentityResourceState,
   IdentitySession,
+  OrganizationCreationState,
 } from "../../features/identity/identity-types";
 
 const productionCapabilities: IdentityCapabilities = {
@@ -46,6 +47,11 @@ afterEach(cleanup);
 function renderView(
   resource: IdentityResourceState,
   notice: IdentityNotice = { kind: "none" },
+  organizationOptions: Readonly<{
+    draft?: string;
+    formOpen?: boolean;
+    creation?: OrganizationCreationState;
+  }> = {},
 ) {
   const handlers = {
     onRetry: vi.fn(),
@@ -55,10 +61,18 @@ function renderView(
     onUnlink: vi.fn(),
     onRevoke: vi.fn(),
     onSyntheticSignIn: vi.fn(),
+    onOrganizationDraftChange: vi.fn(),
+    onStartOrganization: vi.fn(),
+    onCancelOrganization: vi.fn(),
+    onCreateOrganization: vi.fn(),
+    onReauthenticateOrganization: vi.fn(),
   };
   const result = render(
     <IdentityView
       notice={notice}
+      organizationCreation={organizationOptions.creation ?? { kind: "idle" }}
+      organizationDraft={organizationOptions.draft ?? ""}
+      organizationFormOpen={organizationOptions.formOpen ?? false}
       pendingAction={null}
       resource={resource}
       {...handlers}
@@ -121,7 +135,7 @@ describe("IdentityView", () => {
     expect(handlers.onLogin).toHaveBeenCalledWith("google");
   });
 
-  it("renders only short IDs and an explicit empty membership state", () => {
+  it("renders only short IDs and an explicit private onboarding CTA", () => {
     const { container } = renderView({
       kind: "authenticated",
       capabilities: productionCapabilities,
@@ -130,9 +144,10 @@ describe("IdentityView", () => {
 
     expect(screen.getByText(/usuario 2E9F14/i)).toBeVisible();
     expect(screen.getByText(/ID 6F0B92/i)).toBeVisible();
+    expect(screen.getByText(/creá tu primera organización/i)).toBeVisible();
     expect(
-      screen.getByText(/todavía no tenés una organización/i),
-    ).toBeVisible();
+      screen.getByRole("button", { name: "Crear mi organización" }),
+    ).toBeEnabled();
     expect(container).not.toHaveTextContent(session.userId);
     expect(container).not.toHaveTextContent(
       session.identities[0]?.identityId ?? "missing",
@@ -161,13 +176,21 @@ describe("IdentityView", () => {
     rerender(
       <IdentityView
         notice={{ kind: "replay", message: "Ese intento ya fue utilizado." }}
+        onCancelOrganization={vi.fn()}
+        onCreateOrganization={vi.fn()}
         onLink={vi.fn()}
         onStepUp={vi.fn()}
         onLogin={vi.fn()}
+        onOrganizationDraftChange={vi.fn()}
+        onReauthenticateOrganization={vi.fn()}
         onRetry={vi.fn()}
         onRevoke={vi.fn()}
+        onStartOrganization={vi.fn()}
         onSyntheticSignIn={vi.fn()}
         onUnlink={vi.fn()}
+        organizationCreation={{ kind: "idle" }}
+        organizationDraft=""
+        organizationFormOpen={false}
         pendingAction={null}
         resource={{ kind: "signed-out", capabilities: productionCapabilities }}
       />,
@@ -180,13 +203,21 @@ describe("IdentityView", () => {
     const { container } = render(
       <IdentityView
         notice={{ kind: "none" }}
+        onCancelOrganization={vi.fn()}
+        onCreateOrganization={vi.fn()}
         onLink={vi.fn()}
         onLogin={vi.fn()}
+        onOrganizationDraftChange={vi.fn()}
+        onReauthenticateOrganization={vi.fn()}
         onRetry={vi.fn()}
         onRevoke={vi.fn()}
+        onStartOrganization={vi.fn()}
         onStepUp={onStepUp}
         onSyntheticSignIn={vi.fn()}
         onUnlink={vi.fn()}
+        organizationCreation={{ kind: "idle" }}
+        organizationDraft=""
+        organizationFormOpen={false}
         pendingAction="step-up"
         resource={{
           kind: "authenticated",
@@ -221,5 +252,149 @@ describe("IdentityView", () => {
     expect(handlers.onStepUp).toHaveBeenCalledOnce();
     expect(screen.getByText(/custodiados por el proveedor/i)).toBeVisible();
     expect(screen.queryByRole("button", { name: /crear passkey/i })).toBeNull();
+  });
+
+  it("opens zero-membership onboarding and exposes an accessible form", () => {
+    const { handlers } = renderView({
+      kind: "authenticated",
+      capabilities: productionCapabilities,
+      session,
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Crear mi organización" }),
+    );
+    expect(handlers.onStartOrganization).toHaveBeenCalledOnce();
+
+    cleanup();
+    renderView(
+      {
+        kind: "authenticated",
+        capabilities: productionCapabilities,
+        session,
+      },
+      { kind: "none" },
+      { draft: "La Esperanza", formOpen: true },
+    );
+
+    const input = screen.getByRole("textbox", {
+      name: "Nombre de la organización",
+    });
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("La Esperanza");
+    expect(input).toHaveAccessibleDescription(/entre 2 y 160 caracteres/i);
+  });
+
+  it("lists memberships with short IDs and offers creating another", () => {
+    const organizationId = "1266395e-ec88-481e-9a72-81fa2cc2904a";
+    const { container, handlers } = renderView({
+      kind: "authenticated",
+      capabilities: productionCapabilities,
+      session: {
+        ...session,
+        memberships: [
+          {
+            organizationId,
+            organizationName: "La Esperanza",
+            role: "owner",
+          },
+        ],
+      },
+    });
+
+    expect(screen.getByText("Organización 126639")).toBeVisible();
+    expect(container).not.toHaveTextContent(organizationId);
+    fireEvent.click(screen.getByRole("button", { name: "Crear otra" }));
+    expect(handlers.onStartOrganization).toHaveBeenCalledOnce();
+  });
+
+  it("limits the loader to onboarding and preserves the shell", () => {
+    const { container } = renderView(
+      {
+        kind: "authenticated",
+        capabilities: productionCapabilities,
+        session,
+      },
+      { kind: "none" },
+      {
+        draft: "La Esperanza",
+        formOpen: true,
+        creation: { kind: "submitting" },
+      },
+    );
+
+    expect(container.querySelector(".identity-region")).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
+    expect(container.querySelector(".organization-onboarding")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    expect(screen.getByText("Ana Productora")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: /creando organización/i }),
+    ).toBeDisabled();
+  });
+
+  it.each([
+    ["validation", "Revisá el nombre", "alert", false],
+    ["reauthentication-required", "Volvé a verificarte", "alert", false],
+    ["in-progress", "Sigue en curso", "status", true],
+    ["conflict", "El intento no coincide", "alert", false],
+    ["reconciliation-required", "Resultado pendiente", "status", true],
+    ["rate-limited", "Esperá un momento", "alert", false],
+    ["offline", "Sin conexión", "alert", false],
+  ] as const)(
+    "announces the %s state and preserves the draft",
+    (kind, message, role, disabled) => {
+      renderView(
+        {
+          kind: "authenticated",
+          capabilities: productionCapabilities,
+          session,
+        },
+        { kind: "none" },
+        {
+          draft: "La Esperanza",
+          formOpen: true,
+          creation: { kind, message },
+        },
+      );
+
+      const input = screen.getByRole("textbox", {
+        name: "Nombre de la organización",
+      });
+      expect(input).toHaveValue("La Esperanza");
+      expect(input).toHaveProperty("disabled", disabled);
+      expect(screen.getByRole(role)).toHaveTextContent(message);
+    },
+  );
+
+  it("offers an accessible reauthentication action without submitting the form", () => {
+    const { handlers } = renderView(
+      {
+        kind: "authenticated",
+        capabilities: productionCapabilities,
+        session,
+      },
+      { kind: "none" },
+      {
+        draft: "La Esperanza",
+        formOpen: true,
+        creation: {
+          kind: "reauthentication-required",
+          message: "Volvé a verificar tu identidad.",
+        },
+      },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Volver a verificar" }));
+
+    expect(handlers.onReauthenticateOrganization).toHaveBeenCalledOnce();
+    expect(handlers.onCreateOrganization).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("textbox", { name: "Nombre de la organización" }),
+    ).toHaveValue("La Esperanza");
   });
 });

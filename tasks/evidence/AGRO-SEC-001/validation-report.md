@@ -135,15 +135,15 @@ Permanecen `NO-GO` para ambiente compartido/Internet: Auth0 real y lifecycle de 
 
 `AGRO-SEC-001` permanece `En curso`: este incremento demuestra el gate local Identity/FND, pero la tarea multirelease exige reevaluación por slice y conserva gates externos R1–R6.
 
-## Refresh R0/R1 de tenancy y discovery — 2026-08-10
+## Registro histórico: refresh R0/R1 de tenancy y discovery — 2026-08-10
 
-### Resultado y alcance
+### Resultado y alcance en ese checkpoint
 
 El registro se reconcilió después del incremento técnico de `AGRO-DIS-003`. `ADR-PEND-007` está aceptada para desarrollo R1 y el spike descartable demuestra discovery actor-scoped con PostgreSQL real, `FORCE RLS`, principal read-only/no privilegiado, contexto transaccional, SCRAM-SHA-256, secretos efímeros separados y ACL owner-only. Esa evidencia reduce incertidumbre de diseño, pero no forma parte de `AgropecuarIA.slnx`, `src/` o `apps/` y no se atribuye al runtime productivo.
 
-`TM-001` conserva prioridad `critical`: Identity integrado sigue platform-scoped y todavía no existen recurso tenant productivo, migraciones RLS, principals app/job/migrator separados, `SET LOCAL`, suite A/B/sin contexto/pool/jobs/grants, cache, archivos, exporte o retrieval tenant-safe.
+En ese checkpoint, `TM-001` conservaba prioridad `critical`: Identity integrado seguía platform-scoped y todavía no existían recurso tenant productivo, migraciones RLS, principals app/job/migrator separados, `SET LOCAL`, suite A/B/sin contexto/pool/jobs/grants, cache, archivos, exporte o retrieval tenant-safe. La sección siguiente conserva los comandos y resultados históricos; no representa el gate actual.
 
-### Gate de drift
+### Gate de drift histórico
 
 El validador ahora exige que `TM-001` conserve explícitos los seis controles R0 aceptados y rechaza tres declaraciones obsoletas: ADR/discovery todavía abiertos, tenant/RLS esperando ADR y autenticación `trust`. Nueve mutation self-tests nuevos demuestran que la pérdida de cada evidencia positiva o la reintroducción de cada declaración obsoleta rompe el gate. Se preservaron los 14 IDs, 7 prioridades críticas, 7 altas y Q-054/055/058/060.
 
@@ -164,8 +164,34 @@ git diff --check
 PASS.
 ```
 
-Build, tests .NET/frontend, EF y SCA quedan `N/A` para este refresh: no cambia código productivo, proyectos, contratos runtime, migraciones, manifiestos ni lockfiles. Los gates funcionales 114/114, Vitest 23/23 y E2E 4/4 permanecen como evidencia del incremento local anterior, no se reutilizan como sustituto del validador SEC afectado.
+Build, tests .NET/frontend, EF y SCA quedaron `N/A` para ese refresh: no cambiaba código productivo, proyectos, contratos runtime, migraciones, manifiestos ni lockfiles. Los gates funcionales 114/114, Vitest 23/23 y E2E 4/4 pertenecen a ese checkpoint histórico y no describen el estado integrado actual.
 
-### Estado y riesgos residuales
+### Estado y riesgos residuales en ese checkpoint
 
-`AGRO-SEC-001` continúa `En curso` por ser un gate R0–R6. Permanecen `NO-GO` tenant runtime, Auth0/hosting compartido, CI/provenance, auditoría central, backup administrado y las decisiones Legal/retención. Este refresh no inicia `AGRO-FND-002` ni resuelve su consumidor tenant, retry/poison, idempotencia o auditoría.
+En ese checkpoint, `AGRO-SEC-001` continuaba `En curso` por ser un gate R0–R6 y el tenant runtime todavía era `NO-GO`. Esa declaración quedó superada para la frontera acotada `CreateOrganization` por el refresh actual siguiente; Auth0/hosting compartido, CI/provenance, auditoría central, backup administrado y las decisiones Legal/retención continúan pendientes.
+
+## Refresh actual: CreateOrganization — 2026-08-10
+
+El registro y el modelo humano incorporan la primera frontera tenant integrada sin promover el spike R0: `CreateOrganization` deriva actor/scope, aplica grants mínimos y `FORCE RLS`, y prueba A/B/sin contexto/pool/job. `TM-001` continúa `critical` para discovery y cualquier nueva superficie que no repita esos controles.
+
+### Gate actual
+
+```text
+validate-threat-model.ps1 -SelfTest
+PASS — 25/25 mutations; 14 threats; 7 critical; 7 high; 0 critical without owner/test/gate.
+
+Suite raíz MTP
+PASS — 142/142; 0 failed; 0 skipped.
+
+Vitest
+PASS — 50/50.
+
+Playwright desktop + Pixel 7
+PASS — 4/4.
+```
+
+El validador exige conservar tanto la evidencia descartable previa como la migración runtime de organización. Hosting, credenciales administradas, migrator compartido, Auth0, collector, CI y módulos tenant futuros siguen `NO-GO`.
+
+### Estado actual
+
+`AGRO-SEC-001` continúa `En curso` por ser un gate R0–R6. El GO local se limita al bootstrap `CreateOrganization`; discovery general, retry/poison/delivery, Auth0/hosting compartido, CI/provenance, auditoría central, backup administrado y las decisiones Legal/retención permanecen pendientes.

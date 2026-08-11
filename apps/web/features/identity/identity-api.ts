@@ -1,6 +1,7 @@
 import type {
   AuthenticationAssurance,
   AvailableConnection,
+  CreatedOrganization,
   IdentityCapabilities,
   IdentityConnection,
   IdentitySession,
@@ -12,17 +13,29 @@ import type {
 } from "./identity-types";
 
 export type IdentityFailureKind =
-  "signed-out" | "revoked" | "provider-down" | "conflict" | "replay" | "error";
+  | "signed-out"
+  | "revoked"
+  | "provider-down"
+  | "validation"
+  | "reauthentication-required"
+  | "in-progress"
+  | "reconciliation-required"
+  | "rate-limited"
+  | "conflict"
+  | "replay"
+  | "error";
 
 export class IdentityApiError extends Error {
   readonly kind: IdentityFailureKind;
   readonly status: number;
+  readonly code: string;
 
-  constructor(kind: IdentityFailureKind, status: number) {
+  constructor(kind: IdentityFailureKind, status: number, code = "") {
     super("Identity request failed");
     this.name = "IdentityApiError";
     this.kind = kind;
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -76,6 +89,14 @@ function parseStepUpPurpose(value: unknown): StepUpPurpose {
 function requiredBoolean(record: JsonRecord, key: string): boolean {
   const value = record[key];
   if (typeof value !== "boolean") {
+    throw new IdentityApiError("error", 502);
+  }
+  return value;
+}
+
+function requiredPositiveInteger(record: JsonRecord, key: string): number {
+  const value = record[key];
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
     throw new IdentityApiError("error", 502);
   }
   return value;
@@ -235,6 +256,44 @@ export function parseStepUpAttempt(value: unknown): StepUpAttempt {
   };
 }
 
+export function parseCreatedOrganization(value: unknown): CreatedOrganization {
+  if (
+    !isRecord(value) ||
+    !isRecord(value.organization) ||
+    !isRecord(value.membership)
+  ) {
+    throw new IdentityApiError("error", 502);
+  }
+
+  const organizationStatus = requiredString(value.organization, "status");
+  const membershipRole = requiredString(value.membership, "role");
+  const membershipStatus = requiredString(value.membership, "status");
+  if (
+    organizationStatus !== "active" ||
+    membershipRole !== "owner" ||
+    membershipStatus !== "active"
+  ) {
+    throw new IdentityApiError("error", 502);
+  }
+
+  return {
+    organization: {
+      organizationId: requiredUuid(value.organization, "organizationId"),
+      displayName: requiredString(value.organization, "displayName"),
+      status: organizationStatus,
+    },
+    membership: {
+      membershipId: requiredUuid(value.membership, "membershipId"),
+      role: membershipRole,
+      status: membershipStatus,
+      authorizationVersion: requiredPositiveInteger(
+        value.membership,
+        "authorizationVersion",
+      ),
+    },
+  };
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const text = await response.text();
   if (text.length === 0) {
@@ -259,9 +318,26 @@ function classifyFailure(status: number, body: unknown): IdentityFailureKind {
     return code.includes("revok") ? "revoked" : "signed-out";
   }
   if (status === 503) {
-    return "provider-down";
+    return code.includes("reconciliation")
+      ? "reconciliation-required"
+      : "provider-down";
+  }
+  if (status === 400) {
+    return "validation";
+  }
+  if (status === 403) {
+    return "reauthentication-required";
+  }
+  if (status === 429) {
+    return "rate-limited";
   }
   if (status === 409) {
+    if (code.includes("in_progress")) {
+      return "in-progress";
+    }
+    if (code.includes("key_reused") || code.includes("fingerprint_mismatch")) {
+      return "conflict";
+    }
     return code.includes("replay") ||
       code.includes("used") ||
       code.includes("expired")
@@ -279,6 +355,7 @@ async function ensureSuccessful(response: Response): Promise<void> {
   throw new IdentityApiError(
     classifyFailure(response.status, body),
     response.status,
+    problemCode(body),
   );
 }
 
@@ -329,17 +406,22 @@ async function mutate(
   body?: Readonly<Record<string, string>>,
   signal?: AbortSignal,
   retryAntiforgery = true,
+  idempotencyKey?: string,
 ): Promise<Response> {
   const token = await getAntiforgeryToken(signal);
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    "X-CSRF-TOKEN": token,
+  };
+  if (idempotencyKey !== undefined) {
+    headers["Idempotency-Key"] = idempotencyKey;
+  }
   const response = await fetch(path, {
     method,
     cache: "no-store",
     credentials: "include",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "X-CSRF-TOKEN": token,
-    },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
     signal,
   });
@@ -351,7 +433,7 @@ async function mutate(
       return response;
     }
     invalidateAntiforgeryToken();
-    return mutate(path, method, body, signal, false);
+    return mutate(path, method, body, signal, false, idempotencyKey);
   }
   await ensureSuccessful(response);
   return response;
@@ -475,4 +557,20 @@ export async function developmentSignIn(
   // ASP.NET Core binds antiforgery tokens to the current principal.
   invalidateAntiforgeryToken();
   return loadSession(signal);
+}
+
+export async function createOrganization(
+  displayName: string,
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<CreatedOrganization> {
+  const response = await mutate(
+    "/api/identity/organizations",
+    "POST",
+    { displayName },
+    signal,
+    true,
+    idempotencyKey,
+  );
+  return parseCreatedOrganization(await readJson(response));
 }

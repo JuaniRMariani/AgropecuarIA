@@ -28,6 +28,7 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
     public static async Task<IdentityApiScenario> CreateAsync(
         string environment = "Test",
         IReadOnlyDictionary<string, string?>? configuration = null,
+        Action<IServiceCollection, string>? configureServices = null,
         CancellationToken cancellationToken = default)
     {
         if (IdentityTestAssembly.PostgreSql is null)
@@ -39,7 +40,11 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
 
         var postgresql = IdentityTestAssembly.PostgreSql;
         var connectionString = await postgresql.CreateDatabaseAsync(cancellationToken);
-        var factory = new IdentityApiFactory(connectionString, environment, configuration);
+        var factory = new IdentityApiFactory(
+            connectionString,
+            environment,
+            configuration,
+            configureServices);
 
         try
         {
@@ -75,7 +80,8 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
     private sealed class IdentityApiFactory(
         string connectionString,
         string environment,
-        IReadOnlyDictionary<string, string?>? configuration) : WebApplicationFactory<Program>
+        IReadOnlyDictionary<string, string?>? configuration,
+        Action<IServiceCollection, string>? configureServices) : WebApplicationFactory<Program>
     {
         public TestLogSink Logs { get; } = new();
 
@@ -86,6 +92,7 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
             builder.UseSetting(
                 "Identity:DevelopmentProvider:Enabled",
                 (environment is "Development" or "Test").ToString());
+            builder.UseSetting("Identity:DevelopmentProvider:SyntheticProfileCount", "1");
             builder.UseSetting(
                 "Identity:StrongAuthentication:Enabled",
                 (environment is "Development" or "Test").ToString());
@@ -99,10 +106,16 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
                     ["ConnectionStrings:Identity"] = connectionString,
                     ["Identity:DevelopmentProvider:Enabled"] =
                         (environment is "Development" or "Test").ToString(),
+                    ["Identity:DevelopmentProvider:SyntheticProfileCount"] = "1",
                     ["Identity:StrongAuthentication:Enabled"] =
                         (environment is "Development" or "Test").ToString(),
                     ["Identity:ApplyMigrations"] =
                         (environment is "Development" or "Test").ToString(),
+                    ["Identity:OrganizationBootstrap:Enabled"] =
+                        (environment is "Development" or "Test").ToString(),
+                    ["Identity:OrganizationBootstrap:CurrentKeyVersion"] = "test-v1",
+                    ["Identity:OrganizationBootstrap:IdempotencyHmacKeys:test-v1"] =
+                        "dGVzdC1vbmx5LWlkZW1wb3RlbmN5LWhtYWMta2V5LTMyaW4=",
                 };
 
                 if (configuration is not null)
@@ -115,7 +128,11 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
 
                 configurationBuilder.AddInMemoryCollection(values);
             });
-            builder.ConfigureServices(services => services.AddSingleton<ILoggerProvider>(Logs));
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<ILoggerProvider>(Logs);
+                configureServices?.Invoke(services, connectionString);
+            });
         }
     }
 }

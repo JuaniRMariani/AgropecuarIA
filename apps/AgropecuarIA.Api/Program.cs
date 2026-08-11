@@ -51,6 +51,7 @@ builder.Services.AddOptions<DevelopmentIdentityProviderOptions>()
 builder.Services.AddSingleton<
     IValidateOptions<DevelopmentIdentityProviderOptions>,
     DevelopmentIdentityProviderOptionsValidator>();
+builder.Services.AddSingleton<DevelopmentIdentityFixtureAllocator>();
 builder.Services.AddAgropecuariaIdentity(builder.Configuration);
 
 OidcProviderOptions oidcConfiguration =

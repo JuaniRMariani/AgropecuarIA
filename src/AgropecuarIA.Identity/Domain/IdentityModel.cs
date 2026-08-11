@@ -468,6 +468,33 @@ public sealed class IdentityOutboxMessage
             JsonSerializer.Serialize(payload, PayloadSerializerOptions));
     }
 
+    public static IdentityOutboxMessage CreateOrganizationCreated(
+        IdentityIntegrationEventEnvelope envelope,
+        OrganizationCreatedIntegrationEventPayload payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        ArgumentNullException.ThrowIfNull(envelope);
+        if (payload.OrganizationId == Guid.Empty || payload.OwnerMembershipId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "The organization and owner membership IDs are required.",
+                nameof(payload));
+        }
+
+        if (payload.OrganizationId != envelope.AggregateId ||
+            payload.CreatedAtUtc != envelope.OccurredAtUtc)
+        {
+            throw new ArgumentException(
+                "The organization payload must match its event envelope.",
+                nameof(payload));
+        }
+
+        return new IdentityOutboxMessage(
+            IdentityIntegrationEventKind.OrganizationCreated,
+            envelope,
+            JsonSerializer.Serialize(payload, PayloadSerializerOptions));
+    }
+
     private static void ValidateUserPayload(
         IdentityIntegrationEventEnvelope envelope,
         Guid userId,

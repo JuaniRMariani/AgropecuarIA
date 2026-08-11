@@ -27,6 +27,17 @@ public sealed record MembershipResult(
     string OrganizationName,
     string Role);
 
+public sealed record CreateOrganizationCommand(string DisplayName, string IdempotencyKey);
+
+public sealed record CreatedOrganizationResult(
+    Guid OrganizationId,
+    string DisplayName,
+    string OrganizationStatus,
+    Guid MembershipId,
+    string MembershipRole,
+    string MembershipStatus,
+    long AuthorizationVersion);
+
 public sealed record IssuedSession(Guid SessionId, Guid UserId, string Token, DateTimeOffset ExpiresAtUtc);
 
 public sealed record AuthenticatedSession(
@@ -127,12 +138,19 @@ public sealed record IdentityRequestContext
 
 public sealed class IdentityOperationException : Exception
 {
-    public IdentityOperationException(string code, int statusCode, string title)
+    public IdentityOperationException(
+        string code,
+        int statusCode,
+        string title,
+        bool retryable = false,
+        int? retryAfterSeconds = null)
         : base(title)
     {
         Code = code;
         StatusCode = statusCode;
         Title = title;
+        Retryable = retryable;
+        RetryAfterSeconds = retryAfterSeconds;
     }
 
     public string Code { get; }
@@ -140,6 +158,10 @@ public sealed class IdentityOperationException : Exception
     public int StatusCode { get; }
 
     public string Title { get; }
+
+    public bool Retryable { get; }
+
+    public int? RetryAfterSeconds { get; }
 }
 
 public static class IdentityErrors
@@ -176,4 +198,35 @@ public static class IdentityErrors
 
     public static IdentityOperationException StrongAuthenticationRequired() =>
         new("identity.strong_authentication_required", 403, "Strong authentication is required.");
+
+    public static IdentityOperationException InvalidOrganizationDisplayName() =>
+        new("identity.invalid_organization_display_name", 400, "The organization display name is invalid.");
+
+    public static IdentityOperationException InvalidIdempotencyKey() =>
+        new("identity.invalid_idempotency_key", 400, "The idempotency key is invalid.");
+
+    public static IdentityOperationException OrganizationCreationUnavailable() =>
+        new("identity.organization_creation_unavailable", 503, "Organization creation is unavailable.");
+
+    public static IdentityOperationException IdempotencyKeyReused() =>
+        new("idempotency.key_reused", 409, "The idempotency key is already bound to another request.");
+
+    public static IdentityOperationException IdempotencyInProgress() =>
+        new(
+            "idempotency.in_progress",
+            409,
+            "The idempotent operation is still in progress.",
+            retryable: true,
+            retryAfterSeconds: 1);
+
+    public static IdentityOperationException IdempotencyFailedTerminal() =>
+        new("idempotency.failed_terminal", 409, "The idempotent operation failed terminally.");
+
+    public static IdentityOperationException ReconciliationRequired() =>
+        new(
+            "idempotency.reconciliation_required",
+            503,
+            "The result could not be determined safely. Retry with the same idempotency key.",
+            retryable: true,
+            retryAfterSeconds: 1);
 }

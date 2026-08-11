@@ -1,3 +1,5 @@
+import { useEffect, useId, useRef } from "react";
+
 import { formatShortId } from "../../lib/format-id";
 
 import type {
@@ -8,6 +10,7 @@ import type {
   IdentityResourceState,
   IdentitySession,
   LinkedIdentity,
+  OrganizationCreationState,
 } from "./identity-types";
 
 type IdentityViewProps = Readonly<{
@@ -21,6 +24,14 @@ type IdentityViewProps = Readonly<{
   onUnlink: (identityId: string) => void;
   onRevoke: () => void;
   onSyntheticSignIn: () => void;
+  organizationDraft: string;
+  organizationFormOpen: boolean;
+  organizationCreation: OrganizationCreationState;
+  onOrganizationDraftChange: (value: string) => void;
+  onStartOrganization: () => void;
+  onCancelOrganization: () => void;
+  onCreateOrganization: () => void;
+  onReauthenticateOrganization: () => void;
 }>;
 
 const CONNECTION_LABELS = {
@@ -272,6 +283,234 @@ function AuthenticationCard({
   );
 }
 
+function OrganizationOnboarding({
+  session,
+  formOpen,
+  draft,
+  creation,
+  onDraftChange,
+  onStart,
+  onCancel,
+  onCreate,
+  onReauthenticate,
+}: Readonly<{
+  session: IdentitySession;
+  formOpen: boolean;
+  draft: string;
+  creation: OrganizationCreationState;
+  onDraftChange: IdentityViewProps["onOrganizationDraftChange"];
+  onStart: IdentityViewProps["onStartOrganization"];
+  onCancel: IdentityViewProps["onCancelOrganization"];
+  onCreate: IdentityViewProps["onCreateOrganization"];
+  onReauthenticate: IdentityViewProps["onReauthenticateOrganization"];
+}>) {
+  const inputId = useId();
+  const helpId = useId();
+  const stateId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const locked =
+    creation.kind === "submitting" ||
+    creation.kind === "in-progress" ||
+    creation.kind === "reconciliation-required";
+  const hasStateMessage =
+    creation.kind !== "idle" && creation.kind !== "submitting";
+
+  useEffect(() => {
+    if (formOpen) {
+      inputRef.current?.focus();
+    }
+  }, [formOpen]);
+
+  useEffect(() => {
+    if (creation.kind === "validation") {
+      inputRef.current?.focus();
+    }
+  }, [creation.kind]);
+
+  const submitLabel =
+    creation.kind === "submitting"
+      ? "Creando organización"
+      : creation.kind === "in-progress"
+        ? "Consultar nuevamente"
+        : creation.kind === "reconciliation-required"
+          ? "Consultar resultado"
+          : creation.kind === "conflict"
+            ? "Iniciar nuevo intento"
+            : creation.kind === "rate-limited" ||
+                creation.kind === "offline" ||
+                creation.kind === "error"
+              ? "Reintentar"
+              : "Crear organización";
+
+  return (
+    <section
+      className="membership-card organization-onboarding"
+      aria-labelledby="memberships-title"
+      aria-busy={creation.kind === "submitting"}
+    >
+      <div className="section-heading">
+        <div>
+          <p className="section-kicker">Organizaciones privadas</p>
+          <h2 id="memberships-title">Tus organizaciones</h2>
+        </div>
+        <span
+          className="count-chip"
+          aria-label={`${session.memberships.length} membresías`}
+        >
+          {session.memberships.length}
+        </span>
+      </div>
+
+      {session.memberships.length === 0 && !formOpen ? (
+        <div className="organization-empty" role="status">
+          <div>
+            <strong>Creá tu primera organización</strong>
+            <p>
+              Va a ser privada. Quedarás como owner y después podrás sumar otras
+              sin mezclar sus datos.
+            </p>
+          </div>
+          <button
+            className="button button--primary"
+            onClick={onStart}
+            type="button"
+          >
+            Crear mi organización
+          </button>
+        </div>
+      ) : null}
+
+      {session.memberships.length > 0 ? (
+        <>
+          <ul className="membership-list">
+            {session.memberships.map((membership) => (
+              <li key={membership.organizationId}>
+                <div>
+                  <strong>{membership.organizationName}</strong>
+                  <span>
+                    Organización {formatShortId(membership.organizationId)}
+                  </span>
+                </div>
+                <span className="role-chip">{membership.role}</span>
+              </li>
+            ))}
+          </ul>
+          {!formOpen ? (
+            <button
+              className="button button--secondary organization-onboarding__new"
+              onClick={onStart}
+              type="button"
+            >
+              Crear otra
+            </button>
+          ) : null}
+        </>
+      ) : null}
+
+      {formOpen ? (
+        <form
+          className="organization-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onCreate();
+          }}
+        >
+          <div className="organization-form__heading">
+            <div>
+              <p className="section-kicker">Nueva organización</p>
+              <h3>¿Cómo querés identificarla?</h3>
+            </div>
+            <span className="privacy-chip">Solo miembros</span>
+          </div>
+          <div className="form-field">
+            <label htmlFor={inputId}>Nombre de la organización</label>
+            <input
+              ref={inputRef}
+              id={inputId}
+              aria-describedby={`${helpId} ${hasStateMessage ? stateId : ""}`.trim()}
+              aria-invalid={creation.kind === "validation"}
+              autoComplete="organization"
+              disabled={locked}
+              maxLength={160}
+              minLength={2}
+              name="displayName"
+              onChange={(event) => onDraftChange(event.currentTarget.value)}
+              required
+              type="text"
+              value={draft}
+            />
+            <small id={helpId}>
+              Entre 2 y 160 caracteres. No tiene que coincidir con un CUIT.
+            </small>
+          </div>
+
+          {hasStateMessage ? (
+            <div
+              id={stateId}
+              className={`organization-state organization-state--${creation.kind}`}
+              role={
+                creation.kind === "in-progress" ||
+                creation.kind === "reconciliation-required"
+                  ? "status"
+                  : "alert"
+              }
+              aria-live={
+                creation.kind === "in-progress" ||
+                creation.kind === "reconciliation-required"
+                  ? "polite"
+                  : "assertive"
+              }
+            >
+              <strong>
+                {creation.kind === "reauthentication-required"
+                  ? "Necesitamos verificarte de nuevo"
+                  : creation.kind === "reconciliation-required"
+                    ? "Resultado pendiente"
+                    : creation.kind === "in-progress"
+                      ? "Creación en curso"
+                      : creation.kind === "offline"
+                        ? "Sin conexión"
+                        : "No pudimos confirmar la creación"}
+              </strong>
+              <p>{creation.message}</p>
+            </div>
+          ) : null}
+
+          <div className="organization-form__actions">
+            {creation.kind === "reauthentication-required" ? (
+              <button
+                className="button button--primary"
+                onClick={onReauthenticate}
+                type="button"
+              >
+                Volver a verificar
+              </button>
+            ) : (
+              <button
+                className="button button--primary"
+                disabled={creation.kind === "submitting"}
+                type="submit"
+              >
+                {creation.kind === "submitting" ? <Spinner /> : null}
+                {submitLabel}
+              </button>
+            )}
+            {!locked ? (
+              <button
+                className="button button--quiet"
+                onClick={onCancel}
+                type="button"
+              >
+                Cancelar
+              </button>
+            ) : null}
+          </div>
+        </form>
+      ) : null}
+    </section>
+  );
+}
+
 function CurrentSession({
   capabilities,
   session,
@@ -280,6 +519,14 @@ function CurrentSession({
   onStepUp,
   onUnlink,
   onRevoke,
+  organizationDraft,
+  organizationFormOpen,
+  organizationCreation,
+  onOrganizationDraftChange,
+  onStartOrganization,
+  onCancelOrganization,
+  onCreateOrganization,
+  onReauthenticateOrganization,
 }: Readonly<{
   capabilities: IdentityCapabilities;
   session: IdentitySession;
@@ -288,6 +535,14 @@ function CurrentSession({
   onStepUp: IdentityViewProps["onStepUp"];
   onUnlink: IdentityViewProps["onUnlink"];
   onRevoke: IdentityViewProps["onRevoke"];
+  organizationDraft: IdentityViewProps["organizationDraft"];
+  organizationFormOpen: IdentityViewProps["organizationFormOpen"];
+  organizationCreation: IdentityViewProps["organizationCreation"];
+  onOrganizationDraftChange: IdentityViewProps["onOrganizationDraftChange"];
+  onStartOrganization: IdentityViewProps["onStartOrganization"];
+  onCancelOrganization: IdentityViewProps["onCancelOrganization"];
+  onCreateOrganization: IdentityViewProps["onCreateOrganization"];
+  onReauthenticateOrganization: IdentityViewProps["onReauthenticateOrganization"];
 }>) {
   const connections = new Set(
     session.identities.map((identity) => identity.connection),
@@ -398,42 +653,17 @@ function CurrentSession({
         ) : null}
       </section>
 
-      <section className="membership-card" aria-labelledby="memberships-title">
-        <div className="section-heading">
-          <div>
-            <p className="section-kicker">Organizaciones</p>
-            <h2 id="memberships-title">Membresías vigentes</h2>
-          </div>
-          <span
-            className="count-chip"
-            aria-label={`${session.memberships.length} membresías`}
-          >
-            {session.memberships.length}
-          </span>
-        </div>
-        {session.memberships.length === 0 ? (
-          <div className="empty-state" role="status">
-            <strong>Todavía no tenés una organización asignada</strong>
-            <p>
-              Tu acceso está activo, pero no habilita datos de ninguna empresa.
-            </p>
-          </div>
-        ) : (
-          <ul className="membership-list">
-            {session.memberships.map((membership) => (
-              <li key={membership.organizationId}>
-                <div>
-                  <strong>{membership.organizationName}</strong>
-                  <span>
-                    Organización {formatShortId(membership.organizationId)}
-                  </span>
-                </div>
-                <span className="role-chip">{membership.role}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <OrganizationOnboarding
+        creation={organizationCreation}
+        draft={organizationDraft}
+        formOpen={organizationFormOpen}
+        onCancel={onCancelOrganization}
+        onCreate={onCreateOrganization}
+        onDraftChange={onOrganizationDraftChange}
+        onStart={onStartOrganization}
+        onReauthenticate={onReauthenticateOrganization}
+        session={session}
+      />
 
       <section className="revoke-card" aria-labelledby="revoke-title">
         <div>
@@ -515,6 +745,14 @@ export function IdentityView({
   onUnlink,
   onRevoke,
   onSyntheticSignIn,
+  organizationDraft,
+  organizationFormOpen,
+  organizationCreation,
+  onOrganizationDraftChange,
+  onStartOrganization,
+  onCancelOrganization,
+  onCreateOrganization,
+  onReauthenticateOrganization,
 }: IdentityViewProps) {
   return (
     <main className="identity-page">
@@ -592,6 +830,14 @@ export function IdentityView({
               onStepUp={onStepUp}
               onRevoke={onRevoke}
               onUnlink={onUnlink}
+              onCancelOrganization={onCancelOrganization}
+              onCreateOrganization={onCreateOrganization}
+              onOrganizationDraftChange={onOrganizationDraftChange}
+              onReauthenticateOrganization={onReauthenticateOrganization}
+              onStartOrganization={onStartOrganization}
+              organizationCreation={organizationCreation}
+              organizationDraft={organizationDraft}
+              organizationFormOpen={organizationFormOpen}
               pendingAction={pendingAction}
               session={resource.session}
             />

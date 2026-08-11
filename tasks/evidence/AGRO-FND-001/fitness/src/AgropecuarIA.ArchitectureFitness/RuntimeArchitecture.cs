@@ -442,9 +442,11 @@ public static class IdentityOpenApiContractGuard
         string text = File.ReadAllText(path);
         var issues = new List<ValidationIssue>();
 
-        if (!ContainsIndentedValue(text, "info:", "  version: 1.0.0"))
+        if (!HasSupportedMajorVersion(text))
         {
-            issues.Add(new ValidationIssue("identity-openapi.version.invalid", "Identity OpenAPI version must be 1.0.0."));
+            issues.Add(new ValidationIssue(
+                "identity-openapi.version.invalid",
+                "Identity OpenAPI version must be a semantic 1.x version."));
         }
 
         string problemSection = ExtractIndentedSection(text, "    Problem:", 4);
@@ -463,13 +465,40 @@ public static class IdentityOpenApiContractGuard
                 "RateLimited response must use application/problem+json."));
         }
 
+        string developmentFixtureSection = ExtractIndentedSection(text, "    DevelopmentFixture:", 4);
+        string[] syntheticProfiles =
+        [
+            "email-owner-1",
+            "email-owner-2",
+            "email-owner-3",
+            "email-owner-4",
+            "google-owner-1",
+            "google-owner-2",
+            "google-owner-3",
+            "google-owner-4",
+        ];
+        if (syntheticProfiles.Any(profile =>
+                !developmentFixtureSection.SplitLines().Any(line =>
+                    string.Equals(line.Trim(), $"- {profile}", StringComparison.Ordinal))))
+        {
+            issues.Add(new ValidationIssue(
+                "identity-openapi.development-fixtures.incomplete",
+                "DevelopmentFixture must enumerate every bounded synthetic identity profile."));
+        }
+
         return issues;
     }
 
-    private static bool ContainsIndentedValue(string text, string sectionHeader, string expectedLine)
+    private static bool HasSupportedMajorVersion(string text)
     {
-        int start = text.IndexOf(sectionHeader, StringComparison.Ordinal);
-        return start >= 0 && text[start..].SplitLines().Take(8).Contains(expectedLine, StringComparer.Ordinal);
+        int start = text.IndexOf("info:", StringComparison.Ordinal);
+        string? versionLine = start < 0
+            ? null
+            : text[start..].SplitLines().Take(8)
+                .SingleOrDefault(line => line.StartsWith("  version: ", StringComparison.Ordinal));
+        return versionLine is not null &&
+            Version.TryParse(versionLine["  version: ".Length..], out Version? version) &&
+            version.Major == 1;
     }
 
     private static string ExtractIndentedSection(string text, string header, int indentation)

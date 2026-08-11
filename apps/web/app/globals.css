@@ -661,6 +661,130 @@ input:focus-visible {
   background: #f5e8c7;
 }
 
+.organization-onboarding {
+  display: grid;
+  gap: 16px;
+  overflow: clip;
+}
+
+.organization-onboarding .section-heading {
+  margin-bottom: 0;
+}
+
+.organization-empty {
+  display: grid;
+  padding: 20px;
+  gap: 18px;
+  border: 1px dashed #91a692;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, #f1f6ec, #fffaf0);
+}
+
+.organization-empty p,
+.organization-state p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.organization-onboarding__new {
+  width: fit-content;
+}
+
+.organization-form {
+  display: grid;
+  padding: 20px;
+  gap: 18px;
+  border: 1px solid #9ab39d;
+  border-radius: var(--radius-sm);
+  background: #f7faf3;
+}
+
+.organization-form__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.organization-form__heading h3 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.22rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.privacy-chip {
+  display: inline-flex;
+  padding: 6px 9px;
+  flex: none;
+  border-radius: 999px;
+  color: #205d3a;
+  background: #e3f1e4;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.form-field {
+  display: grid;
+  gap: 7px;
+}
+
+.form-field label {
+  font-size: 0.84rem;
+  font-weight: 760;
+}
+
+.form-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 13px;
+  border: 1px solid #9da99a;
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: white;
+}
+
+.form-field input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.form-field input:disabled {
+  color: #4f5b51;
+  background: #edf0e8;
+}
+
+.form-field small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.organization-state {
+  padding: 13px 14px;
+  border: 1px solid #dec38b;
+  border-radius: var(--radius-sm);
+  color: #65450f;
+  background: #fff8e8;
+}
+
+.organization-state--reauthentication-required,
+.organization-state--reconciliation-required,
+.organization-state--error,
+.organization-state--offline {
+  color: #7a2922;
+  border-color: #dfb9b3;
+  background: #fff4f1;
+}
+
+.organization-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .revoke-card {
   align-items: flex-start;
 }
@@ -730,6 +854,11 @@ input:focus-visible {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
   }
+
+  .organization-empty {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
 }
 
 @media (min-width: 1080px) {
@@ -775,8 +904,20 @@ input:focus-visible {
   .identity-row .button,
   .assurance-card__action,
   .revoke-card .button,
-  .link-actions .button {
+  .link-actions .button,
+  .organization-empty .button,
+  .organization-onboarding__new,
+  .organization-form__actions .button {
     width: 100%;
+  }
+
+  .organization-form__heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .privacy-chip {
+    width: fit-content;
   }
 }
 

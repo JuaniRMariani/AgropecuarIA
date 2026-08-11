@@ -12,7 +12,8 @@ export default defineConfig({
   webServer: {
     command: "pnpm dev",
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer:
+      process.env.AGRO_E2E_REUSE_SERVER !== "false" && !process.env.CI,
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },

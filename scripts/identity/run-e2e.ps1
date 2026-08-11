@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$PostgreSqlBin = $env:AGRO_IDENTITY_POSTGRES_BIN,
+    [ValidateRange(1, 65535)]
     [int]$ApiPort = 5080
 )
 
@@ -10,6 +11,7 @@ $tempRoot = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetTempPath()) 'Agrope
 $runDirectory = [IO.Path]::GetFullPath((Join-Path $tempRoot ([Guid]::NewGuid().ToString('N'))))
 $dataDirectory = [IO.Path]::GetFullPath((Join-Path $runDirectory 'data'))
 $logDirectory = [IO.Path]::GetFullPath((Join-Path $runDirectory 'logs'))
+$passwordPath = [IO.Path]::GetFullPath((Join-Path $runDirectory 'postgres.pwfile'))
 $apiProcess = $null
 $clusterStarted = $false
 $previousEnvironment = @{
@@ -19,13 +21,22 @@ $previousEnvironment = @{
     AGRO_API_ORIGIN = $env:AGRO_API_ORIGIN
     Identity__ApplyMigrations = $env:Identity__ApplyMigrations
     Identity__DevelopmentProvider__Enabled = $env:Identity__DevelopmentProvider__Enabled
+    Identity__DevelopmentProvider__SyntheticProfileCount = $env:Identity__DevelopmentProvider__SyntheticProfileCount
     Identity__StrongAuthentication__Enabled = $env:Identity__StrongAuthentication__Enabled
+    Identity__OrganizationBootstrap__Enabled = $env:Identity__OrganizationBootstrap__Enabled
+    Identity__OrganizationBootstrap__CurrentKeyVersion = $env:Identity__OrganizationBootstrap__CurrentKeyVersion
+    Identity__OrganizationBootstrap__IdempotencyHmacKeys__e2e_v1 = $env:Identity__OrganizationBootstrap__IdempotencyHmacKeys__e2e_v1
+    AGRO_E2E_REUSE_SERVER = $env:AGRO_E2E_REUSE_SERVER
+    PGPASSWORD = $env:PGPASSWORD
 }
 
 function Resolve-PostgreSqlBin {
     param([string]$ConfiguredPath)
 
-    if ($ConfiguredPath -and (Test-Path -LiteralPath (Join-Path $ConfiguredPath 'initdb.exe'))) {
+    if ($ConfiguredPath -and
+        @('initdb.exe', 'pg_ctl.exe', 'psql.exe').Where({
+            -not (Test-Path -LiteralPath (Join-Path $ConfiguredPath $_))
+        }).Count -eq 0) {
         return [IO.Path]::GetFullPath($ConfiguredPath)
     }
 
@@ -34,7 +45,12 @@ function Resolve-PostgreSqlBin {
         $candidate = Get-ChildItem -LiteralPath $installationRoot -Directory |
             Sort-Object Name -Descending |
             ForEach-Object { Join-Path $_.FullName 'bin' } |
-            Where-Object { Test-Path -LiteralPath (Join-Path $_ 'initdb.exe') } |
+            Where-Object {
+                $path = $_
+                @('initdb.exe', 'pg_ctl.exe', 'psql.exe').Where({
+                    -not (Test-Path -LiteralPath (Join-Path $path $_))
+                }).Count -eq 0
+            } |
             Select-Object -First 1
         if ($candidate) {
             return [IO.Path]::GetFullPath($candidate)
@@ -56,18 +72,118 @@ function Test-HttpReady {
     }
 }
 
+function Assert-TcpPortAvailable {
+    param([int]$Port)
+
+    $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $Port)
+    $listener.Server.ExclusiveAddressUse = $true
+    try {
+        $listener.Start()
+    }
+    catch {
+        throw "Identity API port $Port is already in use; refusing to reuse an unrelated server."
+    }
+    finally {
+        $listener.Stop()
+    }
+}
+
+function New-EphemeralSecret {
+    $bytes = New-Object byte[] 32
+    $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $generator.GetBytes($bytes)
+        return [Convert]::ToBase64String($bytes)
+    }
+    finally {
+        [Array]::Clear($bytes, 0, $bytes.Length)
+        $generator.Dispose()
+    }
+}
+
+function Set-OwnerOnlyAcl {
+    param([string]$Path)
+
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent().User
+    $item = Get-Item -LiteralPath $Path
+    if ($item.PSIsContainer) {
+        $acl = [Security.AccessControl.DirectorySecurity]::new()
+        $inheritance = [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+            [Security.AccessControl.InheritanceFlags]::ObjectInherit
+        $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+            $currentUser,
+            [Security.AccessControl.FileSystemRights]::FullControl,
+            $inheritance,
+            [Security.AccessControl.PropagationFlags]::None,
+            [Security.AccessControl.AccessControlType]::Allow)
+    }
+    else {
+        $acl = [Security.AccessControl.FileSecurity]::new()
+        $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+            $currentUser,
+            [Security.AccessControl.FileSystemRights]::FullControl,
+            [Security.AccessControl.AccessControlType]::Allow)
+    }
+
+    $acl.SetOwner($currentUser)
+    $acl.SetAccessRuleProtection($true, $false)
+    [void]$acl.AddAccessRule($rule)
+    Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
+function Test-PasswordlessPostgreSqlRejected {
+    param(
+        [string]$Executable,
+        [int]$Port
+    )
+
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'SilentlyContinue'
+        Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+        & $Executable --host=127.0.0.1 --port=$Port --username=postgres `
+            --dbname=postgres --no-password --command='select 1' 1>$null 2>$null
+        return $LASTEXITCODE -ne 0
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+}
+
 try {
+    Assert-TcpPortAvailable -Port $ApiPort
     $postgresBin = Resolve-PostgreSqlBin -ConfiguredPath $PostgreSqlBin
     New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
+    Set-OwnerOnlyAcl -Path $runDirectory
+
+    $postgresPassword = New-EphemeralSecret
+    $idempotencyHmacKey = New-EphemeralSecret
+    if ($postgresPassword -eq $idempotencyHmacKey) {
+        throw 'Cryptographic secret generation produced a duplicate value.'
+    }
 
     & dotnet build (Join-Path $repoRoot 'AgropecuarIA.slnx') -c Release --nologo
     if ($LASTEXITCODE -ne 0) {
         throw "Release build failed with exit code $LASTEXITCODE."
     }
 
-    & (Join-Path $postgresBin 'initdb.exe') -D $dataDirectory -A trust -U postgres --encoding=UTF8 --no-locale
+    [IO.File]::WriteAllText(
+        $passwordPath,
+        $postgresPassword,
+        [Text.UTF8Encoding]::new($false))
+    Set-OwnerOnlyAcl -Path $passwordPath
+
+    & (Join-Path $postgresBin 'initdb.exe') --pgdata=$dataDirectory `
+        --username=postgres --auth-local=scram-sha-256 --auth-host=scram-sha-256 `
+        --pwfile=$passwordPath --encoding=UTF8 --no-locale
     if ($LASTEXITCODE -ne 0) {
         throw "initdb failed with exit code $LASTEXITCODE."
+    }
+    Remove-Item -LiteralPath $passwordPath -Force
+
+    $hbaPath = Join-Path $dataDirectory 'pg_hba.conf'
+    if (Select-String -LiteralPath $hbaPath -Pattern '^\s*(local|host)\s+.*\strust\s*$' -Quiet) {
+        throw 'Ephemeral PostgreSQL pg_hba.conf contains a trust authentication rule.'
     }
 
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
@@ -81,13 +197,24 @@ try {
     }
     $clusterStarted = $true
 
+    if (-not (Test-PasswordlessPostgreSqlRejected `
+        -Executable (Join-Path $postgresBin 'psql.exe') `
+        -Port $postgresPort)) {
+        throw 'Passwordless PostgreSQL authentication unexpectedly succeeded.'
+    }
+
     $env:ASPNETCORE_ENVIRONMENT = 'Test'
     $env:ASPNETCORE_URLS = "http://127.0.0.1:$ApiPort"
-    $env:ConnectionStrings__Identity = "Host=127.0.0.1;Port=$postgresPort;Database=postgres;Username=postgres;Pooling=false"
+    $env:ConnectionStrings__Identity = "Host=127.0.0.1;Port=$postgresPort;Database=postgres;Username=postgres;Password=$postgresPassword;Pooling=false"
     $env:AGRO_API_ORIGIN = "http://127.0.0.1:$ApiPort"
     $env:Identity__ApplyMigrations = 'true'
     $env:Identity__DevelopmentProvider__Enabled = 'true'
+    $env:Identity__DevelopmentProvider__SyntheticProfileCount = '4'
     $env:Identity__StrongAuthentication__Enabled = 'true'
+    $env:Identity__OrganizationBootstrap__Enabled = 'true'
+    $env:Identity__OrganizationBootstrap__CurrentKeyVersion = 'e2e_v1'
+    $env:Identity__OrganizationBootstrap__IdempotencyHmacKeys__e2e_v1 = $idempotencyHmacKey
+    $env:AGRO_E2E_REUSE_SERVER = 'false'
 
     $apiProcess = Start-Process dotnet -ArgumentList @(
         'run',
@@ -131,8 +258,13 @@ finally {
         $apiProcess.WaitForExit()
     }
 
-    if ($clusterStarted) {
+    if ($postgresBin -and
+        ($clusterStarted -or (Test-Path -LiteralPath (Join-Path $dataDirectory 'postmaster.pid')))) {
         & (Join-Path $postgresBin 'pg_ctl.exe') stop -D $dataDirectory -m fast -w | Out-Null
+    }
+
+    if (Test-Path -LiteralPath $passwordPath) {
+        Remove-Item -LiteralPath $passwordPath -Force
     }
 
     foreach ($entry in $previousEnvironment.GetEnumerator()) {
@@ -151,4 +283,7 @@ finally {
         }
         Remove-Item -LiteralPath $resolvedRunDirectory -Recurse -Force
     }
+
+    $postgresPassword = $null
+    $idempotencyHmacKey = $null
 }

@@ -353,7 +353,8 @@ public sealed class StepUpApplicationIntegrationTests
                 new IdentityTokenService(),
                 new IdentityTelemetry(services.GetRequiredService<IMeterFactory>()),
                 timeProvider,
-                Options.Create(new IdentityRuntimeOptions()));
+                Options.Create(new IdentityRuntimeOptions()),
+                Options.Create(new OrganizationBootstrapOptions()));
             return new StepUpServiceScenario(
                 postgresql,
                 connectionString,

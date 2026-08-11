@@ -59,3 +59,19 @@ Riesgos residuales no bloqueantes para este gate, pero bloqueantes para la DoD:
 - roles y reglas de `CreateOrganization` pertenecen a `AGRO-ID-003` y no se inventaron aquí.
 
 La siguiente tarea recomendada es `AGRO-ID-003`, mediante una instrucción independiente. No fue iniciada en este incremento.
+
+## Refresh del primer producer — 2026-08-10
+
+`AGRO-ID-003/CreateOrganization` quedó integrado localmente como primer producer del protocolo. `firstConsumer.status=integrated_local` e `implemented=true`; `runtimeImplemented=false` se conserva porque dispatcher, inbox, delivery at-least-once, poison y conciliación operativa todavía no existen.
+
+Evidencia nueva:
+
+- autorización y reautorización antes de alias/ledger/replay;
+- HMAC multiversión con cobertura global fail-closed, lazy aliases, split a conciliación y prueba v1 → v1+v2 → v2-only;
+- organization + owner + ledger + journal + outbox en una transacción, con rollback inyectado;
+- estados mismatch/in-progress/failed-terminal/response-expired cerrados;
+- migración expand, writer N-1, app rollback y roll-forward;
+- roles mínimos, grants por columna, `SET LOCAL`, `FORCE RLS` y negativos A/B/sin contexto/pool/job;
+- telemetría allow-listed y frontend/E2E idempotentes.
+
+Gate actualizado: `validate-foundation-protocol.ps1 -SelfTest` PASS 45/45; suite raíz 142/142; Vitest 50/50; Playwright 4/4. La tarea padre permanece `En curso` por el tramo delivery/consumer y retención productiva.

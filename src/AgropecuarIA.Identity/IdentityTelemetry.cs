@@ -27,23 +27,43 @@ public sealed class IdentityTelemetry
         return activity;
     }
 
+    public void RecordOrganizationCreate(string outcome) =>
+        Record(
+            "organization_create",
+            outcome switch
+            {
+                "succeeded" or
+                "replayed" or
+                "unavailable" or
+                "reauthentication_required" or
+                "conflict" or
+                "in_progress" or
+                "failed_terminal" or
+                "reconciliation_required" => outcome,
+                _ => "other",
+            });
+
     public void Record(
         string operation,
         string outcome,
         string? connection = null,
         string? purpose = null)
     {
+        string boundedOperation = BoundOperation(operation);
+        string boundedOutcome = BoundOutcome(outcome);
         TagList tags = new()
         {
             { "contract.version", ContractVersion },
             { "contract.consumer", ContractConsumer },
-            { "identity.operation", operation },
-            { "identity.outcome", outcome },
+            { "identity.operation", boundedOperation },
+            { "identity.outcome", boundedOutcome },
         };
 
         if (connection is not null)
         {
-            tags.Add("identity.connection", connection);
+            tags.Add(
+                "identity.connection",
+                IdentityConnections.IsSupported(connection) ? connection : "other");
         }
 
         if (purpose is not null && StepUpPurposes.IsSupported(purpose))
@@ -53,4 +73,33 @@ public sealed class IdentityTelemetry
 
         operations.Add(1, tags);
     }
+
+    private static string BoundOperation(string operation) => operation switch
+    {
+        "sign_in" or
+        "step_up_started" or
+        "step_up_validated" or
+        "link_started" or
+        "link_proof_attached" or
+        "identity_linked" or
+        "identity_unlinked" or
+        "step_up_completed" or
+        "organization_create" or
+        "session_revoked" => operation,
+        _ => "other",
+    };
+
+    private static string BoundOutcome(string outcome) => outcome switch
+    {
+        "succeeded" or
+        "rejected" or
+        "conflict" or
+        "unavailable" or
+        "replayed" or
+        "in_progress" or
+        "failed_terminal" or
+        "reconciliation_required" or
+        "reauthentication_required" => outcome,
+        _ => "other",
+    };
 }

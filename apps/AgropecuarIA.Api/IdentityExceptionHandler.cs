@@ -1,5 +1,6 @@
 using AgropecuarIA.Identity;
 using AgropecuarIA.Identity.Application;
+using System.Globalization;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -28,16 +29,21 @@ public sealed class IdentityExceptionHandler(
         Exception exception,
         CancellationToken cancellationToken)
     {
-        (int statusCode, string title, string code) = exception switch
+        (int statusCode, string title, string code, bool retryable, int? retryAfterSeconds) = exception switch
         {
             IdentityOperationException identityException =>
-                (identityException.StatusCode, identityException.Title, identityException.Code),
+                (
+                    identityException.StatusCode,
+                    identityException.Title,
+                    identityException.Code,
+                    identityException.Retryable,
+                    identityException.RetryAfterSeconds),
             AntiforgeryValidationException =>
-                (StatusCodes.Status400BadRequest, "The antiforgery token is invalid.", "request.invalid_antiforgery"),
+                (StatusCodes.Status400BadRequest, "The antiforgery token is invalid.", "request.invalid_antiforgery", false, null),
             BadHttpRequestException =>
-                (StatusCodes.Status400BadRequest, "The request body is invalid.", "request.invalid_body"),
+                (StatusCodes.Status400BadRequest, "The request body is invalid.", "request.invalid_body", false, null),
             _ =>
-                (StatusCodes.Status500InternalServerError, "An unexpected error occurred.", "server.unexpected"),
+                (StatusCodes.Status500InternalServerError, "An unexpected error occurred.", "server.unexpected", false, null),
         };
 
         if (statusCode >= StatusCodes.Status500InternalServerError)
@@ -51,6 +57,12 @@ public sealed class IdentityExceptionHandler(
         }
 
         httpContext.Response.StatusCode = statusCode;
+        if (retryAfterSeconds is not null)
+        {
+            httpContext.Response.Headers.RetryAfter = retryAfterSeconds.Value.ToString(
+                CultureInfo.InvariantCulture);
+        }
+
         ProblemDetails problem = new()
         {
             Status = statusCode,
@@ -59,6 +71,10 @@ public sealed class IdentityExceptionHandler(
         };
         problem.Extensions["code"] = code;
         problem.Extensions["correlationId"] = httpContext.TraceIdentifier;
+        if (retryable)
+        {
+            problem.Extensions["retryable"] = true;
+        }
 
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {

@@ -81,7 +81,7 @@ Los jobs siguen el mismo orden y ligan además `principal_kind`, capacidad y cor
 
 ## Contrato de `Idempotency-Key`
 
-- Es obligatorio en las mutaciones declaradas idempotentes y corresponde a un único valor `sf-string` según [RFC 9651](https://www.rfc-editor.org/rfc/rfc9651.html). Lista, duplicado, valor vacío o sintaxis ambigua se rechazan en el borde.
+- Es obligatorio en las mutaciones declaradas idempotentes y corresponde a un único valor opaco de 16–128 caracteres ASCII visibles (`0x21`–`0x7E`). Lista, duplicado, valor vacío, caracteres fuera de ese rango o sintaxis ambigua se rechazan en el borde. Este contrato propio no adopta la serialización `sf-string` de RFC 9651.
 - El valor decodificado tiene entre 16 y 128 caracteres ASCII visibles (`0x21`–`0x7E`). El cliente lo genera aleatoriamente con al menos 128 bits de entropía.
 - Es opaco. No se deriva de UUID de negocio, tenant, actor, CUIT, timestamp, ruta ni texto humano.
 - La key cruda solo vive durante el request. No se persiste, no se propaga en eventos y no aparece en journal, traces, logs, errores o labels.
@@ -325,7 +325,7 @@ La DoD de `AGRO-FND-002` requiere evidencia reproducible, como mínimo, de:
 ## Fuentes primarias y trazabilidad
 
 - [IETF Datatracker — draft-ietf-httpapi-idempotency-key-header-07](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/07/): Internet-Draft expirado y archivado; antecedente no normativo.
-- [RFC 9651 — Structured Field Values for HTTP](https://www.rfc-editor.org/rfc/rfc9651.html): sintaxis estable para un valor string del header.
+- [RFC 9651 — Structured Field Values for HTTP](https://www.rfc-editor.org/rfc/rfc9651.html): antecedente técnico no normativo; AgropecuarIA no adopta `sf-string` para este header.
 - [RFC 8785 — JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785.html): alternativa de serialización JSON determinística, subordinada al command tipado.
 - [RFC 9110 — Retry-After](https://www.rfc-editor.org/rfc/rfc9110.html#name-retry-after): semántica del header de espera.
 - [EF Core — Transactions](https://learn.microsoft.com/ef/core/saving/transactions): atomicidad, transacciones explícitas y savepoints.

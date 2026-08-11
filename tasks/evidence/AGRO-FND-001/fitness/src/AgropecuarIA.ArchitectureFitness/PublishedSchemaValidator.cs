@@ -12,6 +12,7 @@ public static class PublishedSchemaValidator
         "event-envelope.v1.schema.json",
         "identity-linked.v1.schema.json",
         "identity-step-up-completed.v1.schema.json",
+        "organization-created.v1.schema.json",
         "problem-details.v1.schema.json",
         "request-scope.v1.schema.json",
     };
@@ -124,6 +125,13 @@ public static class PublishedSchemaValidator
                 ValidateStringProperty(root, fileName, "sessionId", "uuid", issues);
                 ValidateStringProperty(root, fileName, "purpose", null, issues);
                 ValidateStringProperty(root, fileName, "completedAtUtc", "date-time", issues);
+                break;
+            case "organization-created.v1.schema.json":
+                ValidateClosedObject(root, fileName, ["organizationId", "ownerMembershipId", "createdAtUtc"], issues);
+                ValidateExactProperties(root, fileName, ["organizationId", "ownerMembershipId", "createdAtUtc"], issues);
+                ValidateStringProperty(root, fileName, "organizationId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "ownerMembershipId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "createdAtUtc", "date-time", issues);
                 break;
             default:
                 Add(issues, "schema.unregistered", $"Schema '{fileName}' is not registered.");

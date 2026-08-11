@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.local/contracts/identity/organization-created.v1.schema.json",
+  "title": "OrganizationCreated v1 payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "organizationId",
+    "ownerMembershipId",
+    "createdAtUtc"
+  ],
+  "properties": {
+    "organizationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "ownerMembershipId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "createdAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

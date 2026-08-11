@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   completeDevelopmentStepUp,
   completeDevelopmentLink,
+  createOrganization,
   developmentSignIn,
   identityLoginUrl,
   IdentityApiError,
@@ -22,9 +23,79 @@ import type {
   IdentityConnection,
   IdentityNotice,
   IdentityResourceState,
+  OrganizationCreationState,
 } from "./identity-types";
 import { NO_IDENTITY_NOTICE } from "./identity-types";
 import { IdentityView } from "./identity-view";
+
+const ORGANIZATION_REAUTH_STATE_KEY =
+  "agropecuaria.identity.organization-reauth.v1";
+const ORGANIZATION_ATTEMPT_KEY_PATTERN = /^[0-9a-f]{32}$/;
+
+type StoredOrganizationAttempt = Readonly<{
+  draft: string;
+  idempotencyKey: string;
+}>;
+
+export function createOrganizationIdempotencyKey(): string {
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
+}
+
+function isStoredOrganizationAttempt(
+  value: unknown,
+): value is StoredOrganizationAttempt {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "draft" in value &&
+    typeof value.draft === "string" &&
+    value.draft.length <= 320 &&
+    normalizedOrganizationName(value.draft) !== null &&
+    "idempotencyKey" in value &&
+    typeof value.idempotencyKey === "string" &&
+    ORGANIZATION_ATTEMPT_KEY_PATTERN.test(value.idempotencyKey)
+  );
+}
+
+function takeStoredOrganizationAttempt(): StoredOrganizationAttempt | null {
+  try {
+    const serialized = globalThis.sessionStorage.getItem(
+      ORGANIZATION_REAUTH_STATE_KEY,
+    );
+    globalThis.sessionStorage.removeItem(ORGANIZATION_REAUTH_STATE_KEY);
+    if (serialized === null) {
+      return null;
+    }
+    const value: unknown = JSON.parse(serialized);
+    return isStoredOrganizationAttempt(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeOrganizationAttemptForReauthentication(
+  attempt: StoredOrganizationAttempt,
+): void {
+  try {
+    globalThis.sessionStorage.setItem(
+      ORGANIZATION_REAUTH_STATE_KEY,
+      JSON.stringify(attempt),
+    );
+  } catch {
+    // Reauthentication remains available when browser storage is disabled.
+  }
+}
+
+function clearStoredOrganizationAttempt(): void {
+  try {
+    globalThis.sessionStorage.removeItem(ORGANIZATION_REAUTH_STATE_KEY);
+  } catch {
+    // Browser storage is optional; the in-memory attempt remains authoritative.
+  }
+}
 
 function isAbort(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
@@ -69,6 +140,77 @@ function developmentProviderAvailable(
     (capabilities.environment === "Development" ||
       capabilities.environment === "Test")
   );
+}
+
+function organizationFailureState(error: unknown): OrganizationCreationState {
+  if (error instanceof IdentityApiError) {
+    switch (error.kind) {
+      case "validation":
+        return {
+          kind: "validation",
+          message: "Revisá el nombre. Debe tener entre 2 y 160 caracteres.",
+        };
+      case "signed-out":
+      case "revoked":
+      case "reauthentication-required":
+        return {
+          kind: "reauthentication-required",
+          message:
+            "Volvé a verificar tu identidad. Conservamos el nombre para que puedas continuar.",
+        };
+      case "in-progress":
+        return {
+          kind: "in-progress",
+          message:
+            "La creación sigue en proceso. Consultá nuevamente con este mismo intento.",
+        };
+      case "conflict":
+      case "replay":
+        return {
+          kind: "conflict",
+          message:
+            "Ese intento ya no coincide con el nombre. Iniciá uno nuevo sin perder lo escrito.",
+        };
+      case "reconciliation-required":
+        return {
+          kind: "reconciliation-required",
+          message:
+            "No podemos confirmar todavía el resultado. Consultá nuevamente; no crees otra organización.",
+        };
+      case "rate-limited":
+        return {
+          kind: "rate-limited",
+          message:
+            "Hay demasiados intentos. Esperá un momento y reintentá sin cambiar el nombre.",
+        };
+      case "provider-down":
+      case "error":
+        return {
+          kind: "error",
+          message:
+            "No pudimos crear la organización. El intento se conserva para reintentar de forma segura.",
+        };
+    }
+  }
+
+  if (error instanceof TypeError && !window.navigator.onLine) {
+    return {
+      kind: "offline",
+      message:
+        "Estás sin conexión. No confirmamos cambios; reintentá con el mismo nombre cuando vuelva la red.",
+    };
+  }
+
+  return {
+    kind: "error",
+    message:
+      "No pudimos crear la organización. El intento se conserva para reintentar de forma segura.",
+  };
+}
+
+function normalizedOrganizationName(value: string): string | null {
+  const normalized = value.normalize("NFC").trim();
+  return normalized.length >= 2 && normalized.length <= 160 ? normalized : null;
 }
 
 async function fetchIdentityResource(
@@ -124,6 +266,11 @@ export function IdentityHub() {
   const [pendingAction, setPendingAction] = useState<IdentityAction | null>(
     null,
   );
+  const [organizationDraft, setOrganizationDraft] = useState("");
+  const [organizationFormOpen, setOrganizationFormOpen] = useState(false);
+  const [organizationCreation, setOrganizationCreation] =
+    useState<OrganizationCreationState>({ kind: "idle" });
+  const organizationAttemptKey = useRef<string | null>(null);
   const mounted = useRef(true);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
@@ -145,6 +292,15 @@ export function IdentityHub() {
     void fetchIdentityResource(controller.signal)
       .then((nextResource) => {
         if (mounted.current) {
+          if (nextResource.kind === "authenticated") {
+            const storedAttempt = takeStoredOrganizationAttempt();
+            if (storedAttempt !== null) {
+              organizationAttemptKey.current = storedAttempt.idempotencyKey;
+              setOrganizationDraft(storedAttempt.draft);
+              setOrganizationFormOpen(true);
+              setOrganizationCreation({ kind: "idle" });
+            }
+          }
           setResource(nextResource);
         }
       })
@@ -357,9 +513,133 @@ export function IdentityHub() {
     }
   }, [resource]);
 
+  const handleOrganizationDraftChange = useCallback(
+    (value: string) => {
+      if (
+        organizationCreation.kind === "submitting" ||
+        organizationCreation.kind === "in-progress" ||
+        organizationCreation.kind === "reconciliation-required"
+      ) {
+        return;
+      }
+      clearStoredOrganizationAttempt();
+      organizationAttemptKey.current = null;
+      setOrganizationDraft(value);
+      setOrganizationCreation({ kind: "idle" });
+    },
+    [organizationCreation.kind],
+  );
+
+  const handleCreateOrganization = useCallback(async () => {
+    if (
+      resource.kind !== "authenticated" ||
+      organizationCreation.kind === "submitting"
+    ) {
+      return;
+    }
+
+    const displayName = normalizedOrganizationName(organizationDraft);
+    if (displayName === null) {
+      setOrganizationCreation({
+        kind: "validation",
+        message: "Ingresá un nombre de entre 2 y 160 caracteres.",
+      });
+      return;
+    }
+
+    const idempotencyKey =
+      organizationAttemptKey.current ?? createOrganizationIdempotencyKey();
+    organizationAttemptKey.current = idempotencyKey;
+    setOrganizationCreation({ kind: "submitting" });
+
+    try {
+      const created = await createOrganization(displayName, idempotencyKey);
+      if (!mounted.current) {
+        return;
+      }
+      setResource((current) => {
+        if (current.kind !== "authenticated") {
+          return current;
+        }
+        const organizationId = created.organization.organizationId;
+        const alreadyListed = current.session.memberships.some(
+          (membership) => membership.organizationId === organizationId,
+        );
+        const memberships = alreadyListed
+          ? current.session.memberships
+          : [
+              ...current.session.memberships,
+              {
+                organizationId,
+                organizationName: created.organization.displayName,
+                role: created.membership.role,
+              },
+            ];
+        return {
+          kind: "authenticated",
+          capabilities: current.capabilities,
+          session: { ...current.session, memberships },
+        };
+      });
+      organizationAttemptKey.current = null;
+      clearStoredOrganizationAttempt();
+      setOrganizationDraft("");
+      setOrganizationFormOpen(false);
+      setOrganizationCreation({ kind: "idle" });
+      setNotice({
+        kind: "success",
+        message: `${created.organization.displayName} ya está lista y sos owner.`,
+      });
+    } catch (error) {
+      if (!isAbort(error) && mounted.current) {
+        const failure = organizationFailureState(error);
+        if (failure.kind === "conflict") {
+          organizationAttemptKey.current = null;
+        }
+        setOrganizationCreation(failure);
+      }
+    }
+  }, [organizationCreation.kind, organizationDraft, resource.kind]);
+
+  const handleStartOrganization = useCallback(() => {
+    clearStoredOrganizationAttempt();
+    organizationAttemptKey.current = null;
+    setOrganizationDraft("");
+    setOrganizationCreation({ kind: "idle" });
+    setOrganizationFormOpen(true);
+  }, []);
+
+  const handleCancelOrganization = useCallback(() => {
+    if (
+      organizationCreation.kind === "submitting" ||
+      organizationCreation.kind === "in-progress" ||
+      organizationCreation.kind === "reconciliation-required"
+    ) {
+      return;
+    }
+    clearStoredOrganizationAttempt();
+    organizationAttemptKey.current = null;
+    setOrganizationDraft("");
+    setOrganizationCreation({ kind: "idle" });
+    setOrganizationFormOpen(false);
+  }, [organizationCreation.kind]);
+
+  const handleReauthenticateOrganization = useCallback(() => {
+    const idempotencyKey = organizationAttemptKey.current;
+    if (idempotencyKey !== null) {
+      storeOrganizationAttemptForReauthentication({
+        draft: organizationDraft,
+        idempotencyKey,
+      });
+    }
+    handleLogin("email");
+  }, [handleLogin, organizationDraft]);
+
   return (
     <IdentityView
       notice={notice}
+      onCancelOrganization={handleCancelOrganization}
+      onCreateOrganization={() => void handleCreateOrganization()}
       onLink={(connection) => void handleLink(connection)}
       onLogin={handleLogin}
       onStepUp={() => void handleStepUp()}
@@ -369,8 +649,14 @@ export function IdentityHub() {
         void refresh();
       }}
       onRevoke={() => void handleRevoke()}
+      onStartOrganization={handleStartOrganization}
       onSyntheticSignIn={() => void handleSyntheticSignIn()}
       onUnlink={(identityId) => void handleUnlink(identityId)}
+      onOrganizationDraftChange={handleOrganizationDraftChange}
+      onReauthenticateOrganization={handleReauthenticateOrganization}
+      organizationCreation={organizationCreation}
+      organizationDraft={organizationDraft}
+      organizationFormOpen={organizationFormOpen}
       pendingAction={pendingAction}
       resource={resource}
     />

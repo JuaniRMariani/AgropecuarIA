@@ -30,12 +30,23 @@ public static class IdentityServiceCollectionExtensions
                 "Identity runtime durations must be positive.")
             .ValidateOnStart();
 
+        services.AddOptions<OrganizationBootstrapOptions>()
+            .Bind(configuration.GetSection(OrganizationBootstrapOptions.SectionName))
+            .Validate(
+                IsValidOrganizationBootstrap,
+                "Enabled organization bootstrap requires a current idempotency HMAC key and a bounded key ring of Base64 keys containing at least 32 bytes each.")
+            .ValidateOnStart();
+
         services.AddDbContext<IdentityDbContext>(options =>
             options.UseNpgsql(connectionString, npgsql =>
                 npgsql.MigrationsAssembly(typeof(IdentityDbContext).Assembly.FullName)));
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<IdentityTelemetry>();
         services.AddSingleton<IdentityTokenService>();
+        services.TryAddSingleton<IOrganizationCreationCommitBoundary,
+            OrganizationCreationCommitBoundary>();
+        services.TryAddScoped<IOrganizationCreationRecoveryContextFactory,
+            OrganizationCreationRecoveryContextFactory>();
         services.AddScoped<IdentityApplicationService>();
         services.AddAuthentication(options =>
             {
@@ -48,5 +59,43 @@ public static class IdentityServiceCollectionExtensions
         services.AddAuthorization();
 
         return services;
+    }
+
+    private static bool IsValidOrganizationBootstrap(OrganizationBootstrapOptions options)
+    {
+        if (!options.Enabled)
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(options.CurrentKeyVersion) ||
+            options.CurrentKeyVersion.Length > 32 ||
+            options.IdempotencyHmacKeys.Count is < 1 or > 8 ||
+            !options.IdempotencyHmacKeys.ContainsKey(options.CurrentKeyVersion))
+        {
+            return false;
+        }
+
+        foreach ((string version, string encodedKey) in options.IdempotencyHmacKeys)
+        {
+            if (string.IsNullOrWhiteSpace(version) || version.Length > 32)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (Convert.FromBase64String(encodedKey).Length < 32)
+                {
+                    return false;
+                }
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

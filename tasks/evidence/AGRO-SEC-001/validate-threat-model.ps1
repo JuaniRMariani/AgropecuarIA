@@ -486,7 +486,7 @@ function Test-R1Evidence {
     }
 
     $requiredGapTokens = [ordered]@{
-        'TM-001' = 'no tenant resource endpoint'
+        'TM-001' = 'only integrated product tenant boundary'
         'TM-002' = 'No Auth0 sandbox'
         'TM-008' = 'No OTLP exporter'
         'TM-010' = 'No CI workflow'
@@ -508,7 +508,8 @@ function Test-R1Evidence {
             'SCRAM-SHA-256',
             'four distinct ephemeral passwords',
             'owner-only ACLs',
-            'discovery fails fast')) {
+            'discovery fails fast',
+            'CreateOrganization implements forward-safe product migrations')) {
             if (-not $tm001Controls.Contains($requiredRlsEvidence)) {
                 $errors.Add("TM-001 must keep accepted disposable RLS evidence explicit: $requiredRlsEvidence.")
             }
@@ -632,6 +633,7 @@ function Invoke-MutationTests {
         'distinct-passwords' = 'four distinct ephemeral passwords'
         'owner-only-acl' = 'owner-only ACLs'
         'principal-fail-fast' = 'discovery fails fast'
+        'organization-runtime' = 'CreateOrganization implements forward-safe product migrations'
     }
     foreach ($mutationName in $rlsEvidenceMutations.Keys) {
         $missingRlsEvidence = Copy-Register $Register

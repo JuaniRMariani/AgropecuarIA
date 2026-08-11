@@ -14,3 +14,14 @@ public sealed class IdentityRuntimeOptions
 
     public TimeSpan RecentAuthenticationWindow { get; set; } = TimeSpan.FromMinutes(15);
 }
+
+public sealed class OrganizationBootstrapOptions
+{
+    public static string SectionName => "Identity:OrganizationBootstrap";
+
+    public bool Enabled { get; set; }
+
+    public string CurrentKeyVersion { get; set; } = string.Empty;
+
+    public Dictionary<string, string> IdempotencyHmacKeys { get; set; } = new(StringComparer.Ordinal);
+}

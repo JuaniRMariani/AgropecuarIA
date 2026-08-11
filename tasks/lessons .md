@@ -73,3 +73,9 @@ Este archivo se actualizará después de cada corrección del sponsor o de un ha
 - Disparador: el sponsor reiteró que no debe esperarse una aprobación intermedia para continuar una tarea ya seleccionada.
 - Regla: dentro del ID activo y de la autoridad ya delegada, resolver hallazgos, ejecutar gates, documentar y publicar sin pedir confirmaciones paso a paso.
 - Prevención: usar checkpoints internos y revisiones independientes; contactar al sponsor solo ante un bloqueo externo real, un riesgo destructivo o una ampliación material de alcance.
+
+## Regla: separar owner tenant, registro público y superadmin de plataforma
+
+- Disparador: el sponsor aclaró que cualquier persona puede registrarse y crear una o más organizaciones, mientras un superadmin futuro serviría para auditoría y diagnóstico global.
+- Regla: registro público significa alta de cuenta, no datos públicos. El creador obtiene `owner` únicamente dentro de su organización; ese rol nunca concede privilegios de plataforma ni acceso cross-tenant. Un superadmin futuro es una identidad/capacidad separada, aprovisionada y auditada, no una membership tenant.
+- Prevención: derivar actor y tenant en servidor, mantener organizaciones privadas, proteger el último owner y no mezclar soporte/observabilidad global con onboarding tenant. El acceso excepcional a datos privados requiere un flujo JIT posterior, explícito y trazable; crear campos pertenece al slice GIS correspondiente.

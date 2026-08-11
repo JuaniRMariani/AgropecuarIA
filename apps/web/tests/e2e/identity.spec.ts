@@ -51,10 +51,23 @@ test.describe("identity access", () => {
       page.getByRole("heading", { name: "Tu acceso", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Membresías vigentes" }),
+      page.getByRole("button", { name: "Crear mi organización" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Crear mi organización" }).click();
+    const organizationName = page.getByRole("textbox", {
+      name: "Nombre de la organización",
+    });
+    await organizationName.fill("Establecimiento La Esperanza");
+    await page.getByRole("button", { name: "Crear organización" }).click();
+    await expect(
+      page.getByText("Establecimiento La Esperanza ya está lista y sos owner."),
     ).toBeVisible();
     await expect(
-      page.getByText("Organización", { exact: false }).first(),
+      page.getByRole("heading", { name: "Tus organizaciones" }),
+    ).toBeVisible();
+    await expect(page.getByText("owner", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Crear otra" }),
     ).toBeVisible();
 
     const linkGoogle = page.getByRole("button", {
@@ -114,6 +127,21 @@ test.describe("identity access", () => {
     await expect(signIn).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(sessionHeading).toBeVisible();
+
+    const createOrganization = page.getByRole("button", {
+      name: "Crear mi organización",
+    });
+    await createOrganization.focus();
+    await expect(createOrganization).toBeFocused();
+    await page.keyboard.press("Enter");
+    const organizationName = page.getByRole("textbox", {
+      name: "Nombre de la organización",
+    });
+    await organizationName.fill("Campo móvil");
+    await organizationName.press("Enter");
+    await expect(
+      page.getByText("Campo móvil ya está lista y sos owner."),
+    ).toBeVisible();
     await expectNoAccessibilityViolations(page);
 
     const revoke = page.getByRole("button", { name: "Cerrar sesión" });

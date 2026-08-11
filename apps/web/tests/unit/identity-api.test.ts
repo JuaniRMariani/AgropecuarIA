@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  createOrganization,
   IdentityApiError,
   invalidateAntiforgeryToken,
+  parseCreatedOrganization,
   parseIdentityCapabilities,
   parseIdentitySession,
   parseLinkStart,
@@ -17,6 +19,20 @@ const primaryAuthentication = {
   purpose: null,
   strongAuthenticatedAtUtc: null,
   expiresAtUtc: null,
+};
+
+const createdOrganizationResponse = {
+  organization: {
+    organizationId: "1266395e-ec88-481e-9a72-81fa2cc2904a",
+    displayName: "La Esperanza",
+    status: "active",
+  },
+  membership: {
+    membershipId: "2634c6ee-8d8a-49e7-95b7-84fa0660236a",
+    role: "owner",
+    status: "active",
+    authorizationVersion: 1,
+  },
 };
 
 afterEach(() => {
@@ -165,6 +181,45 @@ describe("identity contract parsing", () => {
       }),
     ).toThrow(IdentityApiError);
   });
+
+  it("parses the create-organization contract and ignores additive fields", () => {
+    expect(
+      parseCreatedOrganization({
+        ...createdOrganizationResponse,
+        futureField: "compatible",
+      }),
+    ).toEqual(createdOrganizationResponse);
+  });
+
+  it.each([
+    {
+      ...createdOrganizationResponse,
+      organization: {
+        ...createdOrganizationResponse.organization,
+        status: "pending",
+      },
+    },
+    {
+      ...createdOrganizationResponse,
+      membership: { ...createdOrganizationResponse.membership, role: "member" },
+    },
+    {
+      ...createdOrganizationResponse,
+      membership: {
+        ...createdOrganizationResponse.membership,
+        authorizationVersion: 0,
+      },
+    },
+    {
+      ...createdOrganizationResponse,
+      organization: {
+        ...createdOrganizationResponse.organization,
+        organizationId: "not-a-uuid",
+      },
+    },
+  ])("rejects malformed create-organization payloads", (payload) => {
+    expect(() => parseCreatedOrganization(payload)).toThrow(IdentityApiError);
+  });
 });
 
 describe("identity mutations", () => {
@@ -252,6 +307,116 @@ describe("identity mutations", () => {
       }),
     );
   });
+
+  it("sends the organization contract with CSRF and an idempotency key", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "safe-token" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(createdOrganizationResponse), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createOrganization("La Esperanza", "attempt-key-123456"),
+    ).resolves.toEqual(createdOrganizationResponse);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/identity/organizations",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "include",
+        headers: expect.objectContaining({
+          "Idempotency-Key": "attempt-key-123456",
+          "X-CSRF-TOKEN": "safe-token",
+        }),
+        body: JSON.stringify({ displayName: "La Esperanza" }),
+      }),
+    );
+  });
+
+  it("retains the idempotency key while refreshing stale CSRF", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "stale-token" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: "request.invalid_antiforgery" }), {
+          status: 400,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "fresh-token" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(createdOrganizationResponse), {
+          status: 201,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createOrganization("La Esperanza", "attempt-key-123456");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/identity/organizations",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "Idempotency-Key": "attempt-key-123456",
+          "X-CSRF-TOKEN": "stale-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "/api/identity/organizations",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "Idempotency-Key": "attempt-key-123456",
+          "X-CSRF-TOKEN": "fresh-token",
+        }),
+      }),
+    );
+  });
+
+  it.each([
+    [403, "identity.reauthentication_required", "reauthentication-required"],
+    [409, "idempotency.in_progress", "in-progress"],
+    [409, "idempotency.fingerprint_mismatch", "conflict"],
+    [429, "request.rate_limited", "rate-limited"],
+    [503, "idempotency.reconciliation_required", "reconciliation-required"],
+  ] as const)(
+    "classifies organization failure %i/%s as %s",
+    async (status, code, expectedKind) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ token: "safe-token" }), {
+            status: 200,
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ code }), { status }),
+        );
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        createOrganization("La Esperanza", "attempt-key-123456"),
+      ).rejects.toMatchObject({ kind: expectedKind, status, code });
+
+      invalidateAntiforgeryToken();
+    },
+  );
 });
 
 describe("authorization redirect allowlist", () => {

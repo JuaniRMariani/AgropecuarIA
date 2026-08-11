@@ -3,7 +3,7 @@
   "taskId": "AGRO-SEC-001",
   "currentRelease": "R1",
   "reviewedAt": "2026-08-10",
-  "scope": "Integrated local R1 Identity/API/web/PostgreSQL runtime plus disposable R0 evidence; ADR-PEND-007 is accepted for R1 development, while external providers, shared hosting, CI/CD and product tenant RLS remain unapproved or absent.",
+  "scope": "Integrated local R1 Identity/API/web/PostgreSQL runtime plus disposable R0 evidence; CreateOrganization now reproduces the accepted RLS direction for one bounded product surface, while external providers, shared hosting, CI/CD and tenant controls for later modules remain unapproved or absent.",
   "openQuestions": ["Q-054", "Q-055", "Q-058", "Q-060"],
   "threats": [
     {
@@ -18,13 +18,13 @@
       "owner": "AppSec + Identity",
       "riskIds": ["RSK-001"],
       "affectedCapabilities": ["R1 identity/tenancy", "Every tenant-scoped module"],
-      "existingControls": ["Integrated Identity runtime discriminates platform and tenant request context and binds the actor server-side", "Platform-scoped Identity operations authorize actor and resource before lookup and return neutral conflicts", "Accepted ADR-PEND-007 and disposable AGRO-DIS-003 evidence prove FORCE RLS default-deny, actor-scoped membership discovery, pool/job isolation and 29/29 internal tests without promoting spike code to runtime", "The disposable PostgreSQL harness uses SCRAM-SHA-256 for local and TCP connections with four distinct ephemeral passwords and owner-only ACLs; discovery fails fast unless current_user and session_user equal the least-privilege discovery principal"],
-      "gaps": ["Integrated Identity data is platform-scoped; no tenant resource endpoint, runtime RLS policy, SET LOCAL context, split app/job/migrator roles, cache, export, storage or AI retrieval path exists", "The accepted R1 decision still requires product-owned forward-safe migrations, an isolated migrator and complete A/B/no-context/pool/job/grant tests before any tenant runtime is enabled"],
-      "requiredTests": ["IdentityRequestContextTests and platform/tenant scope architecture-fitness tests", "TST-TENANT-NEG before the first tenant mutation", "Runtime FORCE RLS A/B/no-context/pool/job/cancellation and role-catalog tests"],
+      "existingControls": ["Integrated Identity runtime discriminates platform and tenant request context and binds the actor server-side", "Platform-scoped Identity operations authorize actor and resource before lookup and return neutral conflicts", "Accepted ADR-PEND-007 and disposable AGRO-DIS-003 evidence prove FORCE RLS default-deny, actor-scoped membership discovery, pool/job isolation and 29/29 internal tests without promoting spike code to runtime", "The disposable PostgreSQL harness uses SCRAM-SHA-256 for local and TCP connections with four distinct ephemeral passwords and owner-only ACLs; discovery fails fast unless current_user and session_user equal the least-privilege discovery principal", "CreateOrganization implements forward-safe product migrations, privilege roles, transaction-local actor and organization context, FORCE RLS, idempotent replay and A/B/no-context/pool/job/grant tests for the organization bootstrap only"],
+      "gaps": ["CreateOrganization is the only integrated product tenant boundary; discovery selection, later CRUD, cache, export, storage, jobs and AI retrieval still lack module-specific runtime isolation evidence", "Shared credentials, an isolated deployment migrator and the same negative suite in a managed environment remain release gates"],
+      "requiredTests": ["IdentityRequestContextTests and platform/tenant scope architecture-fitness tests", "OrganizationCreateApiIntegrationTests for authorization-before-ledger and replay", "OrganizationDatabaseSecurityTests for FORCE RLS A/B/no-context/pool/job and role catalog", "TST-TENANT-NEG for every later tenant mutation"],
       "detection": ["Redacted denied-access anomaly metric", "Cross-tenant invariant alerts without resource identifiers"],
       "residualRisk": "critical until each production surface passes negative isolation tests",
       "blockingGate": "No affected capability can be enabled with a known cross-tenant path",
-      "evidence": ["docs/05-arquitectura.md#multi-tenancy", "docs/07-seguridad-y-privacidad.md#autorización-y-tenancy", "src/AgropecuarIA.Identity/Application/IdentityContracts.cs", "tests/AgropecuarIA.Identity.Tests/IdentityRequestContextTests.cs", "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/IdentityRuntimeArchitectureTests.cs", "tasks/evidence/AGRO-DIS-003/validation-report.md"]
+      "evidence": ["docs/05-arquitectura.md#multi-tenancy", "docs/07-seguridad-y-privacidad.md#autorización-y-tenancy", "src/AgropecuarIA.Identity/Application/IdentityContracts.cs", "tests/AgropecuarIA.Identity.Tests/IdentityRequestContextTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationCreateApiIntegrationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationDatabaseSecurityTests.cs", "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/IdentityRuntimeArchitectureTests.cs", "tasks/evidence/AGRO-DIS-003/validation-report.md"]
     },
     {
       "id": "TM-002",

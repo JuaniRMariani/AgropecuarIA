@@ -52,6 +52,29 @@ internal static class IdentityApiTestActions
         return json.RootElement.GetProperty("attemptId").GetGuid();
     }
 
+    public static async Task<Guid> CreateOrganizationAsync(
+        BrowserSession browser,
+        string displayName,
+        string idempotencyKey,
+        string antiforgeryToken,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await browser.PostWithIdempotencyKeyAsync(
+            "/api/identity/organizations",
+            new Dictionary<string, string> { ["displayName"] = displayName },
+            antiforgeryToken,
+            idempotencyKey,
+            cancellationToken);
+        Assert.AreEqual(HttpStatusCode.Created, response.StatusCode);
+        using var json = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        return json.RootElement
+            .GetProperty("organization")
+            .GetProperty("organizationId")
+            .GetGuid();
+    }
+
     public static async Task VerifyCandidateAsync(
         BrowserSession browser,
         Guid attemptId,

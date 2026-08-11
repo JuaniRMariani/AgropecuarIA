@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgropecuarIA Identity API
-  version: 1.0.0
+  version: 1.1.0
 paths:
   /api/identity/capabilities:
     get:
@@ -187,6 +187,32 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/RateLimited' }
+  /api/identity/organizations:
+    post:
+      summary: Create a private organization and its initial owner membership
+      description: Uses a server-derived platform bootstrap scope. The request cannot choose the actor, tenant, role or platform privileges. A verified authentication younger than 15 minutes is required; MFA is not required.
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/AntiforgeryHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrganization' }
+      responses:
+        '201':
+          description: Organization and active owner membership created, or safely replayed after current authorization is revalidated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedOrganization' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/OrganizationCreationConflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/OrganizationCreationUnavailableOrReconciliation' }
   /api/development/identity/sign-in:
     post:
       summary: Development/Test-only synthetic verified sign-in
@@ -271,6 +297,15 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
+    OrganizationCreationConflict:
+      description: The idempotency key conflicts with another request or the original request is still in progress
+      headers:
+        Retry-After:
+          description: Delay in seconds before retrying; present for idempotency.in_progress
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     RateLimited:
       description: Per-IP or per-session request limit exceeded
       content:
@@ -278,6 +313,15 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
     ProviderUnavailable:
       description: Configured OIDC provider or connection unavailable
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    OrganizationCreationUnavailableOrReconciliation:
+      description: Organization creation is fail-closed because configuration is unavailable or the commit outcome requires retrying with the same idempotency key
+      headers:
+        Retry-After:
+          description: Delay in seconds before retrying; present for idempotency.reconciliation_required
+          schema: { type: integer, minimum: 1 }
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
@@ -292,6 +336,12 @@ components:
       name: attemptId
       required: true
       schema: { type: string, format: uuid }
+    IdempotencyKeyHeader:
+      in: header
+      name: Idempotency-Key
+      required: true
+      description: AgropecuarIA opaque visible-ASCII key retained for the logical create attempt; never derive it from user, tenant or organization identifiers. This contract does not use RFC 9651 serialization.
+      schema: { type: string, minLength: 16, maxLength: 128, pattern: '^[!-~]+$' }
   schemas:
     Problem:
       type: object
@@ -356,6 +406,36 @@ components:
         organizationId: { type: string, format: uuid }
         organizationName: { type: string }
         role: { type: string }
+    CreateOrganization:
+      type: object
+      additionalProperties: false
+      required: [displayName]
+      properties:
+        displayName: { type: string, minLength: 2, maxLength: 160, description: Trimmed and normalized to Unicode NFC by the server; names are not globally unique. }
+    CreatedOrganization:
+      type: object
+      additionalProperties: false
+      required: [organization, membership]
+      properties:
+        organization: { $ref: '#/components/schemas/OrganizationSummary' }
+        membership: { $ref: '#/components/schemas/CreatedOwnerMembership' }
+    OrganizationSummary:
+      type: object
+      additionalProperties: false
+      required: [organizationId, displayName, status]
+      properties:
+        organizationId: { type: string, format: uuid }
+        displayName: { type: string }
+        status: { type: string, enum: [active] }
+    CreatedOwnerMembership:
+      type: object
+      additionalProperties: false
+      required: [membershipId, role, status, authorizationVersion]
+      properties:
+        membershipId: { type: string, format: uuid }
+        role: { type: string, enum: [owner] }
+        status: { type: string, enum: [active] }
+        authorizationVersion: { type: integer, minimum: 1 }
     AuthenticationAssurance:
       type: object
       additionalProperties: false
@@ -418,4 +498,17 @@ components:
       properties:
         fixture:
           type: string
-          enum: [email-owner, google-owner, unverified-email, provider-down, identity-owned-by-another-user]
+          enum:
+            - email-owner
+            - email-owner-1
+            - email-owner-2
+            - email-owner-3
+            - email-owner-4
+            - google-owner
+            - google-owner-1
+            - google-owner-2
+            - google-owner-3
+            - google-owner-4
+            - unverified-email
+            - provider-down
+            - identity-owned-by-another-user

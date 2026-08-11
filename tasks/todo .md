@@ -1080,3 +1080,61 @@ Estado inicial: `En curso`. El líder seleccionó la única tarea activa con un 
 - Estado: `AGRO-SEC-001` continúa `En curso` por ser gate multirelease. Tenant/RLS productivo, Auth0/hosting, CI/provenance, auditoría central, backup y decisiones Legal/retención siguen `NO-GO`.
 - Siguiente candidato: `AGRO-FND-002`, sin iniciar. Antes necesita un consumidor tenant real y semánticas aprobadas de auditoría, orden, retry/poison e idempotencia/retención.
 - Autoevaluación: 95/100; cero gate obligatorio fallido, sin cambios de producto, contrato, migración, configuración, manifiestos o lockfiles.
+
+## Iteración 23 — AGRO-FND-002 protocolo idempotente y secuencia del primer consumidor (2026-08-10)
+
+Estado inicial: `Propuesto`. El sponsor indicó continuar después de recibir el diagnóstico del ciclo `FND-002 → tenancy/RLS → ID-003/SEC-002 → FND-002`; esta continuación autoriza al líder a fijar defaults técnicos reversibles y la secuencia, sin absorber la implementación de `AGRO-ID-003` ni alterar requisitos, release o DoD.
+
+### Outcome, DoR y límites
+
+- [x] Confirmar `AGRO-FND-001` `Completada`, ADR-009, `RequestScope`, journal local y outbox tipado como precondiciones satisfechas.
+- [x] Confirmar `ADR-PEND-007` aceptada para desarrollo R1 y mantener sus migraciones/roles productivos como trabajo del primer consumidor tenant, no del spike descartable.
+- [x] Confirmar que el runtime actual solo tiene mutaciones Identity platform-scoped y que una tabla, endpoint o consumidor ficticio violaría la DoD.
+- [x] Usar `CreateOrganization` de `AGRO-ID-003` únicamente como primer consumidor nominado futuro; no implementar organización, invitación, roles, RLS runtime ni UI en este incremento.
+- [x] Separar TTL técnico de replay/conciliación de cualquier plazo legal: el desarrollo local no purga automáticamente y ningún default se presenta como política productiva.
+- [x] Fijar fuentes primarias: `draft-ietf-httpapi-idempotency-key-header-07` expiró el 2026-04-18 sin publicarse como RFC y solo inspira un contrato propio versionado; EF Core exige tratar el commit incierto; PostgreSQL reserva `SKIP LOCKED` para tablas tipo cola.
+
+### Plan verificable
+
+- [x] Publicar una política canónica con identidad de clave, fingerprint, estados, autorización previa al replay, respuesta concurrente/expirada, transacción, orden, retry/poison y rollout.
+- [x] Publicar la matriz de auditoría/retención que distingue journal local fail-closed, proyección central eventual, denegaciones, legal hold y datos prohibidos.
+- [x] Resolver la secuencia: FND-002 entrega contrato/gates; ID-003 implementa el primer consumidor y su frontera tenant/RLS; FND-002 solo completa después de esa evidencia real.
+- [x] Crear un validador reproducible que rechace pérdida de invariantes, contradicciones de identidad de clave, fake consumer, promoción del spike o plazos legales inventados.
+- [x] Ejecutar validator/mutations, JSON/UTF-8/enlaces/parser/secrets/diff-check y revisión independiente Architecture, Security/Data y QA.
+- [x] Transicionar solo `AGRO-FND-002` a `Ready → En curso` al demostrar la DoR documental; mantenerla `En curso` hasta el consumidor real.
+- [x] Commit/push autorizado y detenerse sin iniciar `AGRO-ID-003`.
+
+### Contrato preliminar a validar
+
+- Unicidad tenant: `(tenant_id, operation, idempotency_key)`; `CreateOrganization` usa la excepción discriminada platform con namespace constante del servidor porque el tenant aún no existe. Actor, recurso/colección, versión de autorización y fingerprint quedan ligados y se reautorizan antes de cualquier replay. No hay lookup ni oracle de conflicto entre tenants.
+- `Idempotency-Key`: Structured Field String opaco generado por cliente, 16–128 caracteres ASCII visibles, nunca UUID/tenant/actor derivado ni label/log. La API sigue validación estricta y documenta que el draft IETF es referencia, no estándar publicado.
+- Fingerprint: SHA-256 de una serialización canónica definida por operación sobre método, route template, versión de contrato y payload normalizado; no se persiste ni registra el payload crudo.
+- Misma key+fingerprint tras autorización vigente reproduce status/body/header allow-listed; misma key con fingerprint distinto devuelve `409`; in-flight devuelve `409` retryable con `Retry-After`; respuesta expirada no reejecuta el hecho y exige conciliación/lookup del recurso.
+- Negocio, ledger terminal, journal local y outbox se confirman en una transacción PostgreSQL. Audit/Compliance central es proyección at-least-once; una caída posterior no revierte el hecho ya confirmado.
+- Delivery es at-least-once, consumidores deduplican `(consumer, event_id)`, orden solo por stream de agregado y los gaps se cuarentenan. No se promete exactly-once de transporte ni orden global.
+
+### Ownership disjunto
+
+- Principal: plan, secuencia/estado, decisiones globales, integración, fuentes, gates y Git.
+- Architecture Lead: `tasks/evidence/AGRO-FND-002/idempotency-and-delivery-policy.md`.
+- Security/Data: `tasks/evidence/AGRO-FND-002/audit-retention-and-threats.md`.
+- QA Automation: `tasks/evidence/AGRO-FND-002/validate-foundation-protocol.ps1` y fixtures machine-readable propios.
+- Ola 3: Architecture/AppSec/QA revisan archivos ajenos en modo read-only; ningún autor aprueba su propia entrega.
+
+### No objetivos y gates
+
+- No crear `src/**`, `apps/**`, migraciones EF, endpoint, worker, inbox/dispatcher, organización, roles, UI, manifiesto/lockfile, CI, Docker, credencial o deploy.
+- .NET/frontend/PostgreSQL/E2E/SCA son `N/A` para este incremento contractual sin runtime afectado; no se reutilizan resultados previos como sustituto del validador nuevo.
+- Gates aplicables: validador positivo y mutations negativas; JSON/UTF-8 estricto; referencias existentes; parser PowerShell; scan de secretos; `git diff --check`; revisión independiente y alcance Git.
+
+### Review final
+
+- Resultado: `PASS` del incremento contractual R1; transición documentada `Propuesto → Ready → En curso`. El contrato satisface la DoR del sub-slice, no la DoD de la tarea padre.
+- Protocolo: unión discriminada `platform | tenant`; bootstrap `CreateOrganization` usa namespace platform constante server-side, sin tenant sintético; los tenants posteriores conservan namespaces independientes y errores sin oracle.
+- Correcciones de revisión: fencing monotónico + lock/CAS owner/fence antes del negocio; identidad estable del ledger y aliases HMAC multiversión con intersección N/N-1, lazy alias y `alias_identity_split` fail-closed; poison de delivery separado de `failed_terminal`; replay reautoriza y no entrega body histórico ciegamente.
+- Gate principal: `validate-foundation-protocol.ps1 -SelfTest` `PASS`, 44/44 mutations rechazadas y protocolo `1.0.0` válido con `runtimeImplemented=false`.
+- Calidad documental: JSON, parser PowerShell, UTF-8 estricto sin BOM, LF/newline final/whitespace, referencias locales, secret scan y `git diff --check` `PASS`.
+- Revisiones independientes Architecture, Security/Data y QA: `PASS`, cero hallazgos críticos, altos o medios después de resolver scope bootstrap, oracle cross-tenant, fencing, rotación HMAC y poison.
+- Gates .NET/frontend/EF/PostgreSQL/E2E/SCA: `N/A`; no se modificó runtime, contrato HTTP, migración, paquete, lockfile, infraestructura o UI.
+- Estado: `AGRO-FND-002` queda `En curso`. Faltan `AGRO-ID-003/CreateOrganization`, migraciones/principals/RLS productivos y pruebas reales de concurrencia, crash/replay, delivery y telemetría; no se inició esa tarea.
+- Autoevaluación: 94/100; cero gate obligatorio fallido y cero cambio ajeno.

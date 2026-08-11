@@ -171,3 +171,25 @@ ADR-008 queda aceptada para discovery, no para producción. `GAP-003`, `GAP-010`
 El gate R0 centraliza 14 amenazas `TM-001`–`TM-014`, clasificación de datos, doce superficies de proveedor/procesamiento y gates incrementales R0–R6. El artefacto sirve para evaluar la DoR de una frontera o proveedor; no selecciona tecnología, región, contrato ni base legal y no presenta los controles de spikes como desplegados.
 
 Q-054/055/058/060, `GAP-003`, `GAP-008` y `VAL-LEG` permanecen abiertos. Todo campo desconocido de controlador/titularidad, región, DPA, subencargados, retención, soporte o SLA produce `NO-GO` para la capacidad afectada. El modelo se revisa por release, por lo que `AGRO-SEC-001` continúa `En curso` después de aprobar su baseline R0.
+
+## Protocolo y secuencia de AGRO-FND-002 — 2026-08-10
+
+La continuación autónoma indicada por el sponsor permite cerrar decisiones técnicas reversibles de idempotencia, auditoría local y delivery, pero no inventar retención legal, roles de producto ni un consumidor ficticio. El contrato normativo y sus amenazas quedan en [`tasks/evidence/AGRO-FND-002`](evidence/AGRO-FND-002/README.md).
+
+| Tema | Decisión R1 | Condición pendiente para runtime/DoD |
+|---|---|---|
+| Identidad idempotente | En scope tenant, unicidad lógica `(tenant_id, operation, idempotency_key)`; la key cruda se reemplaza físicamente por digest HMAC versionado. Actor, recurso/colección, versión de autorización, versión contractual y fingerprint quedan ligados y se comparan, no abren otra partición de efectos. | Migración y prueba PostgreSQL real en el módulo consumidor. |
+| Bootstrap | `CreateOrganization` es la excepción platform-scoped anterior a la existencia del tenant. Usa la unión discriminada `platform | tenant` de ADR-009 y un namespace platform constante derivado por servidor; nunca un tenant sintético ni un valor del cliente. | `AGRO-ID-003` debe implementar y autorizar la capacidad; este contrato no define roles ni crea organización. |
+| Replay y autorización | Autenticar y autorizar antes del lookup; reautorizar antes de replay. Misma key/huella devuelve el mismo resultado semántico allow-listed o reconstruido por locator; cambio de autoridad, binding o huella deniega/conflicta sin filtrar existencia. Expirar el body nunca habilita repetir un hecho irreversible. | Casos BOLA, revocación, response-expired, concurrencia y commit unknown del consumidor. |
+| Atomicidad y auditoría | Negocio, ledger terminal, journal local y outbox comparten una transacción PostgreSQL; falla local de journal/outbox revierte. Audit/Compliance central es proyección eventual at-least-once y no se afirma WORM. | Política central, storage, consulta y operación pertenecen a su módulo/tarea y requieren evidencia real. |
+| Delivery | Outbox at-least-once, inbox único `(consumer, event_id)`, retry acotado con jitter, poison/quarantine y orden solo por stream de agregado. No existe promesa exactly-once de transporte ni orden global. | Dispatcher/inbox, fallos efecto/ack, lease, gap y conciliación reproducidos en runtime. |
+| Retención | La ventana técnica de replay es configurable y no ejecuta auto-purge local. No se fijan días legales; purge, legal hold, restore y conservación contractual siguen bajo `Q-060`, `GAP-003` y `VAL-LEG`. | Privacy/Legal/SRE deben aprobar plazos y operación antes de ambiente compartido. |
+
+Secuencia vinculante para romper el ciclo sin cambiar la Definition of Done:
+
+1. `AGRO-FND-002` publica protocolo, gates y threat model; pasa de `Propuesto` a `En curso`, no a `Completada`.
+2. En una instrucción futura independiente, `AGRO-ID-003` implementa `CreateOrganization`, organización/membresía inicial, migraciones y principals/RLS productivos conforme a `ADR-PEND-007`, integrando el protocolo sin copiar el spike R0.
+3. La evidencia combinada de consumidor real, aislamiento, crash/replay, delivery y telemetría se incorpora a `AGRO-FND-002`; solo entonces puede evaluarse su DoD.
+4. `AGRO-SEC-002` amplía los controles a otras rutas, jobs, caches y exports; no sustituye autorización de aplicación ni la primera prueba integrada.
+
+Esta secuencia no cambia las dependencias normativas de `AGRO-ID-003`, no inicia esa tarea y no presenta el contrato documental como runtime implementado.

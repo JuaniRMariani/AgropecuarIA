@@ -1,0 +1,200 @@
+{
+  "schemaVersion": "1.0",
+  "protocolVersion": "1.0.0",
+  "task": {
+    "id": "AGRO-FND-002",
+    "statusBeforeContractGate": "Propuesto",
+    "statusAfterContractGate": "En curso",
+    "statusUntilFirstConsumerEvidence": "En curso"
+  },
+  "runtimeImplemented": false,
+  "scope": {
+    "discriminator": "scopeKind",
+    "supportedKinds": ["tenant", "platform"],
+    "tenant": {
+      "kind": "tenant",
+      "uniqueBy": ["tenantId", "operation", "idempotencyKey"],
+      "tenantDerivedServerSide": true
+    },
+    "platformBootstrap": {
+      "kind": "platform",
+      "allowedOperation": "CreateOrganization",
+      "namespace": "organization-bootstrap",
+      "namespaceSource": "server_constant",
+      "uniqueBy": ["platformNamespace", "operation", "idempotencyKey"],
+      "syntheticTenantAllowed": false
+    },
+    "boundContext": ["actorId", "resourceId", "authVersion", "requestFingerprint"],
+    "actorInUniqueness": false,
+    "crossTenantLedgerLookup": false,
+    "crossTenantConflictResponse": false
+  },
+  "idempotencyKey": {
+    "clientGenerated": true,
+    "opaque": true,
+    "minLength": 16,
+    "maxLength": 128,
+    "characterSet": "visible-ascii",
+    "validationPattern": "^[\\x21-\\x7E]{16,128}$",
+    "derivedFromDomainIdentifiers": false,
+    "persistence": "keyed_digest_only",
+    "digest": {
+      "algorithm": "hmac-sha256",
+      "keyVersionPersisted": true,
+      "secretOutsideDatabase": true,
+      "domainSeparated": true,
+      "rotationRetainsVerificationMaterial": true,
+      "lookupStrategy": "multi_version_aliases",
+      "aliasUniqueBy": ["scopeKind", "scopeId", "operation", "keyVersion", "keyDigest"],
+      "oneAliasPerLedgerVersionBy": ["ledgerId", "keyVersion"],
+      "lookupAllVerificationVersionsBeforeClaim": true,
+      "writerCreatesAliasesForAcceptedVersions": true,
+      "activationRequiresNMinus1AliasIntersectionProof": true,
+      "historicalBackfillRequired": false,
+      "lazyAliasBackfillAllowed": true,
+      "multipleAliasLedgerCollisionCode": "alias_identity_split",
+      "multipleAliasLedgerCollisionResult": "reconciliation_required",
+      "rotationCannotCreateNewLogicalIdentity": true,
+      "unverifiableVersionResult": "reconciliation_required"
+    },
+    "logged": false,
+    "metricLabel": false
+  },
+  "fingerprint": {
+    "algorithm": "sha256",
+    "canonicalization": "operation-versioned-deterministic",
+    "inputs": ["httpMethod", "routeTemplate", "contractVersion", "normalizedPayload"],
+    "rawPayloadPersisted": false,
+    "rawPayloadLogged": false,
+    "metricLabel": false
+  },
+  "authorization": {
+    "beforeLedgerLookup": true,
+    "beforeReplay": true,
+    "revalidatesActorResourceAndAuthVersion": true,
+    "unauthorizedReplayRevealsExistence": false
+  },
+  "ledger": {
+    "states": ["in_progress", "succeeded", "failed_terminal", "response_expired"],
+    "sameFingerprint": "semantic_result_or_authorized_reconstruction",
+    "differentFingerprint": {
+      "httpStatus": 409,
+      "code": "idempotency.key_reused"
+    },
+    "inProgress": {
+      "httpStatus": 409,
+      "code": "idempotency.in_progress",
+      "retryAfterRequired": true
+    },
+    "responseExpired": {
+      "reexecuteBusinessEffect": false,
+      "result": "reconcile_or_lookup_resource",
+      "effectMarkerRetained": true
+    }
+  },
+  "transaction": {
+    "database": "postgresql",
+    "atomicParticipants": ["businessEffect", "idempotencyLedger", "localJournal", "outbox"],
+    "localJournalFailure": "rollback_transaction",
+    "outboxFailure": "rollback_transaction",
+    "centralAuditProjection": "eventual_at_least_once",
+    "commitUnknown": {
+      "result": "reconciliation_required",
+      "blindRetry": false,
+      "verificationConnection": "new",
+      "verificationTargets": ["idempotencyLedger", "businessEffect", "outbox"],
+      "unresolvedResponse": "service_unavailable",
+      "reexecutionRequiresProvenAbsence": true
+    }
+  },
+  "concurrency": {
+    "claimArbiter": "postgresql_unique_constraint",
+    "leaseFields": ["startedAtUtc", "leaseOwner", "leaseUntilUtc", "attempt", "concurrencyVersion"],
+    "clock": "postgresql",
+    "expiredLeaseProvesRollback": false,
+    "recoveryRequiresFreshConnection": true,
+    "recoveryReauthorizes": true,
+    "recoveryRechecks": ["idempotencyLedger", "businessInvariant", "outbox"],
+    "configuration": "runtime_validated",
+    "normativeDefaults": false,
+    "fencing": {
+      "token": "monotonic",
+      "terminalTransactionVerifies": ["leaseOwner", "fenceToken"],
+      "compareAndSetRequired": true,
+      "staleOwnerBusinessEffect": "none"
+    }
+  },
+  "delivery": {
+    "guarantee": "at_least_once",
+    "exactlyOnceTransport": false,
+    "inboxUniqueBy": ["consumer", "eventId"],
+    "ordering": "aggregate_stream_only",
+    "globalOrdering": false,
+    "gapHandling": "poison_quarantine",
+    "duplicateHandling": "acknowledge_without_effect",
+    "retry": {
+      "bounded": true,
+      "classification": "explicit_retryable_or_terminal",
+      "backoff": "configured_with_jitter",
+      "terminalState": "delivery_poisoned",
+      "reusesLedgerFailedTerminal": false,
+      "manualReconciliation": true
+    }
+  },
+  "retention": {
+    "localDevelopmentAutomaticPurge": false,
+    "legalRetentionDays": null,
+    "externalLegalGate": ["Q-060", "VAL-LEG"],
+    "responseExpiryDoesNotAuthorizeReexecution": true,
+    "legalHoldPolicyImplemented": false,
+    "productionPolicyApproved": false
+  },
+  "firstConsumer": {
+    "taskId": "AGRO-ID-003",
+    "capability": "CreateOrganization",
+    "status": "future",
+    "implemented": false,
+    "ownsProductRlsMigration": true,
+    "spikePromotionAllowed": false
+  },
+  "completion": {
+    "parentRemainsInProgress": true,
+    "requiresRealTenantConsumerEvidence": true,
+    "contractOnlyDoesNotSatisfyDefinitionOfDone": true
+  },
+  "compatibility": {
+    "migrationStrategy": "expand",
+    "coexistence": "N/N-1",
+    "readersTolerateExistingRows": true,
+    "newFields": "nullable_or_compatible_default_until_backfill",
+    "operationEnabledOnlyOnSupportingNodes": true,
+    "canonicalizationVersionPersisted": true,
+    "applicationBinaryRollback": true,
+    "rollForward": true,
+    "proof": "no_duplicate_effect_and_no_event_loss"
+  },
+  "sources": [
+    "https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/07/",
+    "https://www.rfc-editor.org/rfc/rfc9651.html",
+    "https://www.rfc-editor.org/rfc/rfc8785.html",
+    "https://www.rfc-editor.org/rfc/rfc9110.html#name-retry-after",
+    "https://learn.microsoft.com/ef/core/saving/transactions",
+    "https://learn.microsoft.com/ef/core/miscellaneous/connection-resiliency#transaction-commit-failure-and-the-idempotency-issue",
+    "https://www.postgresql.org/docs/current/sql-select.html",
+    "https://www.postgresql.org/docs/current/transaction-iso.html",
+    "https://www.postgresql.org/docs/current/sql-insert.html"
+  ],
+  "references": [
+    "tasks/evidence/AGRO-FND-002/README.md",
+    "tasks/backlog/00-index.md",
+    "tasks/backlog/EPIC-01-fundacion-arquitectura.md",
+    "tasks/backlog/EPIC-02-identidad-tenancy-autorizacion.md",
+    "tasks/implementation-plan.md",
+    "tasks/decisions-and-gaps.md",
+    "tasks/todo .md",
+    "docs/adr/ADR-009-limites-modulares-y-compatibilidad.md",
+    "docs/07-seguridad-y-privacidad.md",
+    "tasks/evidence/AGRO-FND-002/idempotency-and-delivery-policy.md",
+    "tasks/evidence/AGRO-FND-002/audit-retention-and-threats.md"
+  ]
+}

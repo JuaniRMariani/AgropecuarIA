@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 
 import { formatShortId } from "../../lib/format-id";
+import { TerritoryExplorer } from "../territory/territory-explorer";
 
 import type {
   IdentityAction,
@@ -1184,30 +1185,33 @@ export function IdentityView({
             />
           ) : null}
           {resource.kind === "authenticated" ? (
-            <CurrentSession
-              capabilities={resource.capabilities}
-              onLink={onLink}
-              onStepUp={onStepUp}
-              onRevoke={onRevoke}
-              onUnlink={onUnlink}
-              onCancelOrganization={onCancelOrganization}
-              onCreateOrganization={onCreateOrganization}
-              onOrganizationDraftChange={onOrganizationDraftChange}
-              onReauthenticateOrganization={onReauthenticateOrganization}
-              onStartOrganization={onStartOrganization}
-              onCopyOwnerInvitation={onCopyOwnerInvitation}
-              onCreateOwnerInvitation={onCreateOwnerInvitation}
-              onRefreshOwnerInvitations={onRefreshOwnerInvitations}
-              onResumeOwnerManagement={onResumeOwnerManagement}
-              onRevokeOwnerInvitation={onRevokeOwnerInvitation}
-              organizationCreation={organizationCreation}
-              organizationDraft={organizationDraft}
-              organizationFormOpen={organizationFormOpen}
-              ownerInvitationAction={ownerInvitationAction}
-              ownerInvitations={ownerInvitations}
-              pendingAction={pendingAction}
-              session={resource.session}
-            />
+            <>
+              <CurrentSession
+                capabilities={resource.capabilities}
+                onLink={onLink}
+                onStepUp={onStepUp}
+                onRevoke={onRevoke}
+                onUnlink={onUnlink}
+                onCancelOrganization={onCancelOrganization}
+                onCreateOrganization={onCreateOrganization}
+                onOrganizationDraftChange={onOrganizationDraftChange}
+                onReauthenticateOrganization={onReauthenticateOrganization}
+                onStartOrganization={onStartOrganization}
+                onCopyOwnerInvitation={onCopyOwnerInvitation}
+                onCreateOwnerInvitation={onCreateOwnerInvitation}
+                onRefreshOwnerInvitations={onRefreshOwnerInvitations}
+                onResumeOwnerManagement={onResumeOwnerManagement}
+                onRevokeOwnerInvitation={onRevokeOwnerInvitation}
+                organizationCreation={organizationCreation}
+                organizationDraft={organizationDraft}
+                organizationFormOpen={organizationFormOpen}
+                ownerInvitationAction={ownerInvitationAction}
+                ownerInvitations={ownerInvitations}
+                pendingAction={pendingAction}
+                session={resource.session}
+              />
+              <TerritoryExplorer />
+            </>
           ) : null}
           {resource.kind === "revoked" ||
           resource.kind === "provider-down" ||

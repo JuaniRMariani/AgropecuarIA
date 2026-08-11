@@ -1,0 +1,165 @@
+openapi: 3.1.0
+info:
+  title: AgropecuarIA Territory API
+  version: 1.0.0
+  description: Read-only official territorial reference for Argentina. It does not represent cadastral parcels, fields or agronomic precision.
+paths:
+  /api/territory/search:
+    get:
+      summary: Search the active official territory snapshot
+      security:
+        - SessionCookie: []
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 80 }
+        - in: query
+          name: level
+          required: false
+          schema: { $ref: '#/components/schemas/TerritoryLevel' }
+        - in: query
+          name: parentCode
+          required: false
+          schema: { type: string, minLength: 2, maxLength: 16, pattern: '^[0-9]+$' }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 20, default: 10 }
+      responses:
+        '200':
+          description: Deterministically ordered matches from the active snapshot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TerritorySearchResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ReferenceUnavailable' }
+  /api/territory/resolve:
+    get:
+      summary: Resolve a WGS84 coordinate through the fixed Georef provider
+      description: Never guesses from a province centroid. Provider failure returns an explicit unavailable state and keeps local text search available.
+      security:
+        - SessionCookie: []
+      parameters:
+        - in: query
+          name: latitude
+          required: true
+          schema: { type: number, format: double, minimum: -55.2, maximum: -21.7 }
+        - in: query
+          name: longitude
+          required: true
+          schema: { type: number, format: double, minimum: -73.7, maximum: -53.5 }
+      responses:
+        '200':
+          description: Fresh, stale or unavailable resolution with manual-search fallback
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TerritoryResolutionResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-agro-session
+  responses:
+    BadRequest:
+      description: Invalid query, filter or coordinate
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: Missing, expired or revoked durable session
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    RateLimited:
+      description: Request rate exceeded
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ReferenceUnavailable:
+      description: No valid active snapshot is available
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    TerritoryLevel:
+      type: string
+      description: Provider-neutral administrative level; Georef v2 gobierno_local maps to municipality without asserting a legal municipal category.
+      enum: [province, department, municipality, locality]
+    TerritorySource:
+      type: object
+      additionalProperties: false
+      required: [provider, version, capturedAtUtc]
+      properties:
+        provider: { type: string, enum: [georef] }
+        version: { type: string, minLength: 1, maxLength: 80 }
+        capturedAtUtc: { type: string, format: date-time }
+    TerritoryUnit:
+      type: object
+      additionalProperties: false
+      required: [officialCode, name, level, parentCode, parentName, hierarchyLabel]
+      properties:
+        officialCode: { type: string, minLength: 1, maxLength: 16 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        level: { $ref: '#/components/schemas/TerritoryLevel' }
+        parentCode:
+          oneOf:
+            - { type: string, minLength: 1, maxLength: 16 }
+            - { type: 'null' }
+        parentName:
+          oneOf:
+            - { type: string, minLength: 1, maxLength: 200 }
+            - { type: 'null' }
+        hierarchyLabel: { type: string, minLength: 1, maxLength: 700 }
+    TerritorySearchResult:
+      type: object
+      additionalProperties: false
+      required: [status, source, items]
+      properties:
+        status: { type: string, enum: [fresh, stale] }
+        source: { $ref: '#/components/schemas/TerritorySource' }
+        items:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/TerritoryUnit' }
+    TerritoryResolutionFallback:
+      type: object
+      additionalProperties: false
+      required: [searchAvailable]
+      properties:
+        searchAvailable: { type: boolean, const: true }
+    TerritoryResolutionResult:
+      type: object
+      additionalProperties: false
+      required: [status, source, unit, fallback]
+      properties:
+        status: { type: string, enum: [fresh, stale, unavailable] }
+        source:
+          oneOf:
+            - { $ref: '#/components/schemas/TerritorySource' }
+            - { type: 'null' }
+        unit:
+          oneOf:
+            - { $ref: '#/components/schemas/TerritoryUnit' }
+            - { type: 'null' }
+        fallback: { $ref: '#/components/schemas/TerritoryResolutionFallback' }
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code, correlationId]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        code: { type: string }
+        correlationId: { type: string }
+        retryable: { type: boolean }

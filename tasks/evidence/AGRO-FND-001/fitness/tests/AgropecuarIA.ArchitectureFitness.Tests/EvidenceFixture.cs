@@ -20,6 +20,8 @@ internal static class EvidenceFixture
 
     internal static string IdentityOpenApiPath() => PathFor("contracts", "identity.openapi.yaml");
 
+    internal static string TerritoryOpenApiPath() => PathFor("contracts", "territory.openapi.yaml");
+
     internal static string RepositoryRoot() => RepositoryLocator.FindRoot(AppContext.BaseDirectory);
 
     private static string PathFor(params string[] segments) =>

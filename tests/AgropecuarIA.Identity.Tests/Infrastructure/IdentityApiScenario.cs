@@ -89,6 +89,7 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
         {
             builder.UseEnvironment(environment);
             builder.UseSetting("ConnectionStrings:Identity", connectionString);
+            builder.UseSetting("ConnectionStrings:Territory", connectionString);
             builder.UseSetting(
                 "Identity:DevelopmentProvider:Enabled",
                 (environment is "Development" or "Test").ToString());
@@ -104,6 +105,7 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
                 var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["ConnectionStrings:Identity"] = connectionString,
+                    ["ConnectionStrings:Territory"] = connectionString,
                     ["Identity:DevelopmentProvider:Enabled"] =
                         (environment is "Development" or "Test").ToString(),
                     ["Identity:DevelopmentProvider:SyntheticProfileCount"] = "1",

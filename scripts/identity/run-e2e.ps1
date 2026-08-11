@@ -18,8 +18,11 @@ $previousEnvironment = @{
     ASPNETCORE_ENVIRONMENT = $env:ASPNETCORE_ENVIRONMENT
     ASPNETCORE_URLS = $env:ASPNETCORE_URLS
     ConnectionStrings__Identity = $env:ConnectionStrings__Identity
+    ConnectionStrings__Territory = $env:ConnectionStrings__Territory
     AGRO_API_ORIGIN = $env:AGRO_API_ORIGIN
     Identity__ApplyMigrations = $env:Identity__ApplyMigrations
+    Territory__ApplyMigrations = $env:Territory__ApplyMigrations
+    Territory__Reference__CoordinateResolutionEnabled = $env:Territory__Reference__CoordinateResolutionEnabled
     Identity__DevelopmentProvider__Enabled = $env:Identity__DevelopmentProvider__Enabled
     Identity__DevelopmentProvider__SyntheticProfileCount = $env:Identity__DevelopmentProvider__SyntheticProfileCount
     Identity__StrongAuthentication__Enabled = $env:Identity__StrongAuthentication__Enabled
@@ -215,8 +218,11 @@ try {
     $env:ASPNETCORE_ENVIRONMENT = 'Test'
     $env:ASPNETCORE_URLS = "http://127.0.0.1:$ApiPort"
     $env:ConnectionStrings__Identity = "Host=127.0.0.1;Port=$postgresPort;Database=postgres;Username=postgres;Password=$postgresPassword;Pooling=false"
+    $env:ConnectionStrings__Territory = $env:ConnectionStrings__Identity
     $env:AGRO_API_ORIGIN = "http://127.0.0.1:$ApiPort"
     $env:Identity__ApplyMigrations = 'true'
+    $env:Territory__ApplyMigrations = 'true'
+    $env:Territory__Reference__CoordinateResolutionEnabled = 'false'
     $env:Identity__DevelopmentProvider__Enabled = 'true'
     $env:Identity__DevelopmentProvider__SyntheticProfileCount = '4'
     $env:Identity__StrongAuthentication__Enabled = 'true'

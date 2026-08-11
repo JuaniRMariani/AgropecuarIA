@@ -377,6 +377,12 @@
           "OpenTelemetry.Extensions.Hosting": "[1.17.0, )"
         }
       },
+      "agropecuaria.territory": {
+        "type": "Project",
+        "dependencies": {
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
       "Npgsql.EntityFrameworkCore.PostgreSQL": {
         "type": "CentralTransitive",
         "requested": "[10.0.3, )",

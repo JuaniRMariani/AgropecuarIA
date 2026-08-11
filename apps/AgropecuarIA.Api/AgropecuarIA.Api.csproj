@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
     <ProjectReference Include="..\..\src\AgropecuarIA.Identity\AgropecuarIA.Identity.csproj" />
+    <ProjectReference Include="..\..\src\AgropecuarIA.Territory\AgropecuarIA.Territory.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>

@@ -217,3 +217,21 @@ PASS — 4/4; inviter, invitee distinto, attacker, revoke, Axe, teclado y 390 px
 PostgreSQL real demuestra `FORCE RLS`, grants mínimos, A/B/sin contexto/pool/job, token lookup y coverage gates estrechos, concurrencia y rollback atómico. Los eventos `OrganizationOwnerInvited`, `OrganizationOwnerInvitationAccepted` y `OrganizationOwnerInvitationRevoked` omiten bearer, digest, nombre y actor.
 
 `AGRO-SEC-001` permanece `En curso`. Email/delivery, roles no-owner, Auth0/hosting/secret manager, limiter distribuido, CI/provenance, Audit central, backup y retención legal siguen NO-GO de ambiente compartido.
+
+## Refresh actual: referencia territorial local y Georef externo — 2026-08-11
+
+El registro pasa de ocho a diez superficies y agrega `RS-009` como `integrated-local`: GET autenticados search/resolve, snapshot oficial local hash/completo/inmutable de 23 provincias más CABA, roles mínimos con `FORCE RLS`, rate limit/no-store, contrato estricto y estados `fresh|stale|unavailable` con búsqueda manual. La coordenada explícita no se persiste en PostgreSQL/journal/browser storage ni logs de aplicación; existe únicamente en tránsito y en un caché volátil acotado. Esto no equivale a ausencia total de tratamiento: el resolve la incluye en la query de salida.
+
+`RS-010` registra Georef como `external-no-go`. El adapter local queda fijado a `https://apis.datos.gob.ar/georef/api/v2.0/`, sin redirects/cookies/descompresión automática, con timeout de 5 s, máximo 256 KiB y parser estricto. No se habilita tráfico real hasta cerrar licencia/atribución, Q-058/Q-060, región, DPA, retención, subencargados, SLA/cuota/capacidad, egress/DNS y redacción end-to-end de query strings. Un test local exitoso no aprueba al proveedor.
+
+```text
+validate-threat-model.ps1 -SelfTest
+PASS — 41/41 mutations; 14 threats; 7 critical; 7 high; 0 critical without owner/test/gate.
+
+Threat/runtime JSON parse
+PASS — threat-register.json and runtime-surface-register.json.
+```
+
+Las mutations nuevas prueban drift de paths Territory y pérdida de: snapshot 23+CABA, `FORCE RLS`, adapter Georef v2.0 fijo, no persistencia durable, caché volátil, redacción compartida, endpoint exacto, redirect policy, timeout, body budget, minimización tenant, `NO-GO` externo y la regla de que tests locales no constituyen aprobación.
+
+`AGRO-SEC-001` permanece `En curso`. El GO se limita al snapshot/search/UI y adapter verificable localmente; Georef externo, hosting/proxy/collector, base administrada, CI/provenance, backup/restore representativo y decisiones Privacy/Legal continúan NO-GO.

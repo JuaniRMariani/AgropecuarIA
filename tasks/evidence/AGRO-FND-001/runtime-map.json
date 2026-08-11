@@ -35,12 +35,23 @@
           "version": "1.0.0"
         }
       ]
+    },
+    {
+      "moduleId": "territory",
+      "projectPath": "src/AgropecuarIA.Territory/AgropecuarIA.Territory.csproj",
+      "databaseSchema": "territory",
+      "contracts": [
+        {
+          "path": "contracts/territory.openapi.yaml",
+          "version": "1.0.0"
+        }
+      ]
     }
   ],
   "compositionRoots": [
     {
       "projectPath": "apps/AgropecuarIA.Api/AgropecuarIA.Api.csproj",
-      "allowedModuleIds": ["identity-tenancy"]
+      "allowedModuleIds": ["identity-tenancy", "territory"]
     }
   ]
 }

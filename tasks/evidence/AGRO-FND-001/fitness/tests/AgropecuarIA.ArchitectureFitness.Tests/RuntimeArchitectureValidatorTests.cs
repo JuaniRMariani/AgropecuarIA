@@ -44,14 +44,15 @@ public sealed class RuntimeArchitectureValidatorTests
     public void InvalidSchemaVersionDuplicateProjectsAndEscapingPathsAreRejected()
     {
         RuntimeMapDocument published = EvidenceFixture.RuntimeMap();
-        RuntimeModule identity = published.Modules.Single();
+        RuntimeModule identity = published.Modules.Single(module =>
+            module.ModuleId == "identity-tenancy");
         var invalid = published with
         {
             SchemaVersion = 2,
             Modules =
             [
                 identity,
-                identity with { ModuleId = "territory", Contracts = [] },
+                identity with { ModuleId = "duplicate-project", Contracts = [] },
             ],
             CompositionRoots =
             [
@@ -74,17 +75,19 @@ public sealed class RuntimeArchitectureValidatorTests
     public void ModuleSchemaAndContractVersionMustMatchReviewedBoundary()
     {
         RuntimeMapDocument published = EvidenceFixture.RuntimeMap();
-        RuntimeModule identity = published.Modules.Single();
+        RuntimeModule identity = published.Modules.Single(module =>
+            module.ModuleId == "identity-tenancy");
         var invalid = published with
         {
-            Modules =
-            [
-                identity with
-                {
-                    DatabaseSchema = "public",
-                    Contracts = [new RuntimeContract("contracts/identity.openapi.yaml", "draft")],
-                },
-            ],
+            Modules = published.Modules
+                .Select(module => module.ModuleId == identity.ModuleId
+                    ? identity with
+                    {
+                        DatabaseSchema = "public",
+                        Contracts = [new RuntimeContract("contracts/identity.openapi.yaml", "draft")],
+                    }
+                    : module)
+                .ToArray(),
         };
 
         var issues = RuntimeArchitectureValidator.Validate(

@@ -4,10 +4,12 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/AgropecuarIA.Identity/AgropecuarIA.Identity.csproj" />
+    <Project Path="src/AgropecuarIA.Territory/AgropecuarIA.Territory.csproj" />
     <Project Path="tasks/evidence/AGRO-FND-001/fitness/src/AgropecuarIA.ArchitectureFitness/AgropecuarIA.ArchitectureFitness.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AgropecuarIA.Identity.Tests/AgropecuarIA.Identity.Tests.csproj" />
+    <Project Path="tests/AgropecuarIA.Territory.Tests/AgropecuarIA.Territory.Tests.csproj" />
     <Project Path="tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/AgropecuarIA.ArchitectureFitness.Tests.csproj" />
   </Folder>
 </Solution>

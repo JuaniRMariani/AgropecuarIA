@@ -1,6 +1,6 @@
 # Inventario R0/R1 de proveedores y tratamiento de datos
 
-Fecha de corte: 2026-08-10  
+Fecha de corte: 2026-08-11  
 Tarea: `AGRO-SEC-001`  
 Estado: evidencia de discovery; no constituye selección, contratación, DPA ni autorización productiva.
 
@@ -55,14 +55,15 @@ Un estado tiene esta semántica:
 
 ### PI-04 — Mapas, Georef e IGN/Argenmap
 
-- **Estado/fase:** MapLibre es renderer, no proveedor. Argenmap es candidato condicionado de tiles; Georef es fuente oficial candidata para normalización; IGN/Argenmap adicional es `Should`. Tiles comunitarios directos de OpenStreetMap son `FUERA DE ALCANCE/NO-GO` productivo.
-- **Datos y dirección:** navegador → tiles/style allow-listed puede exponer IP, viewport y zona visualizada; backend/worker → Georef/servicios oficiales envía consulta territorial o coordenada minimizada; fuente → staging/snapshot versionado. Polígonos productivos, nombres de campos y tenant no se envían si no son indispensables.
-- **Región, credenciales, retención y subencargados:** los endpoints públicos observados no prueban región, logs, SLA, subencargados ni retención. Licencia/atribución y límites deben revalidarse. Cualquier API key permanece server-side salvo que el contrato del proveedor sea explícitamente public/publishable.
-- **Egress/SSRF:** estilos, tiles, WMS/WFS/WMTS y Georef usan hosts, esquemas, redirects, tamaños y content-types allow-listed. No existe proxy/fetch de URL libre. Se bloquean loopback, link-local/metadata, DNS rebinding y redirects fuera de lista.
-- **Degradación:** mapa con atribución y fallback tabular; Georef usa último snapshot correcto/versionado o ingreso manual autorizado, marcando frescura. La falla del mapa no bloquea operaciones transaccionales que no requieren geometría.
-- **Owner:** Territory/GIS + Frontend; Integrations opera adapters/snapshots; AppSec revisa egress/CSP; Procurement/Legal términos/licencia.
-- **Evidencia R0:** [`AGRO-DIS-004/source-and-license-matrix.md`](../AGRO-DIS-004/source-and-license-matrix.md), [`AGRO-DIS-004/validation-report.md`](../AGRO-DIS-004/validation-report.md), [`docs/06-integraciones-y-normativa.md`](../../../docs/06-integraciones-y-normativa.md).
-- **Gate:** términos, atribución, cobertura/capacidad y endpoint aprobados; pruebas en 23 provincias+CABA, CSP/worker, URL/redirect/DNS adversos, degradación tabular, minimización y snapshot/fallback. No se afirma SLA a partir de los probes R0.
+- **Estado/fase:** Territory ya integra localmente un snapshot oficial inmutable de 23 provincias más CABA y un adapter fijado exactamente a Georef `v2.0`; ese código/test local no aprueba tráfico al proveedor. Georef real, Argenmap/IGN y tiles siguen `externo pendiente/NO-GO`. MapLibre es renderer, no proveedor; tiles comunitarios directos de OpenStreetMap son `FUERA DE ALCANCE/NO-GO` productivo.
+- **Datos y dirección:** búsqueda autenticada → API → snapshot PostgreSQL local no sale a terceros. Solo el formulario explícito resolve envía `latitude`/`longitude` desde backend a `https://apis.datos.gob.ar/georef/api/v2.0/ubicacion`; no envía tenant, productor, campo ni parcela. La respuesta estricta devuelve código/nombre/jerarquía y fuente/frescura. La coordenada exacta es `Confidential`, existe temporalmente en caché volátil acotado y no se persiste en DB/journal, browser storage ni logs de aplicación.
+- **Región, credenciales, retención y subencargados:** el endpoint público sin key no prueba región, access logs/query retention, DPA, subencargados, SLA, cuota o capacidad. Licencia/atribución y términos deben aprobarse. Q-058/Q-060 y `VAL-LEG` permanecen abiertos; por eso Georef externo es `NO-GO` aun cuando el adapter local pase.
+- **Egress/SSRF:** el adapter solo acepta la base HTTPS compilada de Georef v2.0 y una ruta relativa tipada; deshabilita redirects, cookies y descompresión automática, usa timeout 5 s, máximo 256 KiB, media type JSON exacto, profundidad 12 y schema/códigos/nombres acotados. No hay proxy/fetch de URL libre. Un entorno compartido todavía debe bloquear DNS rebinding/IP reservada y demostrar egress allow-listed.
+- **Degradación:** búsqueda local rotula snapshot `fresh|stale`. Resolve sirve caché volátil fresh/stale cuando corresponde; si el provider falla sin valor utilizable responde `unavailable` y ofrece búsqueda manual local. Nunca inventa unidad ni presenta la resolución como parcela o precisión agronómica.
+- **Privacidad/observabilidad:** `TerritoryExceptionHandler` registra solamente código de error y correlation ID. La URL de salida contiene la coordenada, de modo que proxy, collector y provider deben demostrar redacción/retención antes de habilitarse; `TST-TERRITORY-URL-REDACTION` es obligatorio.
+- **Owner:** Territory/GIS + Frontend; Integrations/SRE opera adapter, snapshot, egress y cuota; AppSec revisa schema/redacción; Privacy/Legal/Procurement aprueban finalidad, términos, licencia, región y DPA.
+- **Evidencia R1 local + R0:** [`GeorefTerritoryClient.cs`](../../../src/AgropecuarIA.Territory/Providers/Georef/GeorefTerritoryClient.cs), [`TerritoryResolutionCache.cs`](../../../src/AgropecuarIA.Territory/Application/TerritoryResolutionCache.cs), [`TerritoryDatabaseSecurityTests.cs`](../../../tests/AgropecuarIA.Territory.Tests/TerritoryDatabaseSecurityTests.cs), [`GeorefTerritoryClientTests.cs`](../../../tests/AgropecuarIA.Territory.Tests/GeorefTerritoryClientTests.cs), [`AGRO-DIS-004/source-and-license-matrix.md`](../AGRO-DIS-004/source-and-license-matrix.md).
+- **Gate:** GO local solamente para snapshot/search/UI y verificación del adapter. `NO-GO` a Georef externo hasta aprobar términos/licencia/atribución, región/DPA/retención/subencargados, SLA/cuota/capacidad, egress/DNS y redacción end-to-end; luego probar cobertura 23 provincias+CABA, schema drift, timeout/redirect/oversize, degradación y minimización. No se afirma SLA por el snapshot ni por tests locales.
 
 ### PI-05 — Open-Meteo
 

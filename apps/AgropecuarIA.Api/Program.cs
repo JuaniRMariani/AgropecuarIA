@@ -1,10 +1,14 @@
 using System.Net;
+using System.Globalization;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using AgropecuarIA.Api;
 using AgropecuarIA.Identity;
 using AgropecuarIA.Identity.Delivery;
 using AgropecuarIA.Identity.Infrastructure;
+using AgropecuarIA.Territory;
+using AgropecuarIA.Territory.Delivery;
+using AgropecuarIA.Territory.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -16,6 +20,7 @@ using OpenTelemetry.Trace;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 bool applyIdentityMigrations = builder.Configuration.GetValue<bool>("Identity:ApplyMigrations");
+bool applyTerritoryMigrations = builder.Configuration.GetValue<bool>("Territory:ApplyMigrations");
 if (applyIdentityMigrations &&
     !builder.Environment.IsDevelopment() &&
     !builder.Environment.IsEnvironment("Test"))
@@ -23,12 +28,20 @@ if (applyIdentityMigrations &&
     throw new InvalidOperationException(
         "Identity:ApplyMigrations can only be enabled in Development/Test. Use an explicit migrator in shared environments.");
 }
+if (applyTerritoryMigrations &&
+    !builder.Environment.IsDevelopment() &&
+    !builder.Environment.IsEnvironment("Test"))
+{
+    throw new InvalidOperationException(
+        "Territory:ApplyMigrations can only be enabled in Development/Test. Use an explicit migrator in shared environments.");
+}
 
 builder.Services.AddProblemDetails(options =>
 {
     options.CustomizeProblemDetails = context =>
         context.ProblemDetails.Extensions.Remove("traceId");
 });
+builder.Services.AddTerritoryModule(builder.Configuration);
 builder.Services.AddExceptionHandler<IdentityExceptionHandler>();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -61,14 +74,19 @@ int perSessionPermitLimit = builder.Configuration.GetValue("Identity:RateLimits:
 int stepUpPermitLimit = builder.Configuration.GetValue(
     "Identity:RateLimits:StepUpPerSessionPerFiveMinutes",
     5);
+int territoryPermitLimit = builder.Configuration.GetValue(
+    "Territory:RateLimits:PerSessionPerMinute",
+    60);
 if (perIpPermitLimit <= 0 ||
     perSessionPermitLimit <= 0 ||
     perSessionPermitLimit > perIpPermitLimit ||
     stepUpPermitLimit <= 0 ||
-    stepUpPermitLimit > perSessionPermitLimit)
+    stepUpPermitLimit > perSessionPermitLimit ||
+    territoryPermitLimit <= 0 ||
+    territoryPermitLimit > perIpPermitLimit)
 {
     throw new InvalidOperationException(
-        "Identity rate limits must be positive; step-up cannot exceed the per-session limit and per-session cannot exceed per-IP.");
+        "Rate limits must be positive; step-up cannot exceed the identity per-session limit and session policies cannot exceed per-IP.");
 }
 AuthenticationBuilder externalAuthentication = builder.Services.AddAuthentication()
     .AddCookie(IdentityAuthenticationDefaults.ExternalScheme, options =>
@@ -153,6 +171,23 @@ builder.Services.AddRateLimiter(options =>
                 AutoReplenishment = true,
             });
     });
+    options.AddPolicy(TerritoryEndpoints.RateLimitPolicy, context =>
+    {
+        string partitionKey = context.Request.Cookies.TryGetValue(
+            IdentityAuthenticationDefaults.SessionCookieName,
+            out string? sessionToken)
+            ? $"territory:{Convert.ToHexString(IdentityTokenService.HashToken(sessionToken))}"
+            : $"territory-anonymous:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = territoryPermitLimit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            });
+    });
     options.OnRejected = async (context, cancellationToken) =>
     {
         context.HttpContext.RequestServices
@@ -160,11 +195,18 @@ builder.Services.AddRateLimiter(options =>
             .Record("request", "rate_limited");
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         context.HttpContext.Response.ContentType = "application/problem+json";
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter = Math.Max(
+                1,
+                (int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(
+                    CultureInfo.InvariantCulture);
+        }
         await context.HttpContext.Response.WriteAsJsonAsync(
             new
             {
                 type = "https://agropecuaria.local/problems/request.rate_limited",
-                title = "Too many identity requests.",
+                title = "Too many requests.",
                 status = StatusCodes.Status429TooManyRequests,
                 code = "request.rate_limited",
                 correlationId = context.HttpContext.TraceIdentifier,
@@ -199,7 +241,8 @@ builder.Services.AddOpenTelemetry()
         .AddSource(IdentityTelemetry.SourceName))
     .WithMetrics(metrics => metrics
         .AddAspNetCoreInstrumentation()
-        .AddMeter(IdentityTelemetry.SourceName));
+        .AddMeter(IdentityTelemetry.SourceName)
+        .AddMeter(TerritoryTelemetry.SourceName));
 
 WebApplication app = builder.Build();
 
@@ -209,13 +252,20 @@ if (applyIdentityMigrations)
     IdentityDbContext identityDbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
     await identityDbContext.Database.MigrateAsync();
 }
+if (applyTerritoryMigrations)
+{
+    await using AsyncServiceScope scope = app.Services.CreateAsyncScope();
+    TerritoryDbContext territoryDbContext = scope.ServiceProvider.GetRequiredService<TerritoryDbContext>();
+    await territoryDbContext.Database.MigrateAsync();
+}
 
 app.UseExceptionHandler();
 app.UseForwardedHeaders();
 app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/api/identity") ||
-        context.Request.Path.StartsWithSegments("/api/development/identity"))
+        context.Request.Path.StartsWithSegments("/api/development/identity") ||
+        context.Request.Path.StartsWithSegments("/api/territory"))
     {
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers.Pragma = "no-cache";
@@ -234,6 +284,7 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapIdentityEndpoints();
+app.MapTerritoryEndpoints();
 
 app.Run();
 

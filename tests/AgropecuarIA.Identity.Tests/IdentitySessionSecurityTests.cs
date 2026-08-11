@@ -384,6 +384,9 @@ public sealed class IdentitySessionSecurityTests
 
     private static async Task AssertRateLimitProblemAsync(HttpResponseMessage response)
     {
+        Assert.IsTrue(response.Headers.TryGetValues("Retry-After", out IEnumerable<string>? values));
+        Assert.IsTrue(int.TryParse(values.Single(), out int retryAfterSeconds));
+        Assert.IsGreaterThan(0, retryAfterSeconds);
         Assert.AreEqual("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         using var problem = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
         AssertClosedProblemContract(problem.RootElement);

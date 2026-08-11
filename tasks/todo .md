@@ -1264,3 +1264,57 @@ Estado inicial: `En curso`. El incremento anterior entregó `CreateOrganization`
 - Arquitectura/seguridad: fitness incluido en la suite (`70/70`), FND `45/45`, SEC `26/26`, NuGet/pnpm SCA, JSON, UTF-8 y `git diff --check` `PASS`.
 - Hallazgos de integración corregidos: versión OpenAPI mutada incorrectamente, agregado tenant no declarado, constraint SQL NULL, fixture E2E compartida/rate limit, navegación por hash en SPA y confirmación de revocación.
 - Residuales: Auth0/hosting/secret manager/limiter distribuido/Audit central/retención legal siguen NO-GO para ambiente compartido; el fragmento se procesa al montar la app y el journey soportado abrir enlace → login → reload queda cubierto.
+
+## Iteración 26 — AGRO-GIS-001 referencia territorial v1 (2026-08-11)
+
+Estado inicial: `Propuesto`. Se selecciona autónomamente como el siguiente puente directo entre organizaciones privadas y la futura creación de campos. Transición del sub-slice: `Propuesto → Ready → En curso`; la tarea padre permanecerá `En curso` hasta incorporar snapshot jerárquico completo, operación de actualización y evidencia productiva del proveedor.
+
+### DoR, decisiones y no objetivos
+
+- [x] Verificar que `AGRO-DIS-004` aprobó WGS84/Georef/MapLibre de forma condicional para desarrollo local y que los pendientes de proveedor/DPA/SLA son gates de ambiente compartido.
+- [x] Verificar el fixture reproducible de las 23 provincias+CABA con códigos oficiales y centroides públicos; no interpretarlos como campos, parcelas ni precisión agronómica.
+- [x] Elegir módulo `territory` separado del schema `identity`, dentro del monolito modular y sin microservicio, broker o base compartida entre módulos.
+- [x] Fijar snapshot inmutable/versionado y modelo provider-neutral de niveles `province|department|municipality|locality`; el seed local cubre provincias y el importador admite jerarquía completa sin inventarla.
+- [x] Fijar búsqueda local como fallback durable y resolución por coordenada mediante adapter Georef de host fijo; si no existe respuesta/caché válida, devolver `unavailable` y ofrecer búsqueda manual, nunca inferir código por cercanía al centroide.
+- [x] Fijar que búsqueda/resolución requieren sesión autenticada, son solo lectura, usan rate limit y no reciben tenant, organización, nombre de campo ni PII.
+- [x] Mantener fuera creación de campos/geometrías, mapa/tiles productivos, clima, catastro legal, restricciones agronómicas, job/scheduler de sync y deploy.
+
+Outcome observable: una persona autenticada busca territorio argentino sin lupa con resultados jerárquicos oficiales del snapshot activo. La resolución por coordenada se verifica localmente con respuestas literales del adapter, pero el egress real permanece deshabilitado por defecto y NO-GO hasta aprobar proveedor/Legal; sin respuesta habilitada, la UI degrada explícitamente a búsqueda manual. Los 24 centroides contractuales validan cobertura nacional sin persistir coordenadas de campos.
+
+### Aceptación verificable
+
+- [x] Nuevo módulo .NET `AgropecuarIA.Territory` con límites Domain/Application/Infrastructure, schema PostgreSQL `territory` y composición explícita en la API.
+- [x] Snapshot activo inmutable con fuente, versión, captura, hash y estado; units con código oficial, nivel, parent, nombre y nombre normalizado; constraints evitan parent inválido, duplicados y múltiples snapshots activos.
+- [x] Seed expand local contiene exactamente 24 provincias/CABA del fixture oficial, incluyendo Tierra del Fuego, con source/version/hash reproducibles.
+- [x] Importador valida códigos, niveles, parents, Unicode, duplicados, ciclos, hash y cobertura antes de activar atómicamente; una activación fallida conserva el snapshot anterior.
+- [x] `GET /api/territory/search` aplica query normalizada, level/parent/limit acotados, orden determinista y devuelve fuente/versión/frescura; homónimos conservan jerarquía.
+- [x] `GET /api/territory/resolve` valida WGS84/Argentina, usa `IHttpClientFactory`, host fijo, timeout/tamaño/schema acotados y estados `fresh|stale|unavailable`; fallo externo no inventa territorio.
+- [x] Cache de resolución es derivable, acotada y no persiste/loguea coordenadas; caída sin cache ofrece fallback manual desde el snapshot.
+- [x] UI autenticada ofrece autocomplete reactivo con debounce/cancelación, sin lupa, loader solo en la región de resultados, estados empty/error/unavailable y navegación por teclado/móvil 390 px/Axe.
+- [x] OpenAPI, runtime map, module boundaries y threat model reflejan el nuevo módulo/superficie sin declarar mapa/campos/proveedor productivo.
+- [x] Tests cubren 24 jurisdicciones, acentos/homónimos, parent/level, límites/coordenadas, payload externo inválido/HTML/truncado/429/500/timeout, cache stale y PostgreSQL empty→N/rollback/roll-forward. No existía un writer Territory N-1; la compatibilidad demostrada es aditiva y coexiste con el runtime Identity sin alterar su schema.
+
+### Ownership y gates
+
+- [x] Principal: plan, OpenAPI/contratos compartidos, solución/composition root, mapas/evidencia, integración, gates y Git.
+- [x] Backend: dominio/aplicación, adapter Georef, endpoints del módulo y tests no-DB bajo ownership exclusivo.
+- [x] Database/Security: DbContext, migración/seed, importer persistente, constraints y tests PostgreSQL bajo ownership exclusivo.
+- [x] Frontend/QA: cliente/tipos/UI y Vitest/E2E de búsqueda/degradación bajo ownership exclusivo.
+- [x] Ejecutar restore locked, build Release, MTP, format, EF pending/migrations PostgreSQL, pnpm frozen/format/lint/typecheck/Vitest/build, Playwright, FND/SEC, SCA, JSON/UTF-8/secrets/diff y revisión independiente.
+- [x] Documentar resultados, mantener `AGRO-GIS-001` `En curso`, commit/push autorizado y no iniciar `AGRO-GIS-002` en este incremento.
+
+### Baseline
+
+- Git `main` y `origin/main` en `4d4893f`, worktree limpio.
+- Backend: build Release 0 warnings/errores; MTP 170/170; EF sin drift.
+- Frontend: pnpm frozen/format/lint/typecheck/build PASS; Vitest 67/67; Playwright 4/4.
+- Validadores: FND 45/45; SEC 26/26; SCA y secret scan sin hallazgos.
+
+### Review final
+
+- Resultado del incremento local: `PASS`; `AGRO-GIS-001` queda `En curso` por fuente jerárquica completa, operación administrada de actualización y gates externos de Georef/Legal/ambiente compartido.
+- Backend: restore locked `PASS`; build Release 0 warnings/errores; suite raíz MTP `223/223`; Territory/PostgreSQL `44/44`; Architecture Fitness `79/79`; `dotnet format` y EF pending-model de Identity/Territory `PASS`.
+- Frontend: pnpm frozen, Prettier, lint, typecheck y Next build `PASS`; Vitest `79/79`; Playwright Chromium+mobile `6/6`, incluida degradación sin egress, teclado, Axe y viewport 390 px.
+- Seguridad/contratos: FND protocol `45/45`, SEC threat model `41/41`, OpenAPI/runtime map/RLS/hash/provider guards `PASS`; NuGet y pnpm sin vulnerabilidades conocidas; secretos, JSON, UTF-8 y diff-check sin hallazgos.
+- Persistencia: primer schema Territory validado empty→N, seed/hash reproducibles, activación atómica, rollback/roll-forward efímero y convivencia aditiva con Identity. No se afirma un writer Territory N-1 inexistente.
+- Revisión independiente: sin hallazgos críticos/altos/medios abiertos. Se corrigieron shape real `gobierno_local`, egress default-off, logging HTTP sin URI, hash NFC completo, homónimos, payload truncado, coordenadas echoed, contrato Problem/Retry-After/parent, copy de frescura y evidencia E2E.

@@ -8,13 +8,26 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
+  CreatedOwnerInvitation,
   CreatedOrganization,
   IdentityCapabilities,
   IdentityConnection,
   IdentitySession,
+  StepUpAttempt,
 } from "../../features/identity/identity-types";
 
 const apiMocks = vi.hoisted(() => ({
+  acceptOwnerInvitation:
+    vi.fn<(token: string) => Promise<CreatedOrganization>>(),
+  completeDevelopmentStepUp:
+    vi.fn<(attempt: StepUpAttempt) => Promise<IdentitySession>>(),
+  createOwnerInvitation:
+    vi.fn<
+      (
+        organizationId: string,
+        idempotencyKey: string,
+      ) => Promise<CreatedOwnerInvitation>
+    >(),
   createOrganization:
     vi.fn<
       (
@@ -27,6 +40,9 @@ const apiMocks = vi.hoisted(() => ({
     vi.fn<(signal?: AbortSignal) => Promise<IdentityCapabilities>>(),
   loadSession: vi.fn<(signal?: AbortSignal) => Promise<IdentitySession>>(),
   identityLoginUrl: vi.fn<(connection: IdentityConnection) => string>(),
+  listOwnerInvitations: vi.fn().mockResolvedValue([]),
+  startStepUp:
+    vi.fn<(purpose: StepUpAttempt["purpose"]) => Promise<StepUpAttempt>>(),
 }));
 
 vi.mock("../../features/identity/identity-api", async (importOriginal) => {
@@ -42,12 +58,14 @@ import {
   invalidateAntiforgeryToken,
 } from "../../features/identity/identity-api";
 import { IdentityHub } from "../../features/identity/identity-hub";
+import { captureOwnerInvitationTokenFromHash } from "../../features/identity/identity-hub";
 
 const capabilities: IdentityCapabilities = {
   environment: "Development",
   oidcConfigured: false,
   developmentProviderEnabled: true,
   strongAuthenticationAvailable: true,
+  ownerInvitationsAvailable: false,
   connections: [{ id: "email", label: "Correo", available: true }],
 };
 
@@ -229,5 +247,170 @@ describe("IdentityHub organization attempts", () => {
     );
 
     expect(apiMocks.createOrganization.mock.calls[1]?.[1]).toBe(firstKey);
+  });
+});
+
+describe("IdentityHub owner invitation bearer handling", () => {
+  it("removes the bearer token from the fragment before preserving it in session storage", () => {
+    const token = "a".repeat(43);
+    globalThis.history.replaceState(
+      {},
+      "",
+      `/?source=share#owner-invitation=${token}`,
+    );
+
+    expect(captureOwnerInvitationTokenFromHash()).toBe(token);
+    expect(globalThis.location.hash).toBe("");
+    expect(globalThis.location.search).toBe("?source=share");
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.identity.owner-invitation-token.v1",
+      ),
+    ).toBe(token);
+  });
+
+  it("clears and rejects a malformed invitation fragment", async () => {
+    globalThis.history.replaceState(
+      {},
+      "",
+      "/#owner-invitation=not-a-256-bit-token",
+    );
+
+    render(<IdentityHub />);
+
+    expect(await screen.findByText("Enlace no disponible")).toBeVisible();
+    expect(globalThis.location.hash).toBe("");
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.identity.owner-invitation-token.v1",
+      ),
+    ).toBeNull();
+  });
+
+  it("accepts a captured token and removes its browser storage after success", async () => {
+    const token = "b".repeat(43);
+    apiMocks.loadCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      ownerInvitationsAvailable: true,
+    });
+    apiMocks.acceptOwnerInvitation.mockResolvedValueOnce(created);
+    globalThis.history.replaceState({}, "", `/#owner-invitation=${token}`);
+
+    render(<IdentityHub />);
+
+    await waitFor(() =>
+      expect(apiMocks.acceptOwnerInvitation).toHaveBeenCalledWith(token),
+    );
+    expect(globalThis.location.hash).toBe("");
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.identity.owner-invitation-token.v1",
+      ),
+    ).toBeNull();
+    expect(await screen.findByText(/Ya sos co-owner/i)).toBeVisible();
+  });
+
+  it("keeps the token for an explicit retry after an offline failure", async () => {
+    const token = "c".repeat(43);
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+    apiMocks.loadCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      ownerInvitationsAvailable: true,
+    });
+    apiMocks.acceptOwnerInvitation
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(created);
+    globalThis.history.replaceState({}, "", `/#owner-invitation=${token}`);
+
+    render(<IdentityHub />);
+
+    expect(
+      await screen.findByRole("button", { name: "Reintentar" }),
+    ).toBeVisible();
+    expect(apiMocks.acceptOwnerInvitation).toHaveBeenCalledTimes(1);
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.identity.owner-invitation-token.v1",
+      ),
+    ).toBe(token);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    await waitFor(() =>
+      expect(apiMocks.acceptOwnerInvitation).toHaveBeenCalledTimes(2),
+    );
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.identity.owner-invitation-token.v1",
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("IdentityHub owner invitation management", () => {
+  it("performs a purpose-bound step-up before revealing an owner link", async () => {
+    const organizationId = "1266395e-ec88-481e-9a72-81fa2cc2904a";
+    const ownerSession: IdentitySession = {
+      ...session,
+      memberships: [
+        { organizationId, organizationName: "La Esperanza", role: "owner" },
+      ],
+    };
+    const strongSession: IdentitySession = {
+      ...ownerSession,
+      authentication: {
+        level: "strong",
+        authenticatedAtUtc: "2026-08-11T20:00:00Z",
+        purpose: "manage_organization_owners",
+        strongAuthenticatedAtUtc: "2026-08-11T20:01:00Z",
+        expiresAtUtc: "2099-08-11T20:06:00Z",
+      },
+    };
+    const stepUp: StepUpAttempt = {
+      attemptId: "d68a20db-bae4-4822-99bd-e016517bd0ee",
+      purpose: "manage_organization_owners",
+      expiresAtUtc: "2099-08-11T20:06:00Z",
+      authorizationUrl: "/provider",
+    };
+    apiMocks.loadCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      ownerInvitationsAvailable: true,
+    });
+    apiMocks.loadSession.mockResolvedValueOnce(ownerSession);
+    apiMocks.startStepUp.mockResolvedValueOnce(stepUp);
+    apiMocks.completeDevelopmentStepUp.mockResolvedValueOnce(strongSession);
+    apiMocks.createOwnerInvitation.mockResolvedValueOnce({
+      invitation: {
+        invitationId: "3766395e-ec88-481e-9a72-81fa2cc2904a",
+        organizationId,
+        status: "pending",
+        createdAtUtc: "2026-08-11T20:01:00Z",
+        expiresAtUtc: "2026-08-18T20:01:00Z",
+        acceptedAtUtc: null,
+        revokedAtUtc: null,
+        version: "4766395e-ec88-481e-9a72-81fa2cc2904a",
+      },
+      token: "d".repeat(43),
+      isReplay: false,
+    });
+
+    render(<IdentityHub />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Verificar y crear enlace",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(apiMocks.startStepUp).toHaveBeenCalledWith(
+        "manage_organization_owners",
+      ),
+    );
+    await waitFor(() =>
+      expect(apiMocks.createOwnerInvitation).toHaveBeenCalledWith(
+        organizationId,
+        expect.stringMatching(/^[0-9a-f]{32}$/),
+      ),
+    );
+    expect(await screen.findByText("Guardá el enlace ahora")).toBeVisible();
   });
 });

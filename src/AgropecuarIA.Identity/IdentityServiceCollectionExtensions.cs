@@ -37,6 +37,13 @@ public static class IdentityServiceCollectionExtensions
                 "Enabled organization bootstrap requires a current idempotency HMAC key and a bounded key ring of Base64 keys containing at least 32 bytes each.")
             .ValidateOnStart();
 
+        services.AddOptions<OrganizationOwnerInvitationOptions>()
+            .Bind(configuration.GetSection(OrganizationOwnerInvitationOptions.SectionName))
+            .Validate(
+                IsValidOrganizationOwnerInvitations,
+                "Enabled owner invitations require a 1 hour to 30 day lifetime, a current HMAC key, and a bounded key ring of Base64 keys containing at least 32 bytes each.")
+            .ValidateOnStart();
+
         services.AddDbContext<IdentityDbContext>(options =>
             options.UseNpgsql(connectionString, npgsql =>
                 npgsql.MigrationsAssembly(typeof(IdentityDbContext).Assembly.FullName)));
@@ -86,6 +93,49 @@ public static class IdentityServiceCollectionExtensions
             try
             {
                 if (Convert.FromBase64String(encodedKey).Length < 32)
+                {
+                    return false;
+                }
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsValidOrganizationOwnerInvitations(
+        OrganizationOwnerInvitationOptions options)
+    {
+        if (!options.Enabled)
+        {
+            return true;
+        }
+
+        if (options.Lifetime < TimeSpan.FromHours(1) ||
+            options.Lifetime > TimeSpan.FromDays(30) ||
+            string.IsNullOrWhiteSpace(options.CurrentKeyVersion) ||
+            options.CurrentKeyVersion.Length > 32 ||
+            options.HmacKeys.Count is < 1 or > 8 ||
+            !options.HmacKeys.ContainsKey(options.CurrentKeyVersion))
+        {
+            return false;
+        }
+
+        var uniqueKeys = new HashSet<string>(StringComparer.Ordinal);
+        foreach ((string version, string encodedKey) in options.HmacKeys)
+        {
+            if (string.IsNullOrWhiteSpace(version) || version.Length > 32)
+            {
+                return false;
+            }
+
+            try
+            {
+                byte[] key = Convert.FromBase64String(encodedKey);
+                if (key.Length < 32 || !uniqueKeys.Add(Convert.ToHexString(key)))
                 {
                     return false;
                 }

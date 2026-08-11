@@ -6,6 +6,7 @@ using AgropecuarIA.Identity.Domain;
 using AgropecuarIA.Identity.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.WebUtilities;
 using Npgsql;
 
 namespace AgropecuarIA.Identity.Application;
@@ -18,11 +19,14 @@ public sealed class IdentityApplicationService(
     IOptions<IdentityRuntimeOptions> options,
     IOptions<OrganizationBootstrapOptions> organizationBootstrapOptions,
     IOrganizationCreationCommitBoundary? organizationCommitBoundary = null,
-    IOrganizationCreationRecoveryContextFactory? organizationRecoveryContextFactory = null)
+    IOrganizationCreationRecoveryContextFactory? organizationRecoveryContextFactory = null,
+    IOptions<OrganizationOwnerInvitationOptions>? organizationOwnerInvitationOptions = null)
 {
     private static readonly TimeSpan AuthenticationClockSkew = TimeSpan.FromMinutes(1);
     private readonly IdentityRuntimeOptions runtimeOptions = options.Value;
     private readonly OrganizationBootstrapOptions bootstrapOptions = organizationBootstrapOptions.Value;
+    private readonly OrganizationOwnerInvitationOptions ownerInvitationOptions =
+        organizationOwnerInvitationOptions?.Value ?? new OrganizationOwnerInvitationOptions();
     private readonly IOrganizationCreationCommitBoundary commitBoundary =
         organizationCommitBoundary ?? new OrganizationCreationCommitBoundary();
     private readonly IOrganizationCreationRecoveryContextFactory recoveryContextFactory =
@@ -967,6 +971,454 @@ public sealed class IdentityApplicationService(
         }
     }
 
+    public async Task<CreatedOrganizationOwnerInvitationResult> CreateOrganizationOwnerInvitationAsync(
+        CreateOrganizationOwnerInvitationCommand command,
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        requestContext.RequireTenantActor(currentSession.UserId, command.OrganizationId);
+        ValidateIdempotencyKey(command.IdempotencyKey);
+        using Activity? activity = IdentityTelemetry.Start("identity.organization_owner_invitation_create");
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        Dictionary<string, byte[]> keyRing = GetOwnerInvitationKeyRing();
+        Dictionary<string, byte[]> creationAliases = CreateOwnerInvitationDigests(
+            "create",
+            command.OrganizationId,
+            command.IdempotencyKey,
+            keyRing);
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        try
+        {
+            await SetOwnerInvitationDatabaseContextAsync(
+                currentSession.UserId,
+                command.OrganizationId,
+                cancellationToken);
+            await RequireOrganizationOwnerAuthorizationAsync(
+                command.OrganizationId,
+                currentSession,
+                now,
+                requireStrongAuthentication: true,
+                cancellationToken);
+            EnsureOwnerInvitationsEnabled(
+                keyRing,
+                "organization_owner_invitation_create");
+            await RequireRetainedOwnerInvitationKeyCoverageAsync(
+                keyRing.Keys,
+                "organization_owner_invitation_create",
+                cancellationToken);
+
+            OrganizationOwnerInvitation? replay = await FindInvitationByCreationKeyAsync(
+                command.OrganizationId,
+                creationAliases,
+                cancellationToken);
+            if (replay is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                telemetry.RecordOrganizationOwnerInvitation(
+                    "organization_owner_invitation_create",
+                    "replayed");
+                return ToCreatedOwnerInvitationResult(replay, token: null, isReplay: true, now);
+            }
+
+            string token = tokenService.CreateToken();
+            string currentKeyVersion = ownerInvitationOptions.CurrentKeyVersion;
+            byte[] currentKey = keyRing[currentKeyVersion];
+            OrganizationOwnerInvitation invitation = new(
+                Guid.NewGuid(),
+                command.OrganizationId,
+                currentSession.UserId,
+                currentSession.SessionId,
+                currentKeyVersion,
+                creationAliases[currentKeyVersion],
+                currentKeyVersion,
+                CreateOwnerInvitationTokenDigest(token, currentKey),
+                now,
+                now.Add(ownerInvitationOptions.Lifetime));
+            dbContext.OrganizationOwnerInvitations.Add(invitation);
+            dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
+                currentSession.UserId,
+                currentSession.SessionId,
+                "organization_owner_invitation_created",
+                "succeeded",
+                null,
+                requestContext));
+            dbContext.OutboxMessages.Add(IdentityOutboxMessage.CreateOrganizationOwnerInvited(
+                new IdentityIntegrationEventEnvelope(
+                    Guid.NewGuid(),
+                    requestContext.Scope,
+                    now,
+                    now,
+                    now,
+                    currentSession.UserId,
+                    requestContext.CorrelationId,
+                    null,
+                    invitation.Id,
+                    1),
+                new OrganizationOwnerInvitedIntegrationEventPayload(
+                    invitation.OrganizationId,
+                    invitation.Id,
+                    invitation.ExpiresAtUtc,
+                    now)));
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            telemetry.RecordOrganizationOwnerInvitation(
+                "organization_owner_invitation_create",
+                "succeeded");
+            return ToCreatedOwnerInvitationResult(invitation, token, isReplay: false, now);
+        }
+        catch (DbUpdateException exception) when (IsOwnerInvitationCreationRace(exception))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await transaction.DisposeAsync();
+            dbContext.ChangeTracker.Clear();
+            CreatedOrganizationOwnerInvitationResult replay =
+                await ResolveOwnerInvitationCreationRaceAsync(
+                    command.OrganizationId,
+                    currentSession,
+                    requestContext,
+                    creationAliases,
+                    cancellationToken);
+            telemetry.RecordOrganizationOwnerInvitation(
+                "organization_owner_invitation_create",
+                "replayed");
+            return replay;
+        }
+        catch (Exception exception) when (IsOrganizationSerializationRace(exception))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await transaction.DisposeAsync();
+            dbContext.ChangeTracker.Clear();
+            CreatedOrganizationOwnerInvitationResult replay =
+                await ResolveOwnerInvitationCreationRaceAsync(
+                    command.OrganizationId,
+                    currentSession,
+                    requestContext,
+                    creationAliases,
+                    cancellationToken);
+            telemetry.RecordOrganizationOwnerInvitation(
+                "organization_owner_invitation_create",
+                "replayed");
+            return replay;
+        }
+        catch (IdentityOperationException)
+        {
+            telemetry.RecordOrganizationOwnerInvitation(
+                "organization_owner_invitation_create",
+                "rejected");
+            throw;
+        }
+    }
+
+    public async Task<IReadOnlyList<OrganizationOwnerInvitationSummaryResult>>
+        ListOrganizationOwnerInvitationsAsync(
+            Guid organizationId,
+            AuthenticatedSession currentSession,
+            IdentityRequestContext requestContext,
+            CancellationToken cancellationToken)
+    {
+        requestContext.RequireTenantActor(currentSession.UserId, organizationId);
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        Dictionary<string, byte[]> keyRing = GetOwnerInvitationKeyRing();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted,
+            cancellationToken);
+        await SetOwnerInvitationDatabaseContextAsync(
+            currentSession.UserId,
+            organizationId,
+            cancellationToken);
+        await RequireOrganizationOwnerAuthorizationAsync(
+            organizationId,
+            currentSession,
+            now,
+            requireStrongAuthentication: false,
+            cancellationToken);
+        EnsureOwnerInvitationsEnabled(
+            keyRing,
+            "organization_owner_invitation_list");
+        await RequireRetainedOwnerInvitationKeyCoverageAsync(
+            keyRing.Keys,
+            "organization_owner_invitation_list",
+            cancellationToken);
+        OrganizationOwnerInvitation[] invitations = await dbContext.OrganizationOwnerInvitations
+            .AsNoTracking()
+            .Where(invitation => invitation.OrganizationId == organizationId)
+            .OrderByDescending(invitation => invitation.CreatedAtUtc)
+            .ThenBy(invitation => invitation.Id)
+            .ToArrayAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        telemetry.RecordOrganizationOwnerInvitation(
+            "organization_owner_invitation_list",
+            "succeeded");
+        return invitations
+            .Select(invitation => ToOwnerInvitationSummary(invitation, now))
+            .ToArray();
+    }
+
+    public async Task<OrganizationOwnerInvitationSummaryResult> RevokeOrganizationOwnerInvitationAsync(
+        RevokeOrganizationOwnerInvitationCommand command,
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        requestContext.RequireTenantActor(currentSession.UserId, command.OrganizationId);
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        Dictionary<string, byte[]> keyRing = GetOwnerInvitationKeyRing();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        try
+        {
+            await SetOwnerInvitationDatabaseContextAsync(
+                currentSession.UserId,
+                command.OrganizationId,
+                cancellationToken);
+            await RequireOrganizationOwnerAuthorizationAsync(
+                command.OrganizationId,
+                currentSession,
+                now,
+                requireStrongAuthentication: true,
+                cancellationToken);
+            EnsureOwnerInvitationsEnabled(
+                keyRing,
+                "organization_owner_invitation_revoke");
+            await RequireRetainedOwnerInvitationKeyCoverageAsync(
+                keyRing.Keys,
+                "organization_owner_invitation_revoke",
+                cancellationToken);
+            OrganizationOwnerInvitation invitation = await dbContext.OrganizationOwnerInvitations
+                .SingleOrDefaultAsync(
+                    item => item.Id == command.InvitationId &&
+                        item.OrganizationId == command.OrganizationId,
+                    cancellationToken)
+                ?? throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
+            if (invitation.Version != command.ExpectedVersion)
+            {
+                throw IdentityErrors.OrganizationOwnerInvitationVersionMismatch();
+            }
+
+            invitation.Revoke(currentSession.UserId, now);
+            dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
+                currentSession.UserId,
+                currentSession.SessionId,
+                "organization_owner_invitation_revoked",
+                "succeeded",
+                null,
+                requestContext));
+            dbContext.OutboxMessages.Add(IdentityOutboxMessage.CreateOrganizationOwnerInvitationRevoked(
+                new IdentityIntegrationEventEnvelope(
+                    Guid.NewGuid(),
+                    requestContext.Scope,
+                    now,
+                    now,
+                    now,
+                    currentSession.UserId,
+                    requestContext.CorrelationId,
+                    invitation.Id,
+                    invitation.Id,
+                    2),
+                new OrganizationOwnerInvitationRevokedIntegrationEventPayload(
+                    invitation.OrganizationId,
+                    invitation.Id,
+                    now)));
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            telemetry.RecordOrganizationOwnerInvitation(
+                "organization_owner_invitation_revoke",
+                "succeeded");
+            return ToOwnerInvitationSummary(invitation, now);
+        }
+        catch (InvalidOperationException)
+        {
+            telemetry.RecordOrganizationOwnerInvitation(
+                "organization_owner_invitation_revoke",
+                "conflict");
+            throw IdentityErrors.OrganizationOwnerInvitationConflict();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            telemetry.RecordOrganizationOwnerInvitation(
+                "organization_owner_invitation_revoke",
+                "conflict");
+            throw IdentityErrors.OrganizationOwnerInvitationConflict();
+        }
+    }
+
+    public async Task<AcceptedOrganizationOwnerInvitationResult>
+        AcceptOrganizationOwnerInvitationAsync(
+            AcceptOrganizationOwnerInvitationCommand command,
+            AuthenticatedSession currentSession,
+            IdentityRequestContext requestContext,
+            CancellationToken cancellationToken) =>
+        await AcceptOrganizationOwnerInvitationAsync(
+            command,
+            currentSession,
+            requestContext,
+            retryAfterRace: true,
+            cancellationToken);
+
+    private async Task<AcceptedOrganizationOwnerInvitationResult>
+        AcceptOrganizationOwnerInvitationAsync(
+            AcceptOrganizationOwnerInvitationCommand command,
+            AuthenticatedSession currentSession,
+            IdentityRequestContext requestContext,
+            bool retryAfterRace,
+            CancellationToken cancellationToken)
+    {
+        requestContext.RequirePlatformActor(currentSession.UserId);
+        ValidateOwnerInvitationToken(command.Token);
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        Dictionary<string, byte[]> keyRing = GetOwnerInvitationKeyRing();
+        EnsureOwnerInvitationsEnabled(
+            keyRing,
+            "organization_owner_invitation_accept");
+        using Activity? activity = IdentityTelemetry.Start("identity.organization_owner_invitation_accept");
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        try
+        {
+            await SetOwnerInvitationDatabaseContextAsync(
+                currentSession.UserId,
+                organizationId: null,
+                cancellationToken);
+            await RequireRecentVerifiedSessionAsync(currentSession, now, cancellationToken);
+            await RequireRetainedOwnerInvitationKeyCoverageAsync(
+                keyRing.Keys,
+                "organization_owner_invitation_accept",
+                cancellationToken);
+            OrganizationOwnerInvitation invitation =
+                await FindInvitationByTokenAsync(command.Token, keyRing, cancellationToken)
+                ?? throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
+            await SetOwnerInvitationTenantContextAsync(invitation.OrganizationId, cancellationToken);
+
+            if (invitation.Status == OrganizationOwnerInvitationStatuses.Accepted)
+            {
+                AcceptedOrganizationOwnerInvitationResult replay =
+                    await ResolveAcceptedOwnerInvitationReplayAsync(
+                        invitation,
+                        currentSession.UserId,
+                        cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                telemetry.RecordOrganizationOwnerInvitation(
+                    "organization_owner_invitation_accept",
+                    "replayed");
+                return replay;
+            }
+
+            if (invitation.Status != OrganizationOwnerInvitationStatuses.Pending ||
+                invitation.ExpiresAtUtc <= now)
+            {
+                throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
+            }
+
+            OrganizationDirectoryEntry organization = await dbContext.Organizations
+                .AsNoTracking()
+                .SingleOrDefaultAsync(
+                    item => item.Id == invitation.OrganizationId &&
+                        item.Status == OrganizationStatuses.Active,
+                    cancellationToken)
+                ?? throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
+            OrganizationMembershipAssignment? membership = await dbContext.AuthoritativeMemberships
+                .SingleOrDefaultAsync(
+                    item => item.OrganizationId == invitation.OrganizationId &&
+                        item.UserId == currentSession.UserId,
+                    cancellationToken);
+            if (membership is null)
+            {
+                membership = new OrganizationMembershipAssignment(
+                    Guid.NewGuid(),
+                    invitation.OrganizationId,
+                    currentSession.UserId,
+                    now);
+                dbContext.AuthoritativeMemberships.Add(membership);
+                dbContext.Memberships.Add(new OrganizationMembership(
+                    currentSession.UserId,
+                    invitation.OrganizationId,
+                    organization.DisplayName,
+                    OrganizationMembershipRoles.Owner));
+            }
+            else if (membership.Status != OrganizationStatuses.Active ||
+                membership.Role != OrganizationMembershipRoles.Owner)
+            {
+                throw IdentityErrors.OrganizationOwnerInvitationConflict();
+            }
+
+            invitation.Accept(currentSession.UserId, membership.Id, now);
+            IdentityRequestContext tenantRequestContext = IdentityRequestContext.ForTenant(
+                requestContext.CorrelationId,
+                currentSession.UserId,
+                invitation.OrganizationId);
+            dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
+                currentSession.UserId,
+                currentSession.SessionId,
+                "organization_owner_invitation_accepted",
+                "succeeded",
+                null,
+                tenantRequestContext));
+            dbContext.OutboxMessages.Add(IdentityOutboxMessage.CreateOrganizationOwnerInvitationAccepted(
+                new IdentityIntegrationEventEnvelope(
+                    Guid.NewGuid(),
+                    tenantRequestContext.Scope,
+                    now,
+                    now,
+                    now,
+                    currentSession.UserId,
+                    tenantRequestContext.CorrelationId,
+                    invitation.Id,
+                    invitation.Id,
+                    2),
+                new OrganizationOwnerInvitationAcceptedIntegrationEventPayload(
+                    invitation.OrganizationId,
+                    invitation.Id,
+                    membership.Id,
+                    now)));
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            telemetry.RecordOrganizationOwnerInvitation(
+                "organization_owner_invitation_accept",
+                "succeeded");
+            return ToAcceptedOwnerInvitationResult(
+                invitation,
+                organization,
+                membership,
+                isReplay: false);
+        }
+        catch (Exception exception) when (
+            retryAfterRace &&
+            IsSafeOwnerInvitationAcceptanceRace(exception))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await transaction.DisposeAsync();
+            dbContext.ChangeTracker.Clear();
+            return await AcceptOrganizationOwnerInvitationAsync(
+                command,
+                currentSession,
+                requestContext,
+                retryAfterRace: false,
+                cancellationToken);
+        }
+        catch (Exception exception) when (IsSafeOwnerInvitationAcceptanceRace(exception))
+        {
+            telemetry.RecordOrganizationOwnerInvitation(
+                "organization_owner_invitation_accept",
+                "conflict");
+            throw IdentityErrors.OrganizationOwnerInvitationConflict();
+        }
+        catch (InvalidOperationException)
+        {
+            telemetry.RecordOrganizationOwnerInvitation(
+                "organization_owner_invitation_accept",
+                "conflict");
+            throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
+        }
+    }
+
     public async Task RevokeSessionAsync(
         AuthenticatedSession currentSession,
         IdentityRequestContext requestContext,
@@ -990,6 +1442,439 @@ public sealed class IdentityApplicationService(
         await dbContext.SaveChangesAsync(cancellationToken);
         telemetry.Record("session_revoked", "succeeded");
     }
+
+    private Dictionary<string, byte[]> GetOwnerInvitationKeyRing()
+    {
+        if (ownerInvitationOptions.HmacKeys.Count is < 1 or > 8 ||
+            string.IsNullOrWhiteSpace(ownerInvitationOptions.CurrentKeyVersion) ||
+            !ownerInvitationOptions.HmacKeys.ContainsKey(ownerInvitationOptions.CurrentKeyVersion) ||
+            ownerInvitationOptions.Lifetime <= TimeSpan.Zero ||
+            ownerInvitationOptions.Lifetime > TimeSpan.FromDays(30))
+        {
+            throw IdentityErrors.OrganizationOwnerInvitationUnavailable();
+        }
+
+        Dictionary<string, byte[]> decoded = new(StringComparer.Ordinal);
+        HashSet<string> uniqueKeys = new(StringComparer.Ordinal);
+        foreach ((string version, string encodedKey) in ownerInvitationOptions.HmacKeys)
+        {
+            if (string.IsNullOrWhiteSpace(version) || version.Length > 32 ||
+                string.IsNullOrWhiteSpace(encodedKey))
+            {
+                throw IdentityErrors.OrganizationOwnerInvitationUnavailable();
+            }
+
+            byte[] key;
+            try
+            {
+                key = Convert.FromBase64String(encodedKey);
+            }
+            catch (FormatException)
+            {
+                throw IdentityErrors.OrganizationOwnerInvitationUnavailable();
+            }
+
+            if (key.Length < 32 || !uniqueKeys.Add(Convert.ToHexString(key)))
+            {
+                throw IdentityErrors.OrganizationOwnerInvitationUnavailable();
+            }
+
+            decoded.Add(version, key);
+        }
+
+        return decoded;
+    }
+
+    private void EnsureOwnerInvitationsEnabled(
+        Dictionary<string, byte[]> keyRing,
+        string operation)
+    {
+        if (!ownerInvitationOptions.Enabled ||
+            !keyRing.ContainsKey(ownerInvitationOptions.CurrentKeyVersion))
+        {
+            telemetry.RecordOrganizationOwnerInvitation(
+                operation,
+                "unavailable");
+            throw IdentityErrors.OrganizationOwnerInvitationUnavailable();
+        }
+    }
+
+    private async Task RequireRetainedOwnerInvitationKeyCoverageAsync(
+        IEnumerable<string> retainedKeyVersions,
+        string operation,
+        CancellationToken cancellationToken)
+    {
+        string[] versions = retainedKeyVersions
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        bool covered = await dbContext.Database
+            .SqlQueryRaw<bool>(
+                "SELECT identity.owner_invitation_retained_key_covered({0}) AS \"Value\"",
+                (object)versions)
+            .SingleAsync(cancellationToken);
+        if (!covered)
+        {
+            telemetry.RecordOrganizationOwnerInvitation(
+                operation,
+                "unavailable");
+            throw IdentityErrors.OrganizationOwnerInvitationUnavailable();
+        }
+    }
+
+    private static Dictionary<string, byte[]> CreateOwnerInvitationDigests(
+        string purpose,
+        Guid organizationId,
+        string value,
+        IReadOnlyDictionary<string, byte[]> keyRing)
+    {
+        Dictionary<string, byte[]> digests = new(StringComparer.Ordinal);
+        foreach ((string version, byte[] key) in keyRing)
+        {
+            digests.Add(version, CreateOwnerInvitationDigest(purpose, organizationId, value, key));
+        }
+
+        return digests;
+    }
+
+    private static byte[] CreateOwnerInvitationDigest(
+        string purpose,
+        Guid organizationId,
+        string value,
+        byte[] key)
+    {
+        string canonicalValue = string.Join(
+            '|',
+            "organization-owner-invitation-v1",
+            purpose,
+            organizationId.ToString("D"),
+            value);
+        return HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(canonicalValue));
+    }
+
+    private static byte[] CreateOwnerInvitationTokenDigest(string token, byte[] key) =>
+        CreateOwnerInvitationDigest("token", Guid.Empty, token, key);
+
+    private static void ValidateOwnerInvitationToken(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token) || token.Length != 43)
+        {
+            throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
+        }
+
+        try
+        {
+            byte[] decoded = WebEncoders.Base64UrlDecode(token);
+            if (decoded.Length != 32 ||
+                !string.Equals(WebEncoders.Base64UrlEncode(decoded), token, StringComparison.Ordinal))
+            {
+                throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
+            }
+        }
+        catch (FormatException)
+        {
+            throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
+        }
+    }
+
+    private async Task SetOwnerInvitationDatabaseContextAsync(
+        Guid actorUserId,
+        Guid? organizationId,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "SET LOCAL ROLE agro_identity_app",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_actor_id', {actorUserId.ToString("D")}, true)",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_scope_kind', {(organizationId is null ? "platform" : "tenant")}, true)",
+            cancellationToken);
+        if (organizationId is not null)
+        {
+            await SetOwnerInvitationTenantContextAsync(organizationId.Value, cancellationToken);
+        }
+    }
+
+    private async Task SetOwnerInvitationTenantContextAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_scope_kind', {"tenant"}, true)",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_organization_id', {organizationId.ToString("D")}, true)",
+            cancellationToken);
+    }
+
+    private async Task RequireOrganizationOwnerAuthorizationAsync(
+        Guid organizationId,
+        AuthenticatedSession currentSession,
+        DateTimeOffset now,
+        bool requireStrongAuthentication,
+        CancellationToken cancellationToken)
+    {
+        OwnerInvitationSessionAuthorization? authorization = await dbContext.Sessions
+            .AsNoTracking()
+            .Where(session =>
+                session.Id == currentSession.SessionId &&
+                session.UserId == currentSession.UserId &&
+                session.RevokedAtUtc == null &&
+                session.ExpiresAtUtc > now)
+            .Select(session => new OwnerInvitationSessionAuthorization(
+                session.IsAuthenticationAssuranceVerified,
+                session.AuthenticatedAtUtc,
+                session.StrongAuthenticatedAtUtc,
+                session.StrongAuthenticationPurpose))
+            .SingleOrDefaultAsync(cancellationToken);
+        if (authorization is null)
+        {
+            throw IdentityErrors.SessionRequired();
+        }
+
+        if (requireStrongAuthentication &&
+            (!authorization.IsAuthenticationAssuranceVerified ||
+                authorization.StrongAuthenticatedAtUtc is null ||
+                authorization.StrongAuthenticationPurpose != StepUpPurposes.ManageOrganizationOwners ||
+                now - authorization.StrongAuthenticatedAtUtc.Value < TimeSpan.Zero ||
+                now - authorization.StrongAuthenticatedAtUtc.Value >= runtimeOptions.StrongAuthenticationWindow))
+        {
+            throw IdentityErrors.StrongAuthenticationRequired();
+        }
+
+        bool isOwner = await dbContext.AuthoritativeMemberships
+            .AsNoTracking()
+            .AnyAsync(
+                membership => membership.OrganizationId == organizationId &&
+                    membership.UserId == currentSession.UserId &&
+                    membership.Role == OrganizationMembershipRoles.Owner &&
+                    membership.Status == OrganizationStatuses.Active,
+                cancellationToken);
+        if (!isOwner)
+        {
+            throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
+        }
+    }
+
+    private async Task RequireRecentVerifiedSessionAsync(
+        AuthenticatedSession currentSession,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        OwnerInvitationSessionAuthorization? authorization = await dbContext.Sessions
+            .AsNoTracking()
+            .Where(session =>
+                session.Id == currentSession.SessionId &&
+                session.UserId == currentSession.UserId &&
+                session.RevokedAtUtc == null &&
+                session.ExpiresAtUtc > now)
+            .Select(session => new OwnerInvitationSessionAuthorization(
+                session.IsAuthenticationAssuranceVerified,
+                session.AuthenticatedAtUtc,
+                session.StrongAuthenticatedAtUtc,
+                session.StrongAuthenticationPurpose))
+            .SingleOrDefaultAsync(cancellationToken);
+        if (authorization is null)
+        {
+            throw IdentityErrors.SessionRequired();
+        }
+
+        TimeSpan authenticationAge = now - authorization.AuthenticatedAtUtc;
+        if (!authorization.IsAuthenticationAssuranceVerified ||
+            authenticationAge < TimeSpan.Zero ||
+            authenticationAge >= runtimeOptions.RecentAuthenticationWindow)
+        {
+            throw IdentityErrors.RecentAuthenticationRequired();
+        }
+    }
+
+    private async Task<OrganizationOwnerInvitation?> FindInvitationByCreationKeyAsync(
+        Guid organizationId,
+        IReadOnlyDictionary<string, byte[]> digests,
+        CancellationToken cancellationToken)
+    {
+        List<OrganizationOwnerInvitation> matches = [];
+        foreach ((string keyVersion, byte[] digest) in digests)
+        {
+            OrganizationOwnerInvitation[] currentMatches = await dbContext.OrganizationOwnerInvitations
+                .AsNoTracking()
+                .Where(invitation => invitation.OrganizationId == organizationId &&
+                    invitation.CreationKeyVersion == keyVersion &&
+                    invitation.CreationKeyDigest == digest)
+                .Take(2)
+                .ToArrayAsync(cancellationToken);
+            matches.AddRange(currentMatches);
+        }
+
+        Guid[] distinctIds = matches.Select(item => item.Id).Distinct().Take(2).ToArray();
+        return distinctIds.Length switch
+        {
+            0 => null,
+            1 => matches.First(item => item.Id == distinctIds[0]),
+            _ => throw IdentityErrors.OrganizationOwnerInvitationConflict(),
+        };
+    }
+
+    private async Task<OrganizationOwnerInvitation?> FindInvitationByTokenAsync(
+        string token,
+        IReadOnlyDictionary<string, byte[]> keyRing,
+        CancellationToken cancellationToken)
+    {
+        foreach ((string keyVersion, byte[] key) in keyRing)
+        {
+            byte[] digest = CreateOwnerInvitationTokenDigest(token, key);
+            Guid? invitationId = await dbContext.Database
+                .SqlQueryRaw<Guid?>(
+                    "SELECT identity.resolve_owner_invitation_by_token({0}, {1}) AS \"Value\"",
+                    keyVersion,
+                    digest)
+                .SingleAsync(cancellationToken);
+            if (invitationId is not null)
+            {
+                return await dbContext.OrganizationOwnerInvitations
+                    .SingleOrDefaultAsync(
+                        invitation => invitation.Id == invitationId.Value,
+                        cancellationToken);
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<CreatedOrganizationOwnerInvitationResult>
+        ResolveOwnerInvitationCreationRaceAsync(
+            Guid organizationId,
+            AuthenticatedSession currentSession,
+            IdentityRequestContext requestContext,
+            IReadOnlyDictionary<string, byte[]> creationAliases,
+            CancellationToken cancellationToken)
+    {
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted,
+            cancellationToken);
+        await SetOwnerInvitationDatabaseContextAsync(
+            currentSession.UserId,
+            organizationId,
+            cancellationToken);
+        await RequireOrganizationOwnerAuthorizationAsync(
+            organizationId,
+            currentSession,
+            now,
+            requireStrongAuthentication: true,
+            cancellationToken);
+        OrganizationOwnerInvitation invitation = await FindInvitationByCreationKeyAsync(
+            organizationId,
+            creationAliases,
+            cancellationToken)
+            ?? throw IdentityErrors.OrganizationOwnerInvitationConflict();
+        await transaction.CommitAsync(cancellationToken);
+        return ToCreatedOwnerInvitationResult(invitation, token: null, isReplay: true, now);
+    }
+
+    private async Task<AcceptedOrganizationOwnerInvitationResult>
+        ResolveAcceptedOwnerInvitationReplayAsync(
+            OrganizationOwnerInvitation invitation,
+            Guid currentUserId,
+            CancellationToken cancellationToken)
+    {
+        if (invitation.AcceptedByUserId != currentUserId ||
+            invitation.AcceptedMembershipId is null)
+        {
+            throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
+        }
+
+        OrganizationMembershipAssignment membership = await dbContext.AuthoritativeMemberships
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.Id == invitation.AcceptedMembershipId &&
+                    item.OrganizationId == invitation.OrganizationId &&
+                    item.UserId == currentUserId &&
+                    item.Role == OrganizationMembershipRoles.Owner &&
+                    item.Status == OrganizationStatuses.Active,
+                cancellationToken)
+            ?? throw IdentityErrors.OrganizationOwnerInvitationConflict();
+        OrganizationDirectoryEntry organization = await dbContext.Organizations
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.Id == invitation.OrganizationId &&
+                    item.Status == OrganizationStatuses.Active,
+                cancellationToken)
+            ?? throw IdentityErrors.OrganizationOwnerInvitationConflict();
+        return ToAcceptedOwnerInvitationResult(
+            invitation,
+            organization,
+            membership,
+            isReplay: true);
+    }
+
+    private static CreatedOrganizationOwnerInvitationResult ToCreatedOwnerInvitationResult(
+        OrganizationOwnerInvitation invitation,
+        string? token,
+        bool isReplay,
+        DateTimeOffset now) =>
+        new(
+            invitation.Id,
+            invitation.OrganizationId,
+            invitation.GetEffectiveStatus(now),
+            invitation.CreatedAtUtc,
+            invitation.ExpiresAtUtc,
+            invitation.AcceptedAtUtc,
+            invitation.RevokedAtUtc,
+            invitation.Version,
+            token,
+            isReplay);
+
+    private static OrganizationOwnerInvitationSummaryResult ToOwnerInvitationSummary(
+        OrganizationOwnerInvitation invitation,
+        DateTimeOffset now) =>
+        new(
+            invitation.Id,
+            invitation.OrganizationId,
+            invitation.GetEffectiveStatus(now),
+            invitation.CreatedAtUtc,
+            invitation.ExpiresAtUtc,
+            invitation.AcceptedAtUtc,
+            invitation.RevokedAtUtc,
+            invitation.Version);
+
+    private static AcceptedOrganizationOwnerInvitationResult ToAcceptedOwnerInvitationResult(
+        OrganizationOwnerInvitation invitation,
+        OrganizationDirectoryEntry organization,
+        OrganizationMembershipAssignment membership,
+        bool isReplay) =>
+        new(
+            invitation.Id,
+            invitation.OrganizationId,
+            organization.DisplayName,
+            organization.Status,
+            membership.Id,
+            membership.Role,
+            membership.Status,
+            membership.SecurityVersion,
+            isReplay);
+
+    private static bool IsOwnerInvitationCreationRace(DbUpdateException exception) =>
+        exception.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: string constraintName,
+        } && constraintName.Contains("organization_owner_invitations", StringComparison.Ordinal);
+
+    private static bool IsSafeOwnerInvitationAcceptanceRace(Exception exception) =>
+        exception is DbUpdateConcurrencyException ||
+        exception is DbUpdateException
+        {
+            InnerException: PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation,
+            },
+        } ||
+        exception is PostgresException
+        {
+            SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected,
+        };
 
     private IssuedSession IssueVerifiedSession(Guid userId, DateTimeOffset authenticatedAtUtc)
     {
@@ -1650,5 +2535,11 @@ public sealed class IdentityApplicationService(
         Guid AuthorizationVersion,
         DateTimeOffset AuthenticatedAtUtc,
         bool IsAuthenticationAssuranceVerified);
+
+    private sealed record OwnerInvitationSessionAuthorization(
+        bool IsAuthenticationAssuranceVerified,
+        DateTimeOffset AuthenticatedAtUtc,
+        DateTimeOffset? StrongAuthenticatedAtUtc,
+        string? StrongAuthenticationPurpose);
 
 }

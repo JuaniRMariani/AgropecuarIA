@@ -14,9 +14,10 @@ public static class IdentityConnections
 public static class StepUpPurposes
 {
     public const string ManageAuthenticationMethods = "manage_authentication_methods";
+    public const string ManageOrganizationOwners = "manage_organization_owners";
 
     public static bool IsSupported(string value) =>
-        value is ManageAuthenticationMethods;
+        value is ManageAuthenticationMethods or ManageOrganizationOwners;
 }
 
 public sealed class PlatformUser
@@ -493,6 +494,85 @@ public sealed class IdentityOutboxMessage
             IdentityIntegrationEventKind.OrganizationCreated,
             envelope,
             JsonSerializer.Serialize(payload, PayloadSerializerOptions));
+    }
+
+    public static IdentityOutboxMessage CreateOrganizationOwnerInvited(
+        IdentityIntegrationEventEnvelope envelope,
+        OrganizationOwnerInvitedIntegrationEventPayload payload)
+    {
+        ValidateOwnerInvitationEnvelope(
+            envelope,
+            payload.OrganizationId,
+            payload.InvitationId,
+            payload.InvitedAtUtc,
+            expectedAggregateVersion: 1);
+        if (payload.ExpiresAtUtc <= payload.InvitedAtUtc)
+        {
+            throw new ArgumentException("The invitation must expire after it is created.", nameof(payload));
+        }
+
+        return new IdentityOutboxMessage(
+            IdentityIntegrationEventKind.OrganizationOwnerInvited,
+            envelope,
+            JsonSerializer.Serialize(payload, PayloadSerializerOptions));
+    }
+
+    public static IdentityOutboxMessage CreateOrganizationOwnerInvitationAccepted(
+        IdentityIntegrationEventEnvelope envelope,
+        OrganizationOwnerInvitationAcceptedIntegrationEventPayload payload)
+    {
+        ValidateOwnerInvitationEnvelope(
+            envelope,
+            payload.OrganizationId,
+            payload.InvitationId,
+            payload.AcceptedAtUtc,
+            expectedAggregateVersion: 2);
+        if (payload.MembershipId == Guid.Empty)
+        {
+            throw new ArgumentException("The accepted membership ID is required.", nameof(payload));
+        }
+
+        return new IdentityOutboxMessage(
+            IdentityIntegrationEventKind.OrganizationOwnerInvitationAccepted,
+            envelope,
+            JsonSerializer.Serialize(payload, PayloadSerializerOptions));
+    }
+
+    public static IdentityOutboxMessage CreateOrganizationOwnerInvitationRevoked(
+        IdentityIntegrationEventEnvelope envelope,
+        OrganizationOwnerInvitationRevokedIntegrationEventPayload payload)
+    {
+        ValidateOwnerInvitationEnvelope(
+            envelope,
+            payload.OrganizationId,
+            payload.InvitationId,
+            payload.RevokedAtUtc,
+            expectedAggregateVersion: 2);
+        return new IdentityOutboxMessage(
+            IdentityIntegrationEventKind.OrganizationOwnerInvitationRevoked,
+            envelope,
+            JsonSerializer.Serialize(payload, PayloadSerializerOptions));
+    }
+
+    private static void ValidateOwnerInvitationEnvelope(
+        IdentityIntegrationEventEnvelope envelope,
+        Guid organizationId,
+        Guid invitationId,
+        DateTimeOffset occurredAtUtc,
+        long expectedAggregateVersion)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+        if (organizationId == Guid.Empty || invitationId == Guid.Empty ||
+            envelope.Scope is not RequestScope.TenantRequestScope tenantScope ||
+            tenantScope.TenantId != organizationId ||
+            envelope.AggregateId != invitationId ||
+            envelope.OccurredAtUtc != occurredAtUtc ||
+            envelope.AggregateVersion != expectedAggregateVersion)
+        {
+            throw new ArgumentException(
+                "The owner invitation payload must match its tenant event envelope.",
+                nameof(envelope));
+        }
     }
 
     private static void ValidateUserPayload(

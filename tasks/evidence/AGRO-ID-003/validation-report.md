@@ -77,3 +77,31 @@ El gate combinado y la revisión independiente detectaron y corrigieron:
 - Revisión independiente Architecture, AppSec y QA: `PASS` tras corregir rotación HMAC, grants DB, atomicidad, recuperación UI, aislamiento E2E y cobertura de estados terminales.
 - Estado: `AGRO-ID-003` continúa `En curso`. El sub-slice no implementa invitaciones, otros roles, último-owner runtime, scopes por campo, superadmin ni soporte cross-tenant.
 - No hubo deploy. La publicación se limita al commit/push autorizado del repositorio.
+
+## Refresh: invitación one-shot de co-owner — 2026-08-11
+
+Resultado del sub-slice: **PASS local integrado**. Estado de `AGRO-ID-003`: **En curso**.
+
+El owner activo puede crear, listar y revocar enlaces one-shot que conceden exclusivamente otra membership `owner`. Crear y revocar exigen step-up `manage_organization_owners`; aceptar exige identidad verificada y autenticación reciente. El token de 256 bits se entrega una sola vez en un fragmento URL, se persiste solo como digest HMAC versionado y no aparece en journal, outbox, telemetría ni respuestas posteriores.
+
+La implementación demuestra creación concurrente con una sola divulgación del bearer, aceptación por un usuario distinto, replay neutral por otro actor, aceptación/revocación serializada, expiración exacta, rotación y retirada fail-closed de claves, rollback ante fallos de journal/outbox, dual-write N/N-1 y aislamiento PostgreSQL mediante `FORCE RLS` y principals mínimos. Los tres eventos tipados no contienen token, digest, nombre ni identidad del actor.
+
+### Evidencia final
+
+| Gate | Resultado |
+|---|---|
+| Restore locked + build Release | PASS; 0 warnings, 0 errores. |
+| Suite raíz MTP | PASS; 170/170, 0 failed, 0 skipped. |
+| Architecture fitness | PASS; 70/70 dentro de la suite raíz. |
+| Format .NET + EF pending model | PASS; sin drift de modelo. |
+| pnpm frozen/format/lint/typecheck/build | PASS. |
+| Vitest | PASS; 67/67. |
+| Playwright desktop + móvil | PASS; 4/4 con inviter/invitee/attacker, revocación, Axe, teclado y 390 px. |
+| FND protocol | PASS; 45/45 mutations rechazadas. |
+| SEC threat model | PASS; 26/26 mutations rechazadas; 14 amenazas con owner/test/gate. |
+| SCA NuGet + pnpm | PASS; 0 vulnerabilidades conocidas. |
+| JSON, UTF-8 y `git diff --check` | PASS; warning CRLF del snapshot solo informativo. |
+
+La revisión independiente concluyó 0 hallazgos críticos, altos o medios abiertos. Se corrigieron durante los gates: deriva OpenAPI/ownership de agregado, constraint SQL que aceptaba NULL por semántica UNKNOWN, cobertura/grants de funciones estrechas, aislamiento de identidades E2E, rate limit del harness, journey SPA del atacante y confirmación de revocación.
+
+Permanecen fuera: invitación dirigida por email/delivery, roles distintos de owner, scopes por campo, democión/remoción/último-owner runtime, superadmin/JIT y deploy. Auth0 real, secretos administrados, edge, limiter distribuido, Audit central y retención legal continúan como gates de ambiente compartido.

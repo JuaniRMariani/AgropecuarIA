@@ -22,6 +22,9 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     public DbSet<OrganizationCreationKeyAlias> OrganizationCreationKeyAliases =>
         Set<OrganizationCreationKeyAlias>();
 
+    public DbSet<OrganizationOwnerInvitation> OrganizationOwnerInvitations =>
+        Set<OrganizationOwnerInvitation>();
+
     public DbSet<UserSession> Sessions => Set<UserSession>();
 
     public DbSet<LinkAttempt> LinkAttempts => Set<LinkAttempt>();
@@ -208,6 +211,79 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<OrganizationOwnerInvitation>(entity =>
+        {
+            entity.ToTable(
+                "organization_owner_invitations",
+                table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_organization_owner_invitations_Digests",
+                        "octet_length(\"CreationKeyDigest\") = 32 AND " +
+                        "octet_length(\"TokenDigest\") = 32");
+                    table.HasCheckConstraint(
+                        "CK_organization_owner_invitations_Expiry",
+                        "\"ExpiresAtUtc\" > \"CreatedAtUtc\"");
+                    table.HasCheckConstraint(
+                        "CK_organization_owner_invitations_State",
+                        $"(\"Status\" = '{OrganizationOwnerInvitationStatuses.Pending}' AND " +
+                        "\"AcceptedAtUtc\" IS NULL AND \"AcceptedByUserId\" IS NULL AND " +
+                        "\"AcceptedMembershipId\" IS NULL AND \"RevokedAtUtc\" IS NULL AND " +
+                        "\"RevokedByUserId\" IS NULL) OR " +
+                        $"(\"Status\" = '{OrganizationOwnerInvitationStatuses.Accepted}' AND " +
+                        "\"AcceptedAtUtc\" >= \"CreatedAtUtc\" AND " +
+                        "\"AcceptedAtUtc\" < \"ExpiresAtUtc\" AND " +
+                        "\"AcceptedByUserId\" IS NOT NULL AND \"AcceptedMembershipId\" IS NOT NULL AND " +
+                        "\"RevokedAtUtc\" IS NULL AND \"RevokedByUserId\" IS NULL) OR " +
+                        $"(\"Status\" = '{OrganizationOwnerInvitationStatuses.Revoked}' AND " +
+                        "\"RevokedAtUtc\" >= \"CreatedAtUtc\" AND " +
+                        "\"RevokedAtUtc\" < \"ExpiresAtUtc\" AND " +
+                        "\"RevokedByUserId\" IS NOT NULL AND \"AcceptedAtUtc\" IS NULL AND " +
+                        "\"AcceptedByUserId\" IS NULL AND \"AcceptedMembershipId\" IS NULL)");
+                });
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.CreationKeyVersion).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.CreationKeyDigest).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.TokenKeyVersion).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.TokenDigest).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.Property(item => item.ExpiresAtUtc).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.HasIndex(item => new
+            {
+                item.OrganizationId,
+                item.CreationKeyVersion,
+                item.CreationKeyDigest,
+            }).IsUnique();
+            entity.HasIndex(item => new { item.TokenKeyVersion, item.TokenDigest }).IsUnique();
+            entity.HasIndex(item => new { item.OrganizationId, item.Status, item.ExpiresAtUtc });
+            entity.HasOne<OrganizationDirectoryEntry>()
+                .WithMany()
+                .HasForeignKey(item => item.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<UserSession>()
+                .WithMany()
+                .HasForeignKey(item => item.CreationSessionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.AcceptedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<OrganizationMembershipAssignment>()
+                .WithMany()
+                .HasForeignKey(item => item.AcceptedMembershipId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.RevokedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<UserSession>(entity =>
         {
             entity.ToTable(
@@ -217,7 +293,9 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
                     "(\"StrongAuthenticatedAtUtc\" IS NULL AND \"StrongAuthenticationPurpose\" IS NULL) OR " +
                     "(\"StrongAuthenticatedAtUtc\" IS NOT NULL AND " +
                     "\"StrongAuthenticationPurpose\" IS NOT NULL AND " +
-                    $"\"StrongAuthenticationPurpose\" = '{StepUpPurposes.ManageAuthenticationMethods}')"));
+                    $"\"StrongAuthenticationPurpose\" IN " +
+                    $"('{StepUpPurposes.ManageAuthenticationMethods}', " +
+                    $"'{StepUpPurposes.ManageOrganizationOwners}'))"));
             entity.HasKey(item => item.Id);
             entity.Property(item => item.TokenHash).HasMaxLength(32).IsRequired();
             entity.Property(item => item.AuthenticatedAtUtc).IsRequired();
@@ -243,7 +321,8 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
                 {
                     table.HasCheckConstraint(
                         "CK_step_up_attempts_Purpose",
-                        $"\"Purpose\" = '{StepUpPurposes.ManageAuthenticationMethods}'");
+                        $"\"Purpose\" IN ('{StepUpPurposes.ManageAuthenticationMethods}', " +
+                        $"'{StepUpPurposes.ManageOrganizationOwners}')");
                     table.HasCheckConstraint(
                         "CK_step_up_attempts_Expiry",
                         "\"ExpiresAtUtc\" > \"StartedAtUtc\"");

@@ -116,6 +116,12 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
                     ["Identity:OrganizationBootstrap:CurrentKeyVersion"] = "test-v1",
                     ["Identity:OrganizationBootstrap:IdempotencyHmacKeys:test-v1"] =
                         "dGVzdC1vbmx5LWlkZW1wb3RlbmN5LWhtYWMta2V5LTMyaW4=",
+                    ["Identity:OrganizationOwnerInvitations:Enabled"] =
+                        (environment is "Development" or "Test").ToString(),
+                    ["Identity:OrganizationOwnerInvitations:Lifetime"] = "7.00:00:00",
+                    ["Identity:OrganizationOwnerInvitations:CurrentKeyVersion"] = "test-v1",
+                    ["Identity:OrganizationOwnerInvitations:HmacKeys:test-v1"] =
+                        "dGVzdC1vbmx5LW93bmVyLWludml0YXRpb24taG1hYy1rZXk=",
                 };
 
                 if (configuration is not null)

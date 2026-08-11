@@ -11,6 +11,10 @@ import type {
   IdentitySession,
   LinkedIdentity,
   OrganizationCreationState,
+  OwnerInvitationAcceptanceState,
+  OwnerInvitationActionState,
+  OwnerInvitationResourceState,
+  OwnerInvitationSummary,
 } from "./identity-types";
 
 type IdentityViewProps = Readonly<{
@@ -32,6 +36,16 @@ type IdentityViewProps = Readonly<{
   onCancelOrganization: () => void;
   onCreateOrganization: () => void;
   onReauthenticateOrganization: () => void;
+  ownerInvitations: Readonly<Record<string, OwnerInvitationResourceState>>;
+  ownerInvitationAction: OwnerInvitationActionState;
+  ownerInvitationAcceptance: OwnerInvitationAcceptanceState;
+  onCreateOwnerInvitation: (organizationId: string) => void;
+  onRevokeOwnerInvitation: (invitation: OwnerInvitationSummary) => void;
+  onRefreshOwnerInvitations: (organizationId: string) => void;
+  onCopyOwnerInvitation: () => void;
+  onResumeOwnerManagement: () => void;
+  onAcceptOwnerInvitation: () => void;
+  onReauthenticateOwnerInvitation: () => void;
 }>;
 
 const CONNECTION_LABELS = {
@@ -217,6 +231,10 @@ function AuthenticationCard({
 }>) {
   const assurance = session.authentication;
   const isStrong = assurance.level === "strong";
+  const strongPurposeLabel =
+    assurance.purpose === "manage_organization_owners"
+      ? "administrar co-owners"
+      : "administrar métodos de acceso";
 
   return (
     <section
@@ -240,7 +258,7 @@ function AuthenticationCard({
 
       <p className="assurance-card__detail">
         {isStrong
-          ? `La verificación reforzada reserva un contexto seguro para la futura gestión de métodos de acceso${
+          ? `La verificación reforzada reserva un contexto seguro para ${strongPurposeLabel}${
               assurance.expiresAtUtc === null
                 ? "."
                 : ` hasta ${formatAssuranceTime(assurance.expiresAtUtc)}.`
@@ -511,6 +529,306 @@ function OrganizationOnboarding({
   );
 }
 
+const INVITATION_STATUS_LABELS = {
+  pending: "Pendiente",
+  accepted: "Aceptada",
+  revoked: "Revocada",
+  expired: "Vencida",
+} satisfies Record<OwnerInvitationSummary["status"], string>;
+
+function formatInvitationDate(value: string): string {
+  return new Intl.DateTimeFormat("es-AR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(new Date(value));
+}
+
+function OwnerInvitationManagement({
+  session,
+  resources,
+  action,
+  onCreate,
+  onRevoke,
+  onRefresh,
+  onCopy,
+  onResume,
+}: Readonly<{
+  session: IdentitySession;
+  resources: IdentityViewProps["ownerInvitations"];
+  action: IdentityViewProps["ownerInvitationAction"];
+  onCreate: IdentityViewProps["onCreateOwnerInvitation"];
+  onRevoke: IdentityViewProps["onRevokeOwnerInvitation"];
+  onRefresh: IdentityViewProps["onRefreshOwnerInvitations"];
+  onCopy: IdentityViewProps["onCopyOwnerInvitation"];
+  onResume: IdentityViewProps["onResumeOwnerManagement"];
+}>) {
+  const ownerMemberships = session.memberships.filter(
+    (membership) => membership.role.toLowerCase() === "owner",
+  );
+  const linkRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (action.kind === "revealed") {
+      linkRef.current?.focus();
+      linkRef.current?.select();
+    }
+  }, [action.kind]);
+
+  if (ownerMemberships.length === 0) {
+    return null;
+  }
+
+  const actionHasMessage =
+    action.kind === "reauthentication-required" ||
+    action.kind === "conflict" ||
+    action.kind === "offline" ||
+    action.kind === "error";
+
+  return (
+    <section
+      className="identity-card invitation-management"
+      aria-labelledby="owner-invitations-title"
+    >
+      <div className="section-heading">
+        <div>
+          <p className="section-kicker">Acceso compartido</p>
+          <h2 id="owner-invitations-title">Invitaciones de co-owner</h2>
+        </div>
+      </div>
+      <p className="invitation-management__intro">
+        Cada enlace concede permisos de owner a quien lo controle y acepte con
+        una cuenta verificada. Compartilo por un canal seguro.
+      </p>
+
+      {action.kind === "revealed" ? (
+        <div
+          className="invitation-secret"
+          role="alert"
+          aria-labelledby="invitation-secret-title"
+        >
+          <div>
+            <p className="section-kicker">Visible una sola vez</p>
+            <h3 id="invitation-secret-title">Guardá el enlace ahora</h3>
+            <p>
+              No podremos recuperarlo. Quien tenga este enlace podrá convertirse
+              en owner de la organización.
+            </p>
+          </div>
+          <label htmlFor="owner-invitation-link">Enlace de invitación</label>
+          <input
+            ref={linkRef}
+            id="owner-invitation-link"
+            onFocus={(event) => event.currentTarget.select()}
+            readOnly
+            spellCheck={false}
+            type="text"
+            value={action.shareLink}
+          />
+          <button
+            className="button button--primary"
+            onClick={onCopy}
+            type="button"
+          >
+            Copiar y ocultar
+          </button>
+        </div>
+      ) : null}
+
+      {actionHasMessage ? (
+        <div
+          className={`organization-state organization-state--${action.kind}`}
+          role="alert"
+        >
+          <strong>
+            {action.kind === "reauthentication-required"
+              ? "Verificación reforzada necesaria"
+              : action.kind === "offline"
+                ? "Sin conexión"
+                : action.kind === "conflict"
+                  ? "La invitación cambió"
+                  : "No pudimos completar la operación"}
+          </strong>
+          <p>{action.message}</p>
+          {action.kind === "reauthentication-required" ? (
+            <button
+              className="button button--primary"
+              onClick={onResume}
+              type="button"
+            >
+              Verificar con MFA y continuar
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="invitation-organizations">
+        {ownerMemberships.map((membership) => {
+          const state = resources[membership.organizationId] ?? {
+            kind: "idle",
+          };
+          const creating =
+            action.kind === "creating" &&
+            action.organizationId === membership.organizationId;
+          return (
+            <article
+              className="invitation-organization"
+              key={membership.organizationId}
+            >
+              <header>
+                <div>
+                  <h3>{membership.organizationName}</h3>
+                  <p>Organización {formatShortId(membership.organizationId)}</p>
+                </div>
+                <button
+                  className="button button--secondary"
+                  disabled={creating || action.kind === "revoking"}
+                  onClick={() => onCreate(membership.organizationId)}
+                  type="button"
+                >
+                  {creating ? <Spinner /> : null}
+                  {creating ? "Creando enlace" : "Verificar y crear enlace"}
+                </button>
+              </header>
+
+              <div aria-busy={state.kind === "loading"} aria-live="polite">
+                {state.kind === "idle" || state.kind === "loading" ? (
+                  <div className="invitation-region-state" role="status">
+                    <Spinner /> Cargando invitaciones
+                  </div>
+                ) : null}
+                {state.kind === "offline" || state.kind === "error" ? (
+                  <div
+                    className="invitation-region-state invitation-region-state--error"
+                    role="alert"
+                  >
+                    <span>
+                      {state.kind === "offline"
+                        ? "Sin conexión."
+                        : "No pudimos cargar las invitaciones."}
+                    </span>
+                    <button
+                      className="button button--quiet"
+                      onClick={() => onRefresh(membership.organizationId)}
+                      type="button"
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                ) : null}
+                {state.kind === "ready" && state.items.length === 0 ? (
+                  <div className="empty-state" role="status">
+                    <strong>No hay invitaciones</strong>
+                    <p>Creá un enlace cuando necesites sumar otro owner.</p>
+                  </div>
+                ) : null}
+                {state.kind === "ready" && state.items.length > 0 ? (
+                  <ul className="invitation-list">
+                    {state.items.map((invitation) => {
+                      const revoking =
+                        action.kind === "revoking" &&
+                        action.invitationId === invitation.invitationId;
+                      return (
+                        <li key={invitation.invitationId}>
+                          <div>
+                            <strong>
+                              Invitación{" "}
+                              {formatShortId(invitation.invitationId)}
+                            </strong>
+                            <span>
+                              Vence{" "}
+                              {formatInvitationDate(invitation.expiresAtUtc)}
+                            </span>
+                          </div>
+                          <span
+                            className={`invitation-status invitation-status--${invitation.status}`}
+                          >
+                            {INVITATION_STATUS_LABELS[invitation.status]}
+                          </span>
+                          {invitation.status === "pending" ? (
+                            <button
+                              className="button button--danger-quiet"
+                              disabled={revoking || action.kind === "creating"}
+                              onClick={() => onRevoke(invitation)}
+                              type="button"
+                            >
+                              {revoking ? <Spinner /> : null}
+                              {revoking ? "Revocando" : "Revocar"}
+                            </button>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function OwnerInvitationAcceptance({
+  state,
+  onAccept,
+  onReauthenticate,
+}: Readonly<{
+  state: IdentityViewProps["ownerInvitationAcceptance"];
+  onAccept: IdentityViewProps["onAcceptOwnerInvitation"];
+  onReauthenticate: IdentityViewProps["onReauthenticateOwnerInvitation"];
+}>) {
+  if (state.kind === "idle") {
+    return null;
+  }
+  const needsAuthentication = state.kind === "reauthentication-required";
+  return (
+    <section
+      className={`invitation-acceptance invitation-acceptance--${state.kind}`}
+      aria-live="polite"
+    >
+      <div>
+        <p className="section-kicker">Invitación de co-owner</p>
+        <h3>
+          {state.kind === "accepting"
+            ? "Aceptando invitación"
+            : state.kind === "unavailable"
+              ? "Enlace no disponible"
+              : needsAuthentication
+                ? "Protegemos este acceso"
+                : "No pudimos aceptar el enlace"}
+        </h3>
+        {state.kind === "accepting" ? (
+          <p>
+            Estamos validando el enlace sin recargar el resto de la pantalla.
+          </p>
+        ) : (
+          <p>{state.message}</p>
+        )}
+      </div>
+      {state.kind === "accepting" ? <Spinner /> : null}
+      {needsAuthentication ? (
+        <button
+          className="button button--primary"
+          onClick={onReauthenticate}
+          type="button"
+        >
+          Ingresar y aceptar
+        </button>
+      ) : state.kind === "offline" || state.kind === "error" ? (
+        <button
+          className="button button--primary"
+          onClick={onAccept}
+          type="button"
+        >
+          Reintentar
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
 function CurrentSession({
   capabilities,
   session,
@@ -527,6 +845,13 @@ function CurrentSession({
   onCancelOrganization,
   onCreateOrganization,
   onReauthenticateOrganization,
+  ownerInvitations,
+  ownerInvitationAction,
+  onCreateOwnerInvitation,
+  onRevokeOwnerInvitation,
+  onRefreshOwnerInvitations,
+  onCopyOwnerInvitation,
+  onResumeOwnerManagement,
 }: Readonly<{
   capabilities: IdentityCapabilities;
   session: IdentitySession;
@@ -543,6 +868,13 @@ function CurrentSession({
   onCancelOrganization: IdentityViewProps["onCancelOrganization"];
   onCreateOrganization: IdentityViewProps["onCreateOrganization"];
   onReauthenticateOrganization: IdentityViewProps["onReauthenticateOrganization"];
+  ownerInvitations: IdentityViewProps["ownerInvitations"];
+  ownerInvitationAction: IdentityViewProps["ownerInvitationAction"];
+  onCreateOwnerInvitation: IdentityViewProps["onCreateOwnerInvitation"];
+  onRevokeOwnerInvitation: IdentityViewProps["onRevokeOwnerInvitation"];
+  onRefreshOwnerInvitations: IdentityViewProps["onRefreshOwnerInvitations"];
+  onCopyOwnerInvitation: IdentityViewProps["onCopyOwnerInvitation"];
+  onResumeOwnerManagement: IdentityViewProps["onResumeOwnerManagement"];
 }>) {
   const connections = new Set(
     session.identities.map((identity) => identity.connection),
@@ -665,6 +997,19 @@ function CurrentSession({
         session={session}
       />
 
+      {capabilities.ownerInvitationsAvailable ? (
+        <OwnerInvitationManagement
+          action={ownerInvitationAction}
+          onCopy={onCopyOwnerInvitation}
+          onCreate={onCreateOwnerInvitation}
+          onRefresh={onRefreshOwnerInvitations}
+          onResume={onResumeOwnerManagement}
+          onRevoke={onRevokeOwnerInvitation}
+          resources={ownerInvitations}
+          session={session}
+        />
+      ) : null}
+
       <section className="revoke-card" aria-labelledby="revoke-title">
         <div>
           <h2 id="revoke-title">Cerrar esta sesión</h2>
@@ -753,6 +1098,16 @@ export function IdentityView({
   onCancelOrganization,
   onCreateOrganization,
   onReauthenticateOrganization,
+  ownerInvitations,
+  ownerInvitationAction,
+  ownerInvitationAcceptance,
+  onCreateOwnerInvitation,
+  onRevokeOwnerInvitation,
+  onRefreshOwnerInvitations,
+  onCopyOwnerInvitation,
+  onResumeOwnerManagement,
+  onAcceptOwnerInvitation,
+  onReauthenticateOwnerInvitation,
 }: IdentityViewProps) {
   return (
     <main className="identity-page">
@@ -806,6 +1161,11 @@ export function IdentityView({
         </header>
 
         <Notice notice={notice} />
+        <OwnerInvitationAcceptance
+          onAccept={onAcceptOwnerInvitation}
+          onReauthenticate={onReauthenticateOwnerInvitation}
+          state={ownerInvitationAcceptance}
+        />
 
         <div
           aria-busy={resource.kind === "loading"}
@@ -835,9 +1195,16 @@ export function IdentityView({
               onOrganizationDraftChange={onOrganizationDraftChange}
               onReauthenticateOrganization={onReauthenticateOrganization}
               onStartOrganization={onStartOrganization}
+              onCopyOwnerInvitation={onCopyOwnerInvitation}
+              onCreateOwnerInvitation={onCreateOwnerInvitation}
+              onRefreshOwnerInvitations={onRefreshOwnerInvitations}
+              onResumeOwnerManagement={onResumeOwnerManagement}
+              onRevokeOwnerInvitation={onRevokeOwnerInvitation}
               organizationCreation={organizationCreation}
               organizationDraft={organizationDraft}
               organizationFormOpen={organizationFormOpen}
+              ownerInvitationAction={ownerInvitationAction}
+              ownerInvitations={ownerInvitations}
               pendingAction={pendingAction}
               session={resource.session}
             />

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgropecuarIA Identity API
-  version: 1.1.0
+  version: 1.2.0
 paths:
   /api/identity/capabilities:
     get:
@@ -213,6 +213,104 @@ paths:
         '409': { $ref: '#/components/responses/OrganizationCreationConflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/OrganizationCreationUnavailableOrReconciliation' }
+  /api/identity/organizations/{organizationId}/owner-invitations:
+    get:
+      summary: List co-owner invitations visible to an active owner
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+      responses:
+        '200':
+          description: Invitations ordered newest first; raw tokens are never returned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnerInvitationList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/OwnerInvitationUnavailable' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/OwnerInvitationServiceUnavailable' }
+    post:
+      summary: Create a one-shot bearer invitation for a co-owner
+      description: Requires an active owner membership and strong assurance for manage_organization_owners. The token is returned exactly once and must not be logged or placed in a query string.
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AntiforgeryHeader'
+        - $ref: '#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmptyObject' }
+      responses:
+        '201':
+          description: Invitation created; token is visible only in this no-store response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedOwnerInvitation' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/OwnerInvitationUnavailable' }
+        '409': { $ref: '#/components/responses/OwnerInvitationConflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/OwnerInvitationServiceUnavailable' }
+  /api/identity/organizations/{organizationId}/owner-invitations/{invitationId}/revoke:
+    post:
+      summary: Revoke a pending co-owner invitation
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/InvitationId'
+        - $ref: '#/components/parameters/AntiforgeryHeader'
+        - $ref: '#/components/parameters/IfMatchHeader'
+      responses:
+        '200':
+          description: Revoked invitation
+          headers:
+            ETag:
+              description: Current invitation version
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnerInvitation' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/OwnerInvitationUnavailable' }
+        '409': { $ref: '#/components/responses/OwnerInvitationConflict' }
+        '412': { $ref: '#/components/responses/OwnerInvitationVersionMismatch' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/OwnerInvitationServiceUnavailable' }
+  /api/identity/owner-invitations/accept:
+    post:
+      summary: Accept a one-shot co-owner invitation
+      description: The bearer token is resolved in a server-derived platform acceptance scope, then the membership is created under the invitation organization in one transaction.
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/AntiforgeryHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AcceptOwnerInvitation' }
+      responses:
+        '200':
+          description: Co-owner membership granted, or safely replayed by the same accepting user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedOrganization' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/OwnerInvitationUnavailable' }
+        '409': { $ref: '#/components/responses/OwnerInvitationConflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/OwnerInvitationServiceUnavailable' }
   /api/development/identity/sign-in:
     post:
       summary: Development/Test-only synthetic verified sign-in
@@ -325,6 +423,26 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
+    OwnerInvitationUnavailable:
+      description: Invitation or organization is unavailable to the current actor; foreign and missing resources are indistinguishable
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    OwnerInvitationConflict:
+      description: Invitation state or version no longer permits the requested transition
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    OwnerInvitationVersionMismatch:
+      description: The supplied strong ETag no longer matches the invitation version
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    OwnerInvitationServiceUnavailable:
+      description: Invitation handling is disabled or cannot resolve the token safely
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
   parameters:
     AntiforgeryHeader:
       in: header
@@ -342,6 +460,22 @@ components:
       required: true
       description: AgropecuarIA opaque visible-ASCII key retained for the logical create attempt; never derive it from user, tenant or organization identifiers. This contract does not use RFC 9651 serialization.
       schema: { type: string, minLength: 16, maxLength: 128, pattern: '^[!-~]+$' }
+    OrganizationId:
+      in: path
+      name: organizationId
+      required: true
+      schema: { type: string, format: uuid }
+    InvitationId:
+      in: path
+      name: invitationId
+      required: true
+      schema: { type: string, format: uuid }
+    IfMatchHeader:
+      in: header
+      name: If-Match
+      required: true
+      description: Strong ETag containing the invitation concurrency UUID returned by the API
+      schema: { type: string, pattern: '^"[0-9a-fA-F-]{36}"$' }
   schemas:
     Problem:
       type: object
@@ -354,15 +488,19 @@ components:
         code: { type: string }
         correlationId: { type: string }
         retryable: { type: boolean }
+    EmptyObject:
+      type: object
+      additionalProperties: false
     IdentityCapabilities:
       type: object
       additionalProperties: false
-      required: [environment, oidcConfigured, developmentProviderEnabled, strongAuthenticationAvailable, connections]
+      required: [environment, oidcConfigured, developmentProviderEnabled, strongAuthenticationAvailable, ownerInvitationsAvailable, connections]
       properties:
         environment: { type: string }
         oidcConfigured: { type: boolean }
         developmentProviderEnabled: { type: boolean }
         strongAuthenticationAvailable: { type: boolean }
+        ownerInvitationsAvailable: { type: boolean }
         connections:
           type: array
           items: { $ref: '#/components/schemas/IdentityConnection' }
@@ -436,6 +574,51 @@ components:
         role: { type: string, enum: [owner] }
         status: { type: string, enum: [active] }
         authorizationVersion: { type: integer, minimum: 1 }
+    OwnerInvitation:
+      type: object
+      additionalProperties: false
+      required: [invitationId, organizationId, status, createdAtUtc, expiresAtUtc, acceptedAtUtc, revokedAtUtc, version]
+      properties:
+        invitationId: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        status: { type: string, enum: [pending, accepted, revoked, expired] }
+        createdAtUtc: { type: string, format: date-time }
+        expiresAtUtc: { type: string, format: date-time }
+        acceptedAtUtc:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        revokedAtUtc:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        version: { type: string, format: uuid }
+    CreatedOwnerInvitation:
+      type: object
+      additionalProperties: false
+      required: [invitation, token, isReplay]
+      properties:
+        invitation: { $ref: '#/components/schemas/OwnerInvitation' }
+        token:
+          description: Base64URL bearer token returned once; null on an idempotent replay
+          oneOf:
+            - { type: string, minLength: 43, maxLength: 43 }
+            - { type: 'null' }
+        isReplay: { type: boolean }
+    OwnerInvitationList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OwnerInvitation' }
+    AcceptOwnerInvitation:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string, minLength: 43, maxLength: 43 }
     AuthenticationAssurance:
       type: object
       additionalProperties: false
@@ -445,7 +628,7 @@ components:
         authenticatedAtUtc: { type: string, format: date-time }
         purpose:
           oneOf:
-            - { type: string, enum: [manage_authentication_methods] }
+            - { type: string, enum: [manage_authentication_methods, manage_organization_owners] }
             - { type: 'null' }
         strongAuthenticatedAtUtc:
           oneOf:
@@ -481,14 +664,14 @@ components:
       additionalProperties: false
       required: [purpose]
       properties:
-        purpose: { type: string, enum: [manage_authentication_methods] }
+        purpose: { type: string, enum: [manage_authentication_methods, manage_organization_owners] }
     StepUpAttempt:
       type: object
       additionalProperties: false
       required: [attemptId, purpose, expiresAtUtc, authorizationUrl]
       properties:
         attemptId: { type: string, format: uuid }
-        purpose: { type: string, enum: [manage_authentication_methods] }
+        purpose: { type: string, enum: [manage_authentication_methods, manage_organization_owners] }
         expiresAtUtc: { type: string, format: date-time }
         authorizationUrl: { type: string, format: uri-reference }
     DevelopmentFixture:

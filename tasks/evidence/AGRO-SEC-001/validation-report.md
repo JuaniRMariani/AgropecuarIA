@@ -195,3 +195,25 @@ El validador exige conservar tanto la evidencia descartable previa como la migra
 ### Estado actual
 
 `AGRO-SEC-001` continúa `En curso` por ser un gate R0–R6. El GO local se limita al bootstrap `CreateOrganization`; discovery general, retry/poison/delivery, Auth0/hosting compartido, CI/provenance, auditoría central, backup administrado y las decisiones Legal/retención permanecen pendientes.
+
+## Refresh actual: invitaciones one-shot de co-owner — 2026-08-11
+
+El modelo y registro incorporan la primera administración tenant protegida con strong assurance: un owner activo crea o revoca invitaciones con purpose `manage_organization_owners`; el invitado acepta con identidad verificada y autenticación reciente. El bearer de 256 bits viaja solo en fragmento, se persiste como HMAC versionado y nunca se emite en logs, métricas, journal o eventos.
+
+```text
+validate-threat-model.ps1 -SelfTest
+PASS — 26/26 mutations; 14 threats; 7 critical; 7 high; 0 critical without owner/test/gate.
+
+Suite raíz MTP
+PASS — 170/170; 0 failed; 0 skipped.
+
+Vitest
+PASS — 67/67.
+
+Playwright desktop + móvil
+PASS — 4/4; inviter, invitee distinto, attacker, revoke, Axe, teclado y 390 px.
+```
+
+PostgreSQL real demuestra `FORCE RLS`, grants mínimos, A/B/sin contexto/pool/job, token lookup y coverage gates estrechos, concurrencia y rollback atómico. Los eventos `OrganizationOwnerInvited`, `OrganizationOwnerInvitationAccepted` y `OrganizationOwnerInvitationRevoked` omiten bearer, digest, nombre y actor.
+
+`AGRO-SEC-001` permanece `En curso`. Email/delivery, roles no-owner, Auth0/hosting/secret manager, limiter distribuido, CI/provenance, Audit central, backup y retención legal siguen NO-GO de ambiente compartido.

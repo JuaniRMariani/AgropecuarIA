@@ -26,6 +26,13 @@ $previousEnvironment = @{
     Identity__OrganizationBootstrap__Enabled = $env:Identity__OrganizationBootstrap__Enabled
     Identity__OrganizationBootstrap__CurrentKeyVersion = $env:Identity__OrganizationBootstrap__CurrentKeyVersion
     Identity__OrganizationBootstrap__IdempotencyHmacKeys__e2e_v1 = $env:Identity__OrganizationBootstrap__IdempotencyHmacKeys__e2e_v1
+    Identity__OrganizationOwnerInvitations__Enabled = $env:Identity__OrganizationOwnerInvitations__Enabled
+    Identity__OrganizationOwnerInvitations__Lifetime = $env:Identity__OrganizationOwnerInvitations__Lifetime
+    Identity__OrganizationOwnerInvitations__CurrentKeyVersion = $env:Identity__OrganizationOwnerInvitations__CurrentKeyVersion
+    Identity__OrganizationOwnerInvitations__HmacKeys__e2e_v1 = $env:Identity__OrganizationOwnerInvitations__HmacKeys__e2e_v1
+    Identity__RateLimits__PerIpPerMinute = $env:Identity__RateLimits__PerIpPerMinute
+    Identity__RateLimits__PerSessionPerMinute = $env:Identity__RateLimits__PerSessionPerMinute
+    Identity__RateLimits__StepUpPerSessionPerFiveMinutes = $env:Identity__RateLimits__StepUpPerSessionPerFiveMinutes
     AGRO_E2E_REUSE_SERVER = $env:AGRO_E2E_REUSE_SERVER
     PGPASSWORD = $env:PGPASSWORD
 }
@@ -158,7 +165,9 @@ try {
 
     $postgresPassword = New-EphemeralSecret
     $idempotencyHmacKey = New-EphemeralSecret
-    if ($postgresPassword -eq $idempotencyHmacKey) {
+    $ownerInvitationHmacKey = New-EphemeralSecret
+    if (@($postgresPassword, $idempotencyHmacKey, $ownerInvitationHmacKey) |
+        Group-Object | Where-Object Count -gt 1) {
         throw 'Cryptographic secret generation produced a duplicate value.'
     }
 
@@ -214,6 +223,13 @@ try {
     $env:Identity__OrganizationBootstrap__Enabled = 'true'
     $env:Identity__OrganizationBootstrap__CurrentKeyVersion = 'e2e_v1'
     $env:Identity__OrganizationBootstrap__IdempotencyHmacKeys__e2e_v1 = $idempotencyHmacKey
+    $env:Identity__OrganizationOwnerInvitations__Enabled = 'true'
+    $env:Identity__OrganizationOwnerInvitations__Lifetime = '7.00:00:00'
+    $env:Identity__OrganizationOwnerInvitations__CurrentKeyVersion = 'e2e_v1'
+    $env:Identity__OrganizationOwnerInvitations__HmacKeys__e2e_v1 = $ownerInvitationHmacKey
+    $env:Identity__RateLimits__PerIpPerMinute = '600'
+    $env:Identity__RateLimits__PerSessionPerMinute = '300'
+    $env:Identity__RateLimits__StepUpPerSessionPerFiveMinutes = '100'
     $env:AGRO_E2E_REUSE_SERVER = 'false'
 
     $apiProcess = Start-Process dotnet -ArgumentList @(
@@ -286,4 +302,5 @@ finally {
 
     $postgresPassword = $null
     $idempotencyHmacKey = $null
+    $ownerInvitationHmacKey = $null
 }

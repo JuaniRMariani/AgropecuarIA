@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.invalid/contracts/organization-owner-invitation-revoked.v1.schema.json",
+  "title": "OrganizationOwnerInvitationRevoked v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["organizationId", "invitationId", "revokedAtUtc"],
+  "properties": {
+    "organizationId": { "type": "string", "format": "uuid" },
+    "invitationId": { "type": "string", "format": "uuid" },
+    "revokedAtUtc": { "type": "string", "format": "date-time" }
+  }
+}

@@ -25,3 +25,16 @@ public sealed class OrganizationBootstrapOptions
 
     public Dictionary<string, string> IdempotencyHmacKeys { get; set; } = new(StringComparer.Ordinal);
 }
+
+public sealed class OrganizationOwnerInvitationOptions
+{
+    public static string SectionName => "Identity:OrganizationOwnerInvitations";
+
+    public bool Enabled { get; set; }
+
+    public TimeSpan Lifetime { get; set; } = TimeSpan.FromDays(7);
+
+    public string CurrentKeyVersion { get; set; } = string.Empty;
+
+    public Dictionary<string, string> HmacKeys { get; set; } = new(StringComparer.Ordinal);
+}

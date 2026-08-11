@@ -81,6 +81,31 @@ public sealed class IdentityTelemetryTests
             StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void OwnerInvitationTelemetryCannotExposeBearerOrTenantData()
+    {
+        const string bearer = "secret-owner-invitation-bearer";
+        IReadOnlyDictionary<string, object?>[] recorded = CaptureMeasurements(telemetry =>
+        {
+            telemetry.RecordOrganizationOwnerInvitation(
+                "organization_owner_invitation_accept",
+                "replayed");
+            telemetry.RecordOrganizationOwnerInvitation(bearer, bearer);
+        });
+
+        Assert.AreEqual(
+            "organization_owner_invitation_accept",
+            recorded[0]["identity.operation"]);
+        Assert.AreEqual("replayed", recorded[0]["identity.outcome"]);
+        Assert.AreEqual("other", recorded[1]["identity.operation"]);
+        Assert.AreEqual("other", recorded[1]["identity.outcome"]);
+        Assert.IsFalse(string.Join(
+            '|',
+            recorded.SelectMany(tags => tags.Values)).Contains(
+                bearer,
+                StringComparison.Ordinal));
+    }
+
     private static IReadOnlyDictionary<string, object?>[] CaptureMeasurements(
         Action<IdentityTelemetry> record)
     {

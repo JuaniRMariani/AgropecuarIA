@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  acceptOwnerInvitation,
+  createOwnerInvitation,
   createOrganization,
   IdentityApiError,
   invalidateAntiforgeryToken,
@@ -8,7 +10,10 @@ import {
   parseIdentityCapabilities,
   parseIdentitySession,
   parseLinkStart,
+  parseCreatedOwnerInvitation,
+  parseOwnerInvitationList,
   parseStepUpAttempt,
+  revokeOwnerInvitation,
   resolveAuthorizationUrl,
   startLink,
 } from "../../features/identity/identity-api";
@@ -35,6 +40,18 @@ const createdOrganizationResponse = {
   },
 };
 
+const invitation = {
+  invitationId: "3766395e-ec88-481e-9a72-81fa2cc2904a",
+  organizationId: "1266395e-ec88-481e-9a72-81fa2cc2904a",
+  status: "pending",
+  createdAtUtc: "2026-08-11T10:00:00Z",
+  expiresAtUtc: "2026-08-18T10:00:00Z",
+  acceptedAtUtc: null,
+  revokedAtUtc: null,
+  version: "4766395e-ec88-481e-9a72-81fa2cc2904a",
+};
+const invitationToken = "a".repeat(43);
+
 afterEach(() => {
   invalidateAntiforgeryToken();
   vi.unstubAllGlobals();
@@ -48,6 +65,7 @@ describe("identity contract parsing", () => {
         oidcConfigured: false,
         developmentProviderEnabled: true,
         strongAuthenticationAvailable: true,
+        ownerInvitationsAvailable: true,
         connections: [
           { id: "email", label: "Correo", available: true, futureField: 1 },
         ],
@@ -58,6 +76,7 @@ describe("identity contract parsing", () => {
       oidcConfigured: false,
       developmentProviderEnabled: true,
       strongAuthenticationAvailable: true,
+      ownerInvitationsAvailable: true,
       connections: [{ id: "email", label: "Correo", available: true }],
     });
   });
@@ -189,6 +208,44 @@ describe("identity contract parsing", () => {
         futureField: "compatible",
       }),
     ).toEqual(createdOrganizationResponse);
+  });
+
+  it("parses invitation summaries without accepting a leaked token", () => {
+    expect(
+      parseOwnerInvitationList({ items: [{ ...invitation, token: "secret" }] }),
+    ).toEqual([invitation]);
+  });
+
+  it("accepts a raw invitation token only on the first create response", () => {
+    expect(
+      parseCreatedOwnerInvitation({
+        invitation,
+        token: invitationToken,
+        isReplay: false,
+      }),
+    ).toEqual({ invitation, token: invitationToken, isReplay: false });
+    expect(
+      parseCreatedOwnerInvitation({
+        invitation,
+        token: null,
+        isReplay: true,
+      }),
+    ).toEqual({ invitation, token: null, isReplay: true });
+  });
+
+  it("rejects inconsistent invitation terminal timestamps and replay tokens", () => {
+    expect(() =>
+      parseOwnerInvitationList({
+        items: [{ ...invitation, status: "accepted", acceptedAtUtc: null }],
+      }),
+    ).toThrow(IdentityApiError);
+    expect(() =>
+      parseCreatedOwnerInvitation({
+        invitation,
+        token: invitationToken,
+        isReplay: true,
+      }),
+    ).toThrow(IdentityApiError);
   });
 
   it.each([
@@ -388,6 +445,131 @@ describe("identity mutations", () => {
       }),
     );
   });
+
+  it("uses closed create and optimistic revoke invitation contracts", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "safe-token" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            invitation,
+            token: invitationToken,
+            isReplay: false,
+          }),
+          { status: 201 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ...invitation,
+            status: "revoked",
+            revokedAtUtc: "2026-08-11T11:00:00Z",
+          }),
+          {
+            status: 200,
+          },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createOwnerInvitation(
+      invitation.organizationId,
+      "attempt-key-123456",
+    );
+    await revokeOwnerInvitation(
+      invitation.organizationId,
+      invitation.invitationId,
+      invitation.version,
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `/api/identity/organizations/${invitation.organizationId}/owner-invitations`,
+      expect.objectContaining({
+        body: "{}",
+        headers: expect.objectContaining({
+          "Idempotency-Key": "attempt-key-123456",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      `/api/identity/organizations/${invitation.organizationId}/owner-invitations/${invitation.invitationId}/revoke`,
+      expect.objectContaining({
+        body: undefined,
+        headers: expect.objectContaining({
+          "If-Match": `"${invitation.version}"`,
+        }),
+      }),
+    );
+  });
+
+  it("keeps the bearer invitation token in the POST body", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "safe-token" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(createdOrganizationResponse), {
+          status: 200,
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await acceptOwnerInvitation(invitationToken);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/identity/owner-invitations/accept",
+      expect.objectContaining({
+        body: JSON.stringify({ token: invitationToken }),
+      }),
+    );
+  });
+
+  it.each([
+    [
+      404,
+      "identity.organization_owner_invitation_not_available",
+      "unavailable",
+    ],
+    [409, "identity.organization_owner_invitation_conflict", "conflict"],
+    [
+      412,
+      "identity.organization_owner_invitation_version_mismatch",
+      "conflict",
+    ],
+    [
+      503,
+      "identity.organization_owner_invitation_unavailable",
+      "provider-down",
+    ],
+  ] as const)(
+    "classifies invitation failure %i/%s as %s",
+    async (status, code, kind) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ token: "safe-token" }), {
+            status: 200,
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ code }), { status }),
+        );
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        acceptOwnerInvitation(invitationToken),
+      ).rejects.toMatchObject({ status, code, kind });
+      invalidateAntiforgeryToken();
+    },
+  );
 
   it.each([
     [403, "identity.reauthentication_required", "reauthentication-required"],

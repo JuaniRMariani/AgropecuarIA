@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "taskId": "AGRO-SEC-001",
   "currentRelease": "R1",
-  "reviewedAt": "2026-08-10",
+  "reviewedAt": "2026-08-11",
   "surfaces": [
     {
       "id": "RS-001",
@@ -10,10 +10,10 @@
       "status": "integrated-local",
       "threatIds": ["TM-001", "TM-002", "TM-009", "TM-012", "TM-014"],
       "owner": "Identity + API + AppSec",
-      "control": "OIDC code plus PKCE, server-bound request context, antiforgery, secure cookies, fixed-window rate limits, purpose-bound step-up, session rotation, neutral errors and an idempotent organization bootstrap that derives its actor server-side.",
-      "tests": ["OidcConfigurationContractTests", "StepUpApiIntegrationTests", "IdentitySessionSecurityTests", "IdentityRequestContextTests", "OrganizationCreateApiIntegrationTests"],
-      "contractPaths": ["/api/identity/capabilities", "/api/identity/session", "/api/identity/antiforgery", "/api/identity/login/{connection}", "/signin-oidc", "/api/identity/link-attempts", "/api/identity/step-up-attempts", "/api/identity/step-up/{attemptId}", "/api/identity/link-attempts/{attemptId}/complete", "/api/identity/identities/{identityId}", "/api/identity/session/revoke", "/api/identity/organizations"],
-      "evidence": ["apps/AgropecuarIA.Api/Program.cs", "apps/AgropecuarIA.Api/IdentityEndpoints.cs", "apps/AgropecuarIA.Api/OidcReauthentication.cs", "tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationCreateApiIntegrationTests.cs"],
+      "control": "OIDC code plus PKCE, server-bound request context, antiforgery, secure cookies, fixed-window rate limits, purpose-bound step-up, session rotation, neutral errors, an idempotent organization bootstrap and one-shot co-owner invitations that derive actor and tenant server-side.",
+      "tests": ["OidcConfigurationContractTests", "StepUpApiIntegrationTests", "IdentitySessionSecurityTests", "IdentityRequestContextTests", "OrganizationCreateApiIntegrationTests", "OrganizationOwnerInvitationApiTests"],
+      "contractPaths": ["/api/identity/capabilities", "/api/identity/session", "/api/identity/antiforgery", "/api/identity/login/{connection}", "/signin-oidc", "/api/identity/link-attempts", "/api/identity/step-up-attempts", "/api/identity/step-up/{attemptId}", "/api/identity/link-attempts/{attemptId}/complete", "/api/identity/identities/{identityId}", "/api/identity/session/revoke", "/api/identity/organizations", "/api/identity/organizations/{organizationId}/owner-invitations", "/api/identity/organizations/{organizationId}/owner-invitations/{invitationId}/revoke", "/api/identity/owner-invitations/accept"],
+      "evidence": ["apps/AgropecuarIA.Api/Program.cs", "apps/AgropecuarIA.Api/IdentityEndpoints.cs", "apps/AgropecuarIA.Api/OidcReauthentication.cs", "tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationCreateApiIntegrationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApiTests.cs"],
       "gate": "Integrated-local only; external OIDC and shared delivery remain NO-GO until RS-005 passes."
     },
     {
@@ -33,10 +33,10 @@
       "status": "integrated-local",
       "threatIds": ["TM-001", "TM-009", "TM-011", "TM-012"],
       "owner": "Identity + Data + AppSec",
-      "control": "EF Core migrations, optimistic concurrency, transactional journal/outbox and CreateOrganization ledger are exercised against real local PostgreSQL. The organization bootstrap uses split privilege roles, actor-bound SET LOCAL context and FORCE RLS with A/B/no-context/pool/job negative tests.",
-      "tests": ["IdentityDatabaseMigrationTests", "IdentityLinkingIntegrationTests", "IdentityPublishedEventContractTests", "OrganizationCreateApplicationTests", "OrganizationDatabaseSecurityTests"],
-      "evidence": ["src/AgropecuarIA.Identity/Infrastructure/IdentityDbContext.cs", "src/AgropecuarIA.Identity/Infrastructure/Migrations/IdentityDbContextModelSnapshot.cs", "tests/AgropecuarIA.Identity.Tests/IdentityDatabaseMigrationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationCreateApplicationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationDatabaseSecurityTests.cs", "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/IdentityPublishedEventContractTests.cs"],
-      "gate": "CreateOrganization tenancy/RLS is integrated locally. Managed credentials, shared PostgreSQL, migrator execution, delivery workers and tenant isolation for every later module remain NO-GO."
+      "control": "EF Core migrations, optimistic concurrency, transactional journal/outbox, CreateOrganization and one-shot co-owner invitations are exercised against real local PostgreSQL. Both tenant slices use split privilege roles, actor-bound SET LOCAL context and FORCE RLS with A/B/no-context/pool/job negative tests.",
+      "tests": ["IdentityDatabaseMigrationTests", "IdentityLinkingIntegrationTests", "IdentityPublishedEventContractTests", "OrganizationCreateApplicationTests", "OrganizationDatabaseSecurityTests", "OrganizationOwnerInvitationApplicationTests", "OrganizationOwnerInvitationDatabaseSecurityTests"],
+      "evidence": ["src/AgropecuarIA.Identity/Infrastructure/IdentityDbContext.cs", "src/AgropecuarIA.Identity/Infrastructure/Migrations/IdentityDbContextModelSnapshot.cs", "tests/AgropecuarIA.Identity.Tests/IdentityDatabaseMigrationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationCreateApplicationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationDatabaseSecurityTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApplicationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationDatabaseSecurityTests.cs", "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/IdentityPublishedEventContractTests.cs"],
+      "gate": "CreateOrganization and owner-invitation tenancy/RLS are integrated locally. Managed credentials, shared PostgreSQL, migrator execution, delivery workers and tenant isolation for every later module remain NO-GO."
     },
     {
       "id": "RS-004",

@@ -1,6 +1,7 @@
 import type {
   AuthenticationAssurance,
   AvailableConnection,
+  CreatedOwnerInvitation,
   CreatedOrganization,
   IdentityCapabilities,
   IdentityConnection,
@@ -8,6 +9,8 @@ import type {
   LinkStart,
   LinkedIdentity,
   MembershipSummary,
+  OwnerInvitationStatus,
+  OwnerInvitationSummary,
   StepUpAttempt,
   StepUpPurpose,
 } from "./identity-types";
@@ -16,6 +19,7 @@ export type IdentityFailureKind =
   | "signed-out"
   | "revoked"
   | "provider-down"
+  | "unavailable"
   | "validation"
   | "reauthentication-required"
   | "in-progress"
@@ -80,10 +84,21 @@ function nullableDateTime(record: JsonRecord, key: string): string | null {
 }
 
 function parseStepUpPurpose(value: unknown): StepUpPurpose {
-  if (value === "manage_authentication_methods") {
+  if (
+    value === "manage_authentication_methods" ||
+    value === "manage_organization_owners"
+  ) {
     return value;
   }
   throw new IdentityApiError("error", 502);
+}
+
+function nullableString(record: JsonRecord, key: string): string | null {
+  const value = record[key];
+  if (value === null) {
+    return null;
+  }
+  return requiredString(record, key);
 }
 
 function requiredBoolean(record: JsonRecord, key: string): boolean {
@@ -167,6 +182,10 @@ export function parseIdentityCapabilities(
     strongAuthenticationAvailable: requiredBoolean(
       value,
       "strongAuthenticationAvailable",
+    ),
+    ownerInvitationsAvailable: requiredBoolean(
+      value,
+      "ownerInvitationsAvailable",
     ),
     connections: requiredArray(value, "connections").map(
       parseAvailableConnection,
@@ -294,6 +313,77 @@ export function parseCreatedOrganization(value: unknown): CreatedOrganization {
   };
 }
 
+function parseOwnerInvitationStatus(value: unknown): OwnerInvitationStatus {
+  if (
+    value === "pending" ||
+    value === "accepted" ||
+    value === "revoked" ||
+    value === "expired"
+  ) {
+    return value;
+  }
+  throw new IdentityApiError("error", 502);
+}
+
+export function parseOwnerInvitationSummary(
+  value: unknown,
+): OwnerInvitationSummary {
+  if (!isRecord(value)) {
+    throw new IdentityApiError("error", 502);
+  }
+  const status = parseOwnerInvitationStatus(value.status);
+  const acceptedAtUtc = nullableDateTime(value, "acceptedAtUtc");
+  const revokedAtUtc = nullableDateTime(value, "revokedAtUtc");
+  if (
+    (status === "accepted" && acceptedAtUtc === null) ||
+    (status !== "accepted" && acceptedAtUtc !== null) ||
+    (status === "revoked" && revokedAtUtc === null) ||
+    (status !== "revoked" && revokedAtUtc !== null)
+  ) {
+    throw new IdentityApiError("error", 502);
+  }
+  return {
+    invitationId: requiredUuid(value, "invitationId"),
+    organizationId: requiredUuid(value, "organizationId"),
+    status,
+    createdAtUtc: requiredDateTime(value, "createdAtUtc"),
+    expiresAtUtc: requiredDateTime(value, "expiresAtUtc"),
+    acceptedAtUtc,
+    revokedAtUtc,
+    version: requiredUuid(value, "version"),
+  };
+}
+
+export function parseOwnerInvitationList(
+  value: unknown,
+): readonly OwnerInvitationSummary[] {
+  if (!isRecord(value)) {
+    throw new IdentityApiError("error", 502);
+  }
+  return requiredArray(value, "items").map(parseOwnerInvitationSummary);
+}
+
+export function parseCreatedOwnerInvitation(
+  value: unknown,
+): CreatedOwnerInvitation {
+  if (!isRecord(value)) {
+    throw new IdentityApiError("error", 502);
+  }
+  const invitation = parseOwnerInvitationSummary(value.invitation);
+  if (invitation.status !== "pending") {
+    throw new IdentityApiError("error", 502);
+  }
+  const token = nullableString(value, "token");
+  const isReplay = requiredBoolean(value, "isReplay");
+  if (
+    (!isReplay && (token === null || !/^[A-Za-z0-9_-]{43}$/.test(token))) ||
+    (isReplay && token !== null)
+  ) {
+    throw new IdentityApiError("error", 502);
+  }
+  return { invitation, token, isReplay };
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const text = await response.text();
   if (text.length === 0) {
@@ -316,6 +406,9 @@ function classifyFailure(status: number, body: unknown): IdentityFailureKind {
   const code = problemCode(body);
   if (status === 401) {
     return code.includes("revok") ? "revoked" : "signed-out";
+  }
+  if (status === 404) {
+    return "unavailable";
   }
   if (status === 503) {
     return code.includes("reconciliation")
@@ -343,6 +436,9 @@ function classifyFailure(status: number, body: unknown): IdentityFailureKind {
       code.includes("expired")
       ? "replay"
       : "conflict";
+  }
+  if (status === 412) {
+    return "conflict";
   }
   return "error";
 }
@@ -407,6 +503,7 @@ async function mutate(
   signal?: AbortSignal,
   retryAntiforgery = true,
   idempotencyKey?: string,
+  ifMatch?: string,
 ): Promise<Response> {
   const token = await getAntiforgeryToken(signal);
   const headers: Record<string, string> = {
@@ -416,6 +513,12 @@ async function mutate(
   };
   if (idempotencyKey !== undefined) {
     headers["Idempotency-Key"] = idempotencyKey;
+  }
+  if (ifMatch !== undefined) {
+    if (!UUID_PATTERN.test(ifMatch)) {
+      throw new IdentityApiError("validation", 400);
+    }
+    headers["If-Match"] = `"${ifMatch}"`;
   }
   const response = await fetch(path, {
     method,
@@ -433,7 +536,7 @@ async function mutate(
       return response;
     }
     invalidateAntiforgeryToken();
-    return mutate(path, method, body, signal, false, idempotencyKey);
+    return mutate(path, method, body, signal, false, idempotencyKey, ifMatch);
   }
   await ensureSuccessful(response);
   return response;
@@ -571,6 +674,65 @@ export async function createOrganization(
     signal,
     true,
     idempotencyKey,
+  );
+  return parseCreatedOrganization(await readJson(response));
+}
+
+export async function listOwnerInvitations(
+  organizationId: string,
+  signal?: AbortSignal,
+): Promise<readonly OwnerInvitationSummary[]> {
+  return parseOwnerInvitationList(
+    await getJson(
+      `/api/identity/organizations/${encodeURIComponent(organizationId)}/owner-invitations`,
+      signal,
+    ),
+  );
+}
+
+export async function createOwnerInvitation(
+  organizationId: string,
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<CreatedOwnerInvitation> {
+  const response = await mutate(
+    `/api/identity/organizations/${encodeURIComponent(organizationId)}/owner-invitations`,
+    "POST",
+    {},
+    signal,
+    true,
+    idempotencyKey,
+  );
+  return parseCreatedOwnerInvitation(await readJson(response));
+}
+
+export async function revokeOwnerInvitation(
+  organizationId: string,
+  invitationId: string,
+  version: string,
+  signal?: AbortSignal,
+): Promise<OwnerInvitationSummary> {
+  const response = await mutate(
+    `/api/identity/organizations/${encodeURIComponent(organizationId)}/owner-invitations/${encodeURIComponent(invitationId)}/revoke`,
+    "POST",
+    undefined,
+    signal,
+    true,
+    undefined,
+    version,
+  );
+  return parseOwnerInvitationSummary(await readJson(response));
+}
+
+export async function acceptOwnerInvitation(
+  token: string,
+  signal?: AbortSignal,
+): Promise<CreatedOrganization> {
+  const response = await mutate(
+    "/api/identity/owner-invitations/accept",
+    "POST",
+    { token },
+    signal,
   );
   return parseCreatedOrganization(await readJson(response));
 }

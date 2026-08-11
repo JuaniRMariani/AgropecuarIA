@@ -8,6 +8,8 @@ import type {
   IdentityResourceState,
   IdentitySession,
   OrganizationCreationState,
+  OwnerInvitationAcceptanceState,
+  OwnerInvitationActionState,
 } from "../../features/identity/identity-types";
 
 const productionCapabilities: IdentityCapabilities = {
@@ -15,6 +17,7 @@ const productionCapabilities: IdentityCapabilities = {
   oidcConfigured: true,
   developmentProviderEnabled: true,
   strongAuthenticationAvailable: true,
+  ownerInvitationsAvailable: false,
   connections: [
     { id: "email", label: "Correo", available: true },
     { id: "google", label: "Google", available: true },
@@ -44,6 +47,21 @@ const session: IdentitySession = {
 
 afterEach(cleanup);
 
+const invitationProps = {
+  ownerInvitations: {},
+  ownerInvitationAction: { kind: "idle" } as OwnerInvitationActionState,
+  ownerInvitationAcceptance: {
+    kind: "idle",
+  } as OwnerInvitationAcceptanceState,
+  onCreateOwnerInvitation: vi.fn(),
+  onRevokeOwnerInvitation: vi.fn(),
+  onRefreshOwnerInvitations: vi.fn(),
+  onCopyOwnerInvitation: vi.fn(),
+  onResumeOwnerManagement: vi.fn(),
+  onAcceptOwnerInvitation: vi.fn(),
+  onReauthenticateOwnerInvitation: vi.fn(),
+};
+
 function renderView(
   resource: IdentityResourceState,
   notice: IdentityNotice = { kind: "none" },
@@ -52,6 +70,7 @@ function renderView(
     formOpen?: boolean;
     creation?: OrganizationCreationState;
   }> = {},
+  invitationOptions: Partial<typeof invitationProps> = {},
 ) {
   const handlers = {
     onRetry: vi.fn(),
@@ -69,6 +88,8 @@ function renderView(
   };
   const result = render(
     <IdentityView
+      {...invitationProps}
+      {...invitationOptions}
       notice={notice}
       organizationCreation={organizationOptions.creation ?? { kind: "idle" }}
       organizationDraft={organizationOptions.draft ?? ""}
@@ -175,6 +196,7 @@ describe("IdentityView", () => {
 
     rerender(
       <IdentityView
+        {...invitationProps}
         notice={{ kind: "replay", message: "Ese intento ya fue utilizado." }}
         onCancelOrganization={vi.fn()}
         onCreateOrganization={vi.fn()}
@@ -202,6 +224,7 @@ describe("IdentityView", () => {
     const onStepUp = vi.fn();
     const { container } = render(
       <IdentityView
+        {...invitationProps}
         notice={{ kind: "none" }}
         onCancelOrganization={vi.fn()}
         onCreateOrganization={vi.fn()}
@@ -396,5 +419,114 @@ describe("IdentityView", () => {
     expect(
       screen.getByRole("textbox", { name: "Nombre de la organización" }),
     ).toHaveValue("La Esperanza");
+  });
+
+  it("renders owner invitations with short IDs and regional empty/loading states", () => {
+    const ownerSession: IdentitySession = {
+      ...session,
+      memberships: [
+        {
+          organizationId: "1266395e-ec88-481e-9a72-81fa2cc2904a",
+          organizationName: "La Esperanza",
+          role: "owner",
+        },
+      ],
+    };
+    const ownerCapabilities = {
+      ...productionCapabilities,
+      ownerInvitationsAvailable: true,
+    };
+    const onCreateOwnerInvitation = vi.fn();
+    renderView(
+      {
+        kind: "authenticated",
+        capabilities: ownerCapabilities,
+        session: ownerSession,
+      },
+      { kind: "none" },
+      {},
+      {
+        ownerInvitations: {
+          "1266395e-ec88-481e-9a72-81fa2cc2904a": {
+            kind: "ready",
+            items: [],
+          },
+        },
+        onCreateOwnerInvitation,
+      },
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Invitaciones de co-owner" }),
+    ).toBeVisible();
+    expect(screen.getAllByText("Organización 126639")).toHaveLength(2);
+    expect(screen.getByText("No hay invitaciones")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verificar y crear enlace" }),
+    );
+    expect(onCreateOwnerInvitation).toHaveBeenCalledWith(
+      "1266395e-ec88-481e-9a72-81fa2cc2904a",
+    );
+  });
+
+  it("shows a bearer invitation once with a privilege warning and copy action", () => {
+    const onCopyOwnerInvitation = vi.fn();
+    const ownerSession: IdentitySession = {
+      ...session,
+      memberships: [
+        {
+          organizationId: "1266395e-ec88-481e-9a72-81fa2cc2904a",
+          organizationName: "La Esperanza",
+          role: "owner",
+        },
+      ],
+    };
+    renderView(
+      {
+        kind: "authenticated",
+        capabilities: {
+          ...productionCapabilities,
+          ownerInvitationsAvailable: true,
+        },
+        session: ownerSession,
+      },
+      { kind: "none" },
+      {},
+      {
+        ownerInvitationAcceptance: { kind: "idle" },
+        ownerInvitationAction: {
+          kind: "revealed",
+          organizationId: "1266395e-ec88-481e-9a72-81fa2cc2904a",
+          invitationId: "3766395e-ec88-481e-9a72-81fa2cc2904a",
+          shareLink: `${window.location.origin}/#owner-invitation=${"a".repeat(43)}`,
+        },
+        onCopyOwnerInvitation,
+      },
+    );
+
+    expect(screen.getByText("Guardá el enlace ahora")).toBeVisible();
+    expect(screen.getByText(/podrá convertirse en owner/i)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Copiar y ocultar" }));
+    expect(onCopyOwnerInvitation).toHaveBeenCalledOnce();
+  });
+
+  it("offers login for an invitation without exposing the token", () => {
+    const onReauthenticateOwnerInvitation = vi.fn();
+    renderView(
+      { kind: "signed-out", capabilities: productionCapabilities },
+      { kind: "none" },
+      {},
+      {
+        ownerInvitationAcceptance: {
+          kind: "reauthentication-required",
+          message: "Ingresá para aceptar la invitación como co-owner.",
+        },
+        onReauthenticateOwnerInvitation,
+      },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ingresar y aceptar" }));
+    expect(onReauthenticateOwnerInvitation).toHaveBeenCalledOnce();
+    expect(document.body).not.toHaveTextContent("a".repeat(43));
   });
 });

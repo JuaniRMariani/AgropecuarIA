@@ -49,3 +49,19 @@ Fuera del sub-slice:
 - creación de campos o geometrías, que pertenece a `AGRO-GIS-002`;
 - CUIT/titularidad contractual;
 - superadmin y observabilidad global.
+
+## Invitación one-shot de co-owner
+
+Fecha de decisión: 2026-08-11. Estado: aceptada para el siguiente sub-slice local de `AGRO-ID-003`.
+
+- El slice agrega exclusivamente otro `owner` activo. En la experiencia se lo denomina `co-owner`; no se crea un rol nuevo ni se inventan permisos por módulo/campo.
+- Solo un owner activo puede crear, listar o revocar invitaciones. Crear y revocar requieren step-up purpose-bound `manage_organization_owners`; listar no revela tokens.
+- La invitación no se dirige por email: es un enlace bearer que el owner comparte fuera de banda. El producto advierte que quien controle el enlace y una cuenta verificada podrá convertirse en owner.
+- El token tiene 256 bits CSPRNG, se muestra una sola vez, viaja en el fragmento del enlace y se persiste únicamente como digest versionado. Nunca aparece en query string, logs, telemetría, journal o eventos.
+- TTL inicial configurable: 7 días. `pending` puede pasar una sola vez a `accepted` o `revoked`; `expired` se deriva cuando `now >= expiresAtUtc`. No hay renovación silenciosa ni purga automática.
+- Aceptar exige sesión verificada y autenticación reciente menor a 15 minutos. Replay del mismo aceptante devuelve la misma membership; otro actor, token inválido/revocado/expirado o recurso ajeno recibe una respuesta neutral.
+- Aceptación crea membership autoritativa y proyección N-1, journal y outbox en una transacción. Crear/revocar también son atómicos e idempotentes.
+- El slice solo agrega owners; no implementa democión, remoción, abandono ni transferencia. Por ello conserva estructuralmente el invariante de al menos un owner, pero no declara completado el runtime de último owner.
+- Invitaciones dirigidas por email, roles no-owner, scopes por campo/módulo/acción y delivery permanecen bloqueados hasta sus decisiones/tareas correspondientes.
+- Un owner existente puede aceptar el enlace de forma idempotente: la invitación queda consumida sin crear una segunda membership. Esto no reemplaza el journey principal con un invitado distinto.
+- La rotación conserva todas las versiones HMAC retenidas y exige cobertura global antes de retirar una versión. La transición v1 → v1+v2 → v2-only falla cerrada si quedan filas sin alias resoluble; no se conserva el token crudo para backfill.

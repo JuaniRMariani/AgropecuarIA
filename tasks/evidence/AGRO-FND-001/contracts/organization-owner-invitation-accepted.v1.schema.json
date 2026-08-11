@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.invalid/contracts/organization-owner-invitation-accepted.v1.schema.json",
+  "title": "OrganizationOwnerInvitationAccepted v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["organizationId", "invitationId", "membershipId", "acceptedAtUtc"],
+  "properties": {
+    "organizationId": { "type": "string", "format": "uuid" },
+    "invitationId": { "type": "string", "format": "uuid" },
+    "membershipId": { "type": "string", "format": "uuid" },
+    "acceptedAtUtc": { "type": "string", "format": "date-time" }
+  }
+}

@@ -1213,3 +1213,54 @@ Outcome observable: un usuario con sesión verificada y reciente crea una organi
 - Riesgos externos: Auth0/edge, secretos administrados, principal de ambiente compartido, rate limit distribuido, Audit central y retención legal siguen NO-GO de deploy, no de desarrollo local.
 - Publicación: commit/push autorizados; sin deploy. No se inició una segunda tarea.
 - Autoevaluación: 96/100; cero gate obligatorio fallido y cero cambio ajeno conocido.
+
+## Iteración 25 — AGRO-ID-003 invitación one-shot de co-owner (2026-08-11)
+
+Estado inicial: `En curso`. El incremento anterior entregó `CreateOrganization`; esta continuación conserva el mismo ID y agrega colaboración mínima sin inventar la matriz completa de roles.
+
+### DoR y decisiones vinculantes
+
+- [x] Auditar backlog, modelo, RLS, sesión, step-up, OpenAPI y UI existentes con Product, AppSec/Data y QA independientes.
+- [x] Confirmar que roles distintos de `owner`, scopes por campo y invitación por email no están Ready.
+- [x] Fijar el slice a invitación mediante enlace one-shot para agregar exclusivamente un `co-owner` (`role=owner` server-side).
+- [x] Fijar actor y assurance: owner activo; crear/revocar con purpose `manage_organization_owners`; aceptar con identidad verificada y autenticación reciente `<15m`.
+- [x] Fijar token 256-bit, fragmento URL, persistencia solo digest versionado, TTL configurable de 7 días y estados pending/accepted/revoked/expired.
+- [x] Mantener fuera email/delivery, otros roles, democión/remoción/último-owner runtime, GIS/campos, superadmin y soporte JIT.
+
+### Aceptación observable
+
+- [x] Owner A crea una invitación bajo Org A; recibe metadata y token una sola vez, `no-store`, sin email/rol/tenant autoritativo en el body.
+- [x] Crear/revocar/listar revalida owner y tenant en la misma transacción; owner/usuario de B y sesión sin contexto obtienen error neutral sin existencia.
+- [x] Invitado verificado acepta antes del vencimiento y obtiene exactamente una membership owner autoritativa más proyección N-1; replay propio devuelve el mismo resultado.
+- [x] Token malformado, robado/reutilizado por otro actor, expirado, revocado o aceptado concurrentemente no crea efectos adicionales.
+- [x] Accept-vs-revoke produce un único estado terminal; fallos de journal/outbox revierten invitación/membership/ledger.
+- [x] Evento(s), journal y telemetría omiten token/digest/nombre/user/tenant como labels o payload sensible.
+- [x] PostgreSQL demuestra `FORCE RLS`, grants mínimos, A/B/sin contexto/pool/job, migración expand N/N-1, app rollback y roll-forward.
+- [x] UI cubre create/copy-once/list/revoke/accept, login/reauth, loading regional, empty/offline/error/expired/conflict, foco/teclado/Axe/390px y UUID corto.
+
+### Plan y ownership
+
+- [x] Principal: OpenAPI, API composition, eventos/schemas/maps, configuración transversal, plan/evidencia, integración, gates y Git.
+- [x] Backend: dominio/aplicación y pruebas de servicio/API bajo archivos exclusivos; no edita migration/OpenAPI/frontend.
+- [x] Database/Security: DbContext, migration/designer/snapshot, policies/grants y pruebas PostgreSQL; espera modelo congelado.
+- [x] Frontend: cliente/tipos/hub/vistas/CSS y Vitest; no edita backend/OpenAPI/E2E runner.
+- [x] QA/E2E: fixtures y journey inviter/invitee/attacker desktop/mobile; revisión final read-only independiente.
+- [x] Ejecutar restore/build/MTP/format/EF, pnpm frozen/format/lint/typecheck/Vitest/build, Playwright, FND/SEC, SCA, JSON/UTF-8/secrets/diff.
+- [x] Mantener `AGRO-ID-003` `En curso`, documentar residuales y publicar un único commit/push autorizado; no iniciar otra tarea.
+
+### Baseline
+
+- Git `main` limpio en `0583708`; origin/main coincide.
+- Gate previo integrado: .NET 142/142, build Release 0/0, EF sin drift; Vitest 50/50; Playwright 4/4; FND 45/45; SEC 25/25; SCA 0.
+
+### Review final
+
+- Resultado: `PASS` local del sub-slice de invitación one-shot de co-owner; `AGRO-ID-003` permanece `En curso` por roles no-owner, scopes por campo, remoción/democión/último-owner runtime e invitaciones dirigidas por email.
+- Contrato y seguridad: token CSPRNG de 256 bits visible una sola vez y persistido solo como HMAC versionado; fragmento URL, respuestas `no-store`, errores neutrales, step-up purpose-bound para crear/revocar y aceptación con identidad verificada reciente.
+- Persistencia: invitación, membership autoritativa y proyección N-1, journal y outbox tipado son atómicos; concurrencia create/accept/revoke, expiración exacta, replay, rotación/retirada de claves y fallos inyectados quedan fail-closed.
+- PostgreSQL: migración expand, writer N-1, roll-forward y rollback efímero; `FORCE RLS`, roles/grants mínimos, A/B/sin contexto/pool/job y funciones estrechas SECURITY DEFINER demostradas.
+- Backend: restore locked y build Release `PASS` con 0 warnings/errores; suite raíz MTP `170/170`; format y EF pending-model `PASS`.
+- Frontend: pnpm frozen, format, lint, typecheck y Next build `PASS`; Vitest `67/67`; Playwright `4/4` en Chromium desktop/móvil con invitador, invitado distinto, atacante, revocación, Axe, teclado y 390 px.
+- Arquitectura/seguridad: fitness incluido en la suite (`70/70`), FND `45/45`, SEC `26/26`, NuGet/pnpm SCA, JSON, UTF-8 y `git diff --check` `PASS`.
+- Hallazgos de integración corregidos: versión OpenAPI mutada incorrectamente, agregado tenant no declarado, constraint SQL NULL, fixture E2E compartida/rate limit, navegación por hash en SPA y confirmación de revocación.
+- Residuales: Auth0/hosting/secret manager/limiter distribuido/Audit central/retención legal siguen NO-GO para ambiente compartido; el fragmento se procesa al montar la app y el journey soportado abrir enlace → login → reload queda cubierto.

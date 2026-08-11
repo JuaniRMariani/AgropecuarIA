@@ -11,10 +11,12 @@ export type IdentityCapabilities = Readonly<{
   oidcConfigured: boolean;
   developmentProviderEnabled: boolean;
   strongAuthenticationAvailable: boolean;
+  ownerInvitationsAvailable: boolean;
   connections: readonly AvailableConnection[];
 }>;
 
-export type StepUpPurpose = "manage_authentication_methods";
+export type StepUpPurpose =
+  "manage_authentication_methods" | "manage_organization_owners";
 
 export type AuthenticationAssurance = Readonly<{
   level: "primary" | "strong";
@@ -54,6 +56,61 @@ export type CreatedOrganization = Readonly<{
   organization: OrganizationSummary;
   membership: CreatedOwnerMembership;
 }>;
+
+export type OwnerInvitationStatus =
+  "pending" | "accepted" | "revoked" | "expired";
+
+export type OwnerInvitationSummary = Readonly<{
+  invitationId: string;
+  organizationId: string;
+  status: OwnerInvitationStatus;
+  createdAtUtc: string;
+  expiresAtUtc: string;
+  acceptedAtUtc: string | null;
+  revokedAtUtc: string | null;
+  version: string;
+}>;
+
+export type CreatedOwnerInvitation = Readonly<{
+  invitation: OwnerInvitationSummary;
+  token: string | null;
+  isReplay: boolean;
+}>;
+
+export type OwnerInvitationResourceState =
+  | Readonly<{ kind: "idle" }>
+  | Readonly<{ kind: "loading" }>
+  | Readonly<{ kind: "ready"; items: readonly OwnerInvitationSummary[] }>
+  | Readonly<{ kind: "offline" }>
+  | Readonly<{ kind: "error" }>;
+
+export type OwnerInvitationActionState =
+  | Readonly<{ kind: "idle" }>
+  | Readonly<{ kind: "creating"; organizationId: string }>
+  | Readonly<{
+      kind: "revoking";
+      organizationId: string;
+      invitationId: string;
+    }>
+  | Readonly<{
+      kind: "revealed";
+      organizationId: string;
+      invitationId: string;
+      shareLink: string;
+    }>
+  | Readonly<{ kind: "reauthentication-required"; message: string }>
+  | Readonly<{ kind: "conflict"; message: string }>
+  | Readonly<{ kind: "offline"; message: string }>
+  | Readonly<{ kind: "error"; message: string }>;
+
+export type OwnerInvitationAcceptanceState =
+  | Readonly<{ kind: "idle" }>
+  | Readonly<{ kind: "accepting" }>
+  | Readonly<{ kind: "reauthentication-required"; message: string }>
+  | Readonly<{ kind: "unavailable"; message: string }>
+  | Readonly<{ kind: "conflict"; message: string }>
+  | Readonly<{ kind: "offline"; message: string }>
+  | Readonly<{ kind: "error"; message: string }>;
 
 export type OrganizationCreationState =
   | Readonly<{ kind: "idle" }>

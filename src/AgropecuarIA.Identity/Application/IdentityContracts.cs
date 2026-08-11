@@ -38,6 +38,50 @@ public sealed record CreatedOrganizationResult(
     string MembershipStatus,
     long AuthorizationVersion);
 
+public sealed record CreateOrganizationOwnerInvitationCommand(
+    Guid OrganizationId,
+    string IdempotencyKey);
+
+public sealed record RevokeOrganizationOwnerInvitationCommand(
+    Guid OrganizationId,
+    Guid InvitationId,
+    Guid ExpectedVersion);
+
+public sealed record AcceptOrganizationOwnerInvitationCommand(string Token);
+
+public sealed record CreatedOrganizationOwnerInvitationResult(
+    Guid InvitationId,
+    Guid OrganizationId,
+    string Status,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset ExpiresAtUtc,
+    DateTimeOffset? AcceptedAtUtc,
+    DateTimeOffset? RevokedAtUtc,
+    Guid Version,
+    string? Token,
+    bool IsReplay);
+
+public sealed record OrganizationOwnerInvitationSummaryResult(
+    Guid InvitationId,
+    Guid OrganizationId,
+    string Status,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset ExpiresAtUtc,
+    DateTimeOffset? AcceptedAtUtc,
+    DateTimeOffset? RevokedAtUtc,
+    Guid Version);
+
+public sealed record AcceptedOrganizationOwnerInvitationResult(
+    Guid InvitationId,
+    Guid OrganizationId,
+    string OrganizationDisplayName,
+    string OrganizationStatus,
+    Guid MembershipId,
+    string MembershipRole,
+    string MembershipStatus,
+    long AuthorizationVersion,
+    bool IsReplay);
+
 public sealed record IssuedSession(Guid SessionId, Guid UserId, string Token, DateTimeOffset ExpiresAtUtc);
 
 public sealed record AuthenticatedSession(
@@ -132,6 +176,18 @@ public sealed record IdentityRequestContext
         {
             throw new InvalidOperationException(
                 "The identity operation requires the authenticated platform actor.");
+        }
+    }
+
+    public void RequireTenantActor(Guid expectedActorId, Guid expectedTenantId)
+    {
+        if (expectedActorId == Guid.Empty || expectedTenantId == Guid.Empty ||
+            ActorId != expectedActorId ||
+            Scope is not RequestScope.TenantRequestScope tenantScope ||
+            tenantScope.TenantId != expectedTenantId)
+        {
+            throw new InvalidOperationException(
+                "The identity operation requires the authenticated actor and tenant scope.");
         }
     }
 }
@@ -229,4 +285,34 @@ public static class IdentityErrors
             "The result could not be determined safely. Retry with the same idempotency key.",
             retryable: true,
             retryAfterSeconds: 1);
+
+    public static IdentityOperationException OrganizationOwnerInvitationUnavailable() =>
+        new(
+            "identity.organization_owner_invitation_unavailable",
+            503,
+            "Organization owner invitations are unavailable.");
+
+    public static IdentityOperationException OrganizationOwnerInvitationNotAvailable() =>
+        new(
+            "identity.organization_owner_invitation_not_available",
+            404,
+            "The organization owner invitation is not available.");
+
+    public static IdentityOperationException OrganizationOwnerInvitationConflict() =>
+        new(
+            "identity.organization_owner_invitation_conflict",
+            409,
+            "The organization owner invitation could not be changed safely.");
+
+    public static IdentityOperationException OrganizationOwnerInvitationVersionMismatch() =>
+        new(
+            "identity.organization_owner_invitation_version_mismatch",
+            412,
+            "The organization owner invitation has changed.");
+
+    public static IdentityOperationException InvalidOwnerInvitationVersion() =>
+        new(
+            "identity.invalid_owner_invitation_version",
+            400,
+            "A valid organization owner invitation version is required.");
 }

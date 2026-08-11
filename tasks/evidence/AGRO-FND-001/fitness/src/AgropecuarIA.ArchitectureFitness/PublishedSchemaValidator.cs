@@ -13,6 +13,9 @@ public static class PublishedSchemaValidator
         "identity-linked.v1.schema.json",
         "identity-step-up-completed.v1.schema.json",
         "organization-created.v1.schema.json",
+        "organization-owner-invited.v1.schema.json",
+        "organization-owner-invitation-accepted.v1.schema.json",
+        "organization-owner-invitation-revoked.v1.schema.json",
         "problem-details.v1.schema.json",
         "request-scope.v1.schema.json",
     };
@@ -132,6 +135,29 @@ public static class PublishedSchemaValidator
                 ValidateStringProperty(root, fileName, "organizationId", "uuid", issues);
                 ValidateStringProperty(root, fileName, "ownerMembershipId", "uuid", issues);
                 ValidateStringProperty(root, fileName, "createdAtUtc", "date-time", issues);
+                break;
+            case "organization-owner-invited.v1.schema.json":
+                ValidateClosedObject(root, fileName, ["organizationId", "invitationId", "expiresAtUtc", "invitedAtUtc"], issues);
+                ValidateExactProperties(root, fileName, ["organizationId", "invitationId", "expiresAtUtc", "invitedAtUtc"], issues);
+                ValidateStringProperty(root, fileName, "organizationId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "invitationId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "expiresAtUtc", "date-time", issues);
+                ValidateStringProperty(root, fileName, "invitedAtUtc", "date-time", issues);
+                break;
+            case "organization-owner-invitation-accepted.v1.schema.json":
+                ValidateClosedObject(root, fileName, ["organizationId", "invitationId", "membershipId", "acceptedAtUtc"], issues);
+                ValidateExactProperties(root, fileName, ["organizationId", "invitationId", "membershipId", "acceptedAtUtc"], issues);
+                ValidateStringProperty(root, fileName, "organizationId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "invitationId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "membershipId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "acceptedAtUtc", "date-time", issues);
+                break;
+            case "organization-owner-invitation-revoked.v1.schema.json":
+                ValidateClosedObject(root, fileName, ["organizationId", "invitationId", "revokedAtUtc"], issues);
+                ValidateExactProperties(root, fileName, ["organizationId", "invitationId", "revokedAtUtc"], issues);
+                ValidateStringProperty(root, fileName, "organizationId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "invitationId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "revokedAtUtc", "date-time", issues);
                 break;
             default:
                 Add(issues, "schema.unregistered", $"Schema '{fileName}' is not registered.");

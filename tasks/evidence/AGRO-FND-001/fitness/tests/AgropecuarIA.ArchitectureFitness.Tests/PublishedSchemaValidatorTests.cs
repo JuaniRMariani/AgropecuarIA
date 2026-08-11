@@ -61,6 +61,11 @@ public sealed class PublishedSchemaValidatorTests
     [DataRow("organization-created.v1.schema.json", "organizationId")]
     [DataRow("organization-created.v1.schema.json", "ownerMembershipId")]
     [DataRow("organization-created.v1.schema.json", "createdAtUtc")]
+    [DataRow("organization-owner-invited.v1.schema.json", "expiresAtUtc")]
+    [DataRow("organization-owner-invited.v1.schema.json", "invitationId")]
+    [DataRow("organization-owner-invitation-accepted.v1.schema.json", "membershipId")]
+    [DataRow("organization-owner-invitation-accepted.v1.schema.json", "acceptedAtUtc")]
+    [DataRow("organization-owner-invitation-revoked.v1.schema.json", "revokedAtUtc")]
     public void IdentityEventPayloadSchemasRejectMissingExtraAndWronglyTypedFields(
         string fileName,
         string requiredProperty)

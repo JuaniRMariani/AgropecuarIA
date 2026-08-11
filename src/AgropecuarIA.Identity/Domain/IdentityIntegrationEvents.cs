@@ -5,6 +5,9 @@ public enum IdentityIntegrationEventKind
     IdentityLinked = 1,
     IdentityStepUpCompleted = 2,
     OrganizationCreated = 3,
+    OrganizationOwnerInvited = 4,
+    OrganizationOwnerInvitationAccepted = 5,
+    OrganizationOwnerInvitationRevoked = 6,
 }
 
 public sealed record IdentityIntegrationEventEnvelope(
@@ -36,6 +39,23 @@ public sealed record OrganizationCreatedIntegrationEventPayload(
     Guid OrganizationId,
     Guid OwnerMembershipId,
     DateTimeOffset CreatedAtUtc);
+
+public sealed record OrganizationOwnerInvitedIntegrationEventPayload(
+    Guid OrganizationId,
+    Guid InvitationId,
+    DateTimeOffset ExpiresAtUtc,
+    DateTimeOffset InvitedAtUtc);
+
+public sealed record OrganizationOwnerInvitationAcceptedIntegrationEventPayload(
+    Guid OrganizationId,
+    Guid InvitationId,
+    Guid MembershipId,
+    DateTimeOffset AcceptedAtUtc);
+
+public sealed record OrganizationOwnerInvitationRevokedIntegrationEventPayload(
+    Guid OrganizationId,
+    Guid InvitationId,
+    DateTimeOffset RevokedAtUtc);
 
 public sealed class IdentityIntegrationEventDefinition
 {
@@ -139,6 +159,33 @@ public static class IdentityIntegrationEvents
         "OrganizationDirectoryEntry",
         "tasks/evidence/AGRO-FND-001/contracts/organization-created.v1.schema.json");
 
+    public static IdentityIntegrationEventDefinition OrganizationOwnerInvited { get; } = new(
+        "OrganizationOwnerInvited",
+        1,
+        SchemaVersion,
+        Source,
+        "tenant",
+        "OrganizationOwnerInvitation",
+        "tasks/evidence/AGRO-FND-001/contracts/organization-owner-invited.v1.schema.json");
+
+    public static IdentityIntegrationEventDefinition OrganizationOwnerInvitationAccepted { get; } = new(
+        "OrganizationOwnerInvitationAccepted",
+        1,
+        SchemaVersion,
+        Source,
+        "tenant",
+        "OrganizationOwnerInvitation",
+        "tasks/evidence/AGRO-FND-001/contracts/organization-owner-invitation-accepted.v1.schema.json");
+
+    public static IdentityIntegrationEventDefinition OrganizationOwnerInvitationRevoked { get; } = new(
+        "OrganizationOwnerInvitationRevoked",
+        1,
+        SchemaVersion,
+        Source,
+        "tenant",
+        "OrganizationOwnerInvitation",
+        "tasks/evidence/AGRO-FND-001/contracts/organization-owner-invitation-revoked.v1.schema.json");
+
     public static IReadOnlyList<IdentityIntegrationEventDefinition> All { get; } =
         Array.AsReadOnly(
             Enum.GetValues<IdentityIntegrationEventKind>()
@@ -151,6 +198,9 @@ public static class IdentityIntegrationEvents
             IdentityIntegrationEventKind.IdentityLinked => IdentityLinked,
             IdentityIntegrationEventKind.IdentityStepUpCompleted => IdentityStepUpCompleted,
             IdentityIntegrationEventKind.OrganizationCreated => OrganizationCreated,
+            IdentityIntegrationEventKind.OrganizationOwnerInvited => OrganizationOwnerInvited,
+            IdentityIntegrationEventKind.OrganizationOwnerInvitationAccepted => OrganizationOwnerInvitationAccepted,
+            IdentityIntegrationEventKind.OrganizationOwnerInvitationRevoked => OrganizationOwnerInvitationRevoked,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(kind),
                 kind,

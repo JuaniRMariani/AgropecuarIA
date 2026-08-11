@@ -30,7 +30,8 @@ public static class IdentityEndpoints
             IHostEnvironment environment,
             IOptions<OidcProviderOptions> configuredOptions,
             IOptions<DevelopmentIdentityProviderOptions> developmentOptions,
-            IOptions<StrongAuthenticationOptions> strongAuthenticationOptions) =>
+            IOptions<StrongAuthenticationOptions> strongAuthenticationOptions,
+            IOptions<OrganizationOwnerInvitationOptions> ownerInvitationOptions) =>
         {
             OidcProviderOptions options = configuredOptions.Value;
             bool developmentProviderEnabled =
@@ -41,6 +42,7 @@ public static class IdentityEndpoints
                 developmentProviderEnabled,
                 strongAuthenticationOptions.Value.Enabled &&
                     (options.IsConfigured || developmentProviderEnabled),
+                ownerInvitationOptions.Value.Enabled,
                 [
                     new(
                         "email",
@@ -282,6 +284,105 @@ public static class IdentityEndpoints
                         created.MembershipStatus,
                         created.AuthorizationVersion)),
                 statusCode: StatusCodes.Status201Created);
+        }).RequireAuthorization();
+
+        identity.MapGet("/organizations/{organizationId:guid}/owner-invitations", async (
+            Guid organizationId,
+            HttpContext context,
+            IdentityApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
+            IReadOnlyList<OrganizationOwnerInvitationSummaryResult> invitations =
+                await service.ListOrganizationOwnerInvitationsAsync(
+                    organizationId,
+                    current,
+                    TenantRequestContext(context, current, organizationId),
+                    cancellationToken);
+            return Results.Ok(new OwnerInvitationListResponse(
+                invitations.Select(ToOwnerInvitationResponse).ToArray()));
+        }).RequireAuthorization();
+
+        identity.MapPost("/organizations/{organizationId:guid}/owner-invitations", async (
+            Guid organizationId,
+            EmptyOwnerInvitationRequest request,
+            HttpContext context,
+            IAntiforgery antiforgery,
+            IdentityApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            _ = request;
+            await antiforgery.ValidateRequestAsync(context);
+            string idempotencyKey = ReadSingleHeader(
+                context,
+                "Idempotency-Key",
+                IdentityErrors.InvalidIdempotencyKey);
+            AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
+            CreatedOrganizationOwnerInvitationResult created =
+                await service.CreateOrganizationOwnerInvitationAsync(
+                    new CreateOrganizationOwnerInvitationCommand(organizationId, idempotencyKey),
+                    current,
+                    TenantRequestContext(context, current, organizationId),
+                    cancellationToken);
+            return Results.Json(
+                new CreatedOwnerInvitationResponse(
+                    ToOwnerInvitationResponse(created),
+                    created.Token,
+                    created.IsReplay),
+                statusCode: StatusCodes.Status201Created);
+        }).RequireAuthorization();
+
+        identity.MapPost(
+            "/organizations/{organizationId:guid}/owner-invitations/{invitationId:guid}/revoke",
+            async (
+                Guid organizationId,
+                Guid invitationId,
+                HttpContext context,
+                IAntiforgery antiforgery,
+                IdentityApplicationService service,
+                CancellationToken cancellationToken) =>
+            {
+                await antiforgery.ValidateRequestAsync(context);
+                Guid expectedVersion = ReadOwnerInvitationVersion(context);
+                AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
+                OrganizationOwnerInvitationSummaryResult revoked =
+                    await service.RevokeOrganizationOwnerInvitationAsync(
+                        new RevokeOrganizationOwnerInvitationCommand(
+                            organizationId,
+                            invitationId,
+                            expectedVersion),
+                        current,
+                        TenantRequestContext(context, current, organizationId),
+                        cancellationToken);
+                context.Response.Headers.ETag = $"\"{revoked.Version:D}\"";
+                return Results.Ok(ToOwnerInvitationResponse(revoked));
+            }).RequireAuthorization();
+
+        identity.MapPost("/owner-invitations/accept", async (
+            AcceptOwnerInvitationRequest request,
+            HttpContext context,
+            IAntiforgery antiforgery,
+            IdentityApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            await antiforgery.ValidateRequestAsync(context);
+            AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
+            AcceptedOrganizationOwnerInvitationResult accepted =
+                await service.AcceptOrganizationOwnerInvitationAsync(
+                    new AcceptOrganizationOwnerInvitationCommand(request.Token),
+                    current,
+                    RequestContext(context, current),
+                    cancellationToken);
+            return Results.Ok(new CreatedOrganizationResponse(
+                new OrganizationSummaryResponse(
+                    accepted.OrganizationId,
+                    accepted.OrganizationDisplayName,
+                    accepted.OrganizationStatus),
+                new CreatedOwnerMembershipResponse(
+                    accepted.MembershipId,
+                    accepted.MembershipRole,
+                    accepted.MembershipStatus,
+                    accepted.AuthorizationVersion)));
         }).RequireAuthorization();
 
         IHostEnvironment hostEnvironment = endpoints.ServiceProvider.GetRequiredService<IHostEnvironment>();
@@ -614,6 +715,69 @@ public static class IdentityEndpoints
         AuthenticatedSession? session = null) =>
         IdentityRequestContext.ForPlatform(context.TraceIdentifier, session?.UserId);
 
+    private static IdentityRequestContext TenantRequestContext(
+        HttpContext context,
+        AuthenticatedSession session,
+        Guid organizationId) =>
+        IdentityRequestContext.ForTenant(
+            context.TraceIdentifier,
+            session.UserId,
+            organizationId);
+
+    private static string ReadSingleHeader(
+        HttpContext context,
+        string name,
+        Func<IdentityOperationException> invalid)
+    {
+        if (!context.Request.Headers.TryGetValue(name, out var values) ||
+            values.Count != 1 ||
+            string.IsNullOrWhiteSpace(values[0]))
+        {
+            throw invalid();
+        }
+
+        return values[0]!;
+    }
+
+    private static Guid ReadOwnerInvitationVersion(HttpContext context)
+    {
+        string value = ReadSingleHeader(
+            context,
+            "If-Match",
+            IdentityErrors.InvalidOwnerInvitationVersion);
+        if (value.Length != 38 || value[0] != '"' || value[^1] != '"' ||
+            !Guid.TryParseExact(value[1..^1], "D", out Guid version))
+        {
+            throw IdentityErrors.InvalidOwnerInvitationVersion();
+        }
+
+        return version;
+    }
+
+    private static OwnerInvitationResponse ToOwnerInvitationResponse(
+        CreatedOrganizationOwnerInvitationResult invitation) =>
+        new(
+            invitation.InvitationId,
+            invitation.OrganizationId,
+            invitation.Status,
+            invitation.CreatedAtUtc,
+            invitation.ExpiresAtUtc,
+            invitation.AcceptedAtUtc,
+            invitation.RevokedAtUtc,
+            invitation.Version);
+
+    private static OwnerInvitationResponse ToOwnerInvitationResponse(
+        OrganizationOwnerInvitationSummaryResult invitation) =>
+        new(
+            invitation.InvitationId,
+            invitation.OrganizationId,
+            invitation.Status,
+            invitation.CreatedAtUtc,
+            invitation.ExpiresAtUtc,
+            invitation.AcceptedAtUtc,
+            invitation.RevokedAtUtc,
+            invitation.Version);
+
     private static bool IsDevelopmentOrTest(IHostEnvironment environment) =>
         environment.IsDevelopment() || environment.IsEnvironment("Test");
 
@@ -641,6 +805,7 @@ public static class IdentityEndpoints
         bool OidcConfigured,
         bool DevelopmentProviderEnabled,
         bool StrongAuthenticationAvailable,
+        bool OwnerInvitationsAvailable,
         IReadOnlyList<IdentityConnectionResponse> Connections);
 
     private sealed record IdentityConnectionResponse(string Id, string Label, bool Available);
@@ -652,6 +817,10 @@ public static class IdentityEndpoints
     private sealed record StartStepUpAttemptRequest(string Purpose);
 
     private sealed record CreateOrganizationRequest(string DisplayName);
+
+    private sealed record EmptyOwnerInvitationRequest;
+
+    private sealed record AcceptOwnerInvitationRequest(string Token);
 
     private sealed record LinkAttemptResponse(
         Guid AttemptId,
@@ -703,4 +872,22 @@ public static class IdentityEndpoints
         string Role,
         string Status,
         long AuthorizationVersion);
+
+    private sealed record OwnerInvitationResponse(
+        Guid InvitationId,
+        Guid OrganizationId,
+        string Status,
+        DateTimeOffset CreatedAtUtc,
+        DateTimeOffset ExpiresAtUtc,
+        DateTimeOffset? AcceptedAtUtc,
+        DateTimeOffset? RevokedAtUtc,
+        Guid Version);
+
+    private sealed record CreatedOwnerInvitationResponse(
+        OwnerInvitationResponse Invitation,
+        string? Token,
+        bool IsReplay);
+
+    private sealed record OwnerInvitationListResponse(
+        IReadOnlyList<OwnerInvitationResponse> Items);
 }

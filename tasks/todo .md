@@ -1318,3 +1318,57 @@ Outcome observable: una persona autenticada busca territorio argentino sin lupa 
 - Seguridad/contratos: FND protocol `45/45`, SEC threat model `41/41`, OpenAPI/runtime map/RLS/hash/provider guards `PASS`; NuGet y pnpm sin vulnerabilidades conocidas; secretos, JSON, UTF-8 y diff-check sin hallazgos.
 - Persistencia: primer schema Territory validado empty→N, seed/hash reproducibles, activación atómica, rollback/roll-forward efímero y convivencia aditiva con Identity. No se afirma un writer Territory N-1 inexistente.
 - Revisión independiente: sin hallazgos críticos/altos/medios abiertos. Se corrigieron shape real `gobierno_local`, egress default-off, logging HTTP sin URI, hash NFC completo, homónimos, payload truncado, coordenadas echoed, contrato Problem/Retry-After/parent, copy de frescura y evidencia E2E.
+
+## Iteración 27 — AGRO-SEC-002 frontera tenant Identity v1 (2026-08-11)
+
+Estado inicial: `Propuesto`. Tras auditar readiness con Architecture/Data, Product/QA y AppSec, se selecciona el primer incremento ejecutable por módulo y se transiciona `Propuesto → Ready → En curso`. La tarea padre R1–R6 permanecerá `En curso` para futuras superficies, jobs, storage, exports e IA.
+
+### DoR, alcance y no objetivos
+
+- [x] Verificar que `ID-003` y el contrato local de `FND-002` aportan rutas tenant reales, RLS, replay/idempotencia y tests PostgreSQL reproducibles.
+- [x] Elegir exclusivamente la frontera actual Identity + Territory; no crear roles, endpoints, campos, jobs, cache tenant, storage, export, retrieval, DAST remoto ni deploy.
+- [x] Tratar Territory como referencia compartida autenticada y sin datos tenant; no inventar RLS tenant para un snapshot oficial platform-owned.
+- [x] Fijar output del audit en `tasks/evidence/AGRO-SEC-002/`, con matriz ejecutable, arquitectura, reportes y findings estructurados.
+- [x] Fijar que una ruta futura no puede entrar al runtime sin resource/action/scope/context/authz/storage/error/tests/owner registrados.
+
+Outcome observable: un gate reproducible cubre exactamente todas las operaciones HTTP actuales de Identity y Territory, distingue `public-platform`, `authenticated-platform`, `tenant`, `shared-reference` y `development-test-only`, y falla si una nueva ruta tenant carece de autorización por recurso, contexto server-derived, RLS/default-deny, error neutral o caso negativo.
+
+### Aceptación verificable
+
+- [x] Inventario machine-readable completo de operaciones OpenAPI/runtime, sin duplicados ni rutas huérfanas.
+- [x] Cada operación declara recurso, acción, boundary, autenticación, fuente de actor/tenant, autorización de aplicación, frontera de persistencia/cache, error neutral, owner y tests ejecutables.
+- [x] Rutas tenant de owner-invitations demuestran Org A/B, actor ajeno/sin contexto, sesión revocada, replay, concurrencia, pool/job y `FORCE RLS` con principal sin ownership/BYPASS. La revocación de membership no existe todavía y queda para el futuro slice de remoción de co-owner.
+- [x] Bootstrap `CreateOrganization` y accept por token permanecen platform-scoped pero reautorizan actor/sesión antes de lookup/replay y fijan tenant server-side después de resolverlo.
+- [x] Territory search/resolve requieren sesión, no aceptan tenant, no persisten coordenadas y mantienen egress default-off; el cache global queda como gate de privacidad antes de habilitar Georef multiusuario.
+- [x] Rutas Development/Test están clasificadas y el gate enlaza prueba de ausencia fuera de esos ambientes.
+- [x] Jobs, storage, export y AI figuran `not-present`, no `approved`; la tarea no afirma cobertura de superficies inexistentes.
+- [x] Mutations negativas rompen por ruta ausente, método/grupo nuevo, scope falso, tenant client-authoritative, falta de authz/RLS/error/test/owner, shared-reference sin minimización y superficie inexistente marcada aprobada.
+- [x] Security audit entrega `architecture.md`, `REPORT.md`, `FINDINGS-DETAIL.md` y `findings.json` validados; no hubo hallazgos confirmados que exigieran cambio productivo.
+
+### Ownership y gates
+
+- [x] Principal: plan, matriz/validator, fitness, integración, evidencias, gates y Git.
+- [x] Security/Data: revisar RLS/roles/grants/functions/pool/job/replay y hunting de BOLA; no editar producto salvo defecto confirmado y asignado.
+- [x] Architecture: verificar cobertura OpenAPI/runtime y clasificaciones platform/tenant/shared/dev.
+- [x] Product/QA: fixtures A/B/attacker/revoked y acceptance; revisión independiente final.
+- [x] Ejecutar restore locked, build Release, MTP raíz y dirigidos PostgreSQL, format, EF pending, E2E existente, validadores FND/SEC/SEC-002, SCA, JSON/UTF-8/secrets/diff.
+- [x] Documentar resultados, mantener `AGRO-SEC-002` `En curso`, commit/push autorizado y no iniciar revocación de co-owner en esta iteración.
+
+### Baseline
+
+- Git `main`/`origin/main` limpios en `15ead58`.
+- Backend: restore/build/format/EF PASS; MTP `223/223`; Territory `44/44`; fitness `79/79`.
+- Frontend: pnpm frozen/format/lint/typecheck/build PASS; Vitest `79/79`; Playwright `6/6`.
+- Validadores: FND `45/45`; SEC `41/41`; SCA y secret scan sin hallazgos.
+
+### Review final
+
+- Resultado: `PASS` del incremento Identity tenant v1; `AGRO-SEC-002` permanece `En curso` porque storage, jobs, export, retrieval, IA y nuevas superficies tenant aún no existen.
+- Gate: registro estricto de `20/20` operaciones HTTP, callback OIDC y cinco superficies futuras ausentes; OpenAPI, rutas source, ownership, tests y boundary semantics se validan en Architecture Fitness.
+- Mutations: `16/16` negativos más el caso publicado prueban ruta faltante, método/grupo nuevo, IDs únicos, boundary, transiciones platform→tenant, tenant client-authoritative, authz, `FORCE RLS`, error neutral, shared reference, Dev/Test, test/símbolo, owner, OIDC y superficies futuras.
+- Security audit: cero findings Critical/High/Medium/Low explotables en runtime default. El oracle temporal potencial del cache Territory es condicional a Georef habilitado y queda como gate previo a egress multiusuario.
+- Backend: restore locked, build Release 0 warnings/errores, MTP raíz `240/240`, fitness `96/96`, format y EF pending-model de ambos contextos `PASS`.
+- Frontend: pnpm frozen, format, lint, typecheck, Vitest `79/79`, Next build y Playwright `6/6` `PASS`; no hubo cambio productivo frontend.
+- Validadores y supply chain: FND `45/45`, SEC `41/41`, findings schema, JSON/UTF-8, NuGet/pnpm SCA, secrets y diff-check `PASS`.
+- Revisión independiente: autorización tenant/RLS `23/23` dirigida y auth/browser `79/79`; se corrigieron extracción de PUT/PATCH/grupos nuevos, invariantes shared-reference y el claim imposible de membership revocada.
+- Publicación: un único commit/push autorizado, sin deploy y sin iniciar revocación de co-owner.

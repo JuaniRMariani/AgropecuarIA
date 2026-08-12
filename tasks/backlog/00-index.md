@@ -64,7 +64,7 @@ La columna “plan” contiene release, épica, MoSCoW y tamaño. Las dependenci
 | [AGRO-CAT-003](EPIC-03-catalogo-nucleo-productivo.md#agro-cat-003) | Registrar cualquier actividad mediante el núcleo común | R1/R3 · EPIC-03 · Must · L | Propuesto | CAT-002, FND-002/003 y contratos Document/Finance mínimos |
 | [AGRO-CAT-004](EPIC-03-catalogo-nucleo-productivo.md#agro-cat-004) | Gestionar extensiones privadas y propuestas editoriales | R1 · EPIC-03 · Must · M | Propuesto | CAT-002, ID-003 y workflow editorial |
 | [AGRO-CAT-005](EPIC-03-catalogo-nucleo-productivo.md#agro-cat-005) | Activar perfiles especializados con abstención segura | R1–R4 · EPIC-03 · Must · L | Propuesto | DIS-002, CAT-002/003 y panel profesional |
-| [AGRO-GIS-001](EPIC-04-gis-territorio-unidades.md#agro-gis-001) | Normalizar territorio oficial en 24 jurisdicciones | R1/R2 · EPIC-04 · Must · M | Propuesto | DIS-004, FND-002 y fixtures 24 puntos |
+| [AGRO-GIS-001](EPIC-04-gis-territorio-unidades.md#agro-gis-001) | Normalizar territorio oficial en 24 jurisdicciones | R1/R2 · EPIC-04 · Must · M | En curso | DIS-004, FND-002 y fixtures 24 puntos |
 | [AGRO-GIS-002](EPIC-04-gis-territorio-unidades.md#agro-gis-002) | Crear campos y unidades con mapa, área y ficha | R2 · EPIC-04 · Must · L | Propuesto | GIS-001, CAT-003, DIS-004 y proveedor tiles |
 | [AGRO-GIS-003](EPIC-04-gis-territorio-unidades.md#agro-gis-003) | Versionar, subdividir y fusionar sin perder historia | R2 · EPIC-04 · Must · L | Propuesto | GIS-002 y FND-003 |
 | [AGRO-GIS-004](EPIC-04-gis-territorio-unidades.md#agro-gis-004) | Incorporar intercambio GIS y capas opcionales | R7 · EPIC-04 · Should · M | Propuesto | GIS-002/003 y decisión R7/licencias |
@@ -115,7 +115,7 @@ La columna “plan” contiene release, épica, MoSCoW y tamaño. Las dependenci
 | [AGRO-INT-003](EPIC-14-integraciones-importaciones.md#agro-int-003) | Sincronizar fuentes nacionales mediante staging/publicación | R1/R2 · EPIC-14 · Must · M | Propuesto | INT-001, CAT-001 y GIS-001 |
 | [AGRO-INT-004](EPIC-14-integraciones-importaciones.md#agro-int-004) | Priorizar integraciones agro posteriores por factibilidad | R7 · EPIC-14 · Should/Could · M | Propuesto | evidencia del piloto y mecanismo oficial |
 | [AGRO-SEC-001](EPIC-15-seguridad-privacidad.md#agro-sec-001) | Mantener el modelo de amenazas y la clasificación por release | R0–R6 · EPIC-15 · Must · M | En curso | arquitectura, flujos de datos e inventario de proveedores |
-| [AGRO-SEC-002](EPIC-15-seguridad-privacidad.md#agro-sec-002) | Probar aislamiento por tenant y autorización exhaustiva | R1–R6 · EPIC-15 · Must · L | Propuesto | ID-003, FND-002 y políticas de recursos por módulo |
+| [AGRO-SEC-002](EPIC-15-seguridad-privacidad.md#agro-sec-002) | Probar aislamiento por tenant y autorización exhaustiva | R1–R6 · EPIC-15 · Must · L | En curso | ID-003, FND-002 y políticas de recursos por módulo |
 | [AGRO-SEC-003](EPIC-15-seguridad-privacidad.md#agro-sec-003) | Endurecer API, archivos, egress y cadena de suministro | R1–R6 · EPIC-15 · Must · L | Propuesto | SEC-001 y pipeline de plataforma |
 | [AGRO-SEC-004](EPIC-15-seguridad-privacidad.md#agro-sec-004) | Operar privacidad, retención y respuesta a incidentes | R1–R6 · EPIC-15 · Must · L | Propuesto | SEC-001, contratos DOC-001/002 e inventario de proveedores |
 | [AGRO-PLT-001](EPIC-16-plataforma-observabilidad-operacion.md#agro-plt-001) | Definir entornos y promover artefactos compatibles | R0/R1 · EPIC-16 · Must · L | Propuesto | DIS-007 y FND-001/003 |

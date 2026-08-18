@@ -19,6 +19,7 @@ import {
   parseRemovedOrganizationOwnerMembership,
   parseStepUpAttempt,
   revokeAllOtherOwnSessions,
+  revokeAllOwnSessionsAndLogout,
   revokeOwnerInvitation,
   revokeOwnSession,
   removeOrganizationOwnerMembership,
@@ -467,6 +468,43 @@ describe("identity mutations", () => {
           "X-CSRF-TOKEN": "safe-token",
         }),
       }),
+    );
+    const request = fetchMock.mock.calls[1]?.[1];
+    expect(request?.headers).not.toHaveProperty("If-Match");
+  });
+
+  it("revokes all own sessions through the collection and invalidates antiforgery after logout", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "first-token" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "next-token" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(revokeAllOwnSessionsAndLogout()).resolves.toBeUndefined();
+    await expect(revokeAllOtherOwnSessions()).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/identity/sessions",
+      expect.objectContaining({
+        method: "DELETE",
+        body: undefined,
+        credentials: "include",
+        headers: expect.objectContaining({
+          "X-CSRF-TOKEN": "first-token",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/api/identity/antiforgery",
+      expect.anything(),
     );
     const request = fetchMock.mock.calls[1]?.[1];
     expect(request?.headers).not.toHaveProperty("If-Match");

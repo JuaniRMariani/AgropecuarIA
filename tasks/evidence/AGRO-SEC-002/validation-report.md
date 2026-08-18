@@ -92,3 +92,15 @@ El registro vigente cubre exactamente `29/29` operaciones HTTP y agrega `identit
 - Suite raíz `371/371`; Identity `136/136`; DB own-session `12/12`; API own-session `10/10`; Architecture Fitness `135/135`; Vitest `217/217`; Playwright `10/10`; FND `45/45`; SEC `56/56`; EF `3/3`; build/format/SCA/JSON/diff PASS.
 
 Resultado vigente: PASS integrado-local. `AGRO-SEC-002` y `AGRO-ID-004` permanecen `En curso`; no se aprueba dispositivo, notificación, sesión ajena, evento/consumer, retención/purge ni deploy compartido.
+
+## Refresh: cierre global de sesiones propias incluida current — 2026-08-18
+
+El registro vigente cubre exactamente `30/30` operaciones HTTP y agrega `identity.sessions.revoke-all` sobre `DELETE /api/identity/sessions`.
+
+- La operación es platform-scoped, exige cookie+CSRF y assurance exacta `manage_sessions`; no recibe body, IDs, tenant, `If-Match`, idempotency key ni count.
+- PostgreSQL comparte el advisory lock por actor entre global, bulk-others, individual y logout. Current se revalida `FOR UPDATE` post-lock; todas las sesiones propias activas/no expiradas visibles al statement cambian con timestamp común y `Version` DB-side.
+- Un journal `session_revoked` por transición se confirma en la misma transacción. Fallo de journal o cancelación revierte todo; app conserva EXECUTE-only y cero acceso general a sessions/users/`TokenHash`.
+- La cookie current se elimina sólo tras commit. Ante respuesta perdida, el cliente no afirma éxito global: 401 sólo prueba que current ya no autentica y exige reingreso+inventario; 200 permite reintentar. Un login confirmado después del corte permanece fuera del comando.
+- Gates: raíz `381/381`; Identity `146/146`; DB revoke-all-own `18/18`; API own-session `14/14`; Architecture Fitness `135/135`; Vitest `225/225`; Playwright `10/10`; FND `45/45`; SEC `56/56`; EF `3/3`; build/format/SCA/UTF-8/JSON/secrets/diff PASS.
+
+Resultado vigente: PASS integrado-local. No se aprobaron dispositivos, notificación, familias, delivery/consumer, retención/purge, Auth0/edge/collector ni deploy compartido.

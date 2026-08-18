@@ -121,6 +121,7 @@ const ownerMembershipProps = {
 const ownSessionProps = {
   ownSessions: { kind: "idle" } as const,
   ownSessionAction: { kind: "idle" } as const,
+  onBeginAllOwnSessionRevocation: vi.fn(),
   onBeginAllOtherOwnSessionRevocation: vi.fn(),
   onBeginOwnSessionRevocation: vi.fn(),
   onCancelOwnSessionRevocation: vi.fn(),
@@ -166,6 +167,7 @@ function renderView(
     onCancelOrganization: vi.fn(),
     onCreateOrganization: vi.fn(),
     onReauthenticateOrganization: vi.fn(),
+    onBeginAllOwnSessionRevocation: vi.fn(),
     onBeginAllOtherOwnSessionRevocation: vi.fn(),
     onBeginOwnSessionRevocation: vi.fn(),
     onCancelOwnSessionRevocation: vi.fn(),
@@ -465,6 +467,75 @@ describe("IdentityView", () => {
     fireEvent.click(
       screen.getByRole("button", {
         name: "Confirmar cierre de las otras sesiones",
+      }),
+    );
+    expect(
+      confirmation.handlers.onConfirmOwnSessionRevocation,
+    ).toHaveBeenCalledOnce();
+  });
+
+  it("offers a separate accessible confirmation that closes this browser too", () => {
+    const current = {
+      sessionId: "8766395e-ec88-481e-9a72-81fa2cc2904a",
+      authenticatedAtUtc: "2026-08-18T10:00:00Z",
+      expiresAtUtc: "2026-08-25T10:00:00Z",
+      isCurrent: true,
+      version: "b766395e-ec88-481e-9a72-81fa2cc2904a",
+    } as const;
+    const authenticated = {
+      kind: "authenticated",
+      capabilities: productionCapabilities,
+      session: accountSession,
+    } as const;
+    const resources = {
+      kind: "ready",
+      page: { items: [current], total: 1, offset: 0, limit: 20 },
+    } as const;
+
+    const initial = renderView(
+      authenticated,
+      { kind: "none" },
+      {},
+      {},
+      {},
+      { resources },
+    );
+    const trigger = screen.getByRole("button", {
+      name: "Cerrar todas las sesiones",
+    });
+    expect(trigger).toBeEnabled();
+    fireEvent.click(trigger);
+    expect(
+      initial.handlers.onBeginAllOwnSessionRevocation,
+    ).toHaveBeenCalledOnce();
+
+    cleanup();
+    const confirmation = renderView(
+      authenticated,
+      { kind: "none" },
+      {},
+      {},
+      {},
+      {
+        resources,
+        action: { kind: "confirming", intent: { kind: "all-sessions" } },
+      },
+    );
+    const dialog = screen.getByRole("alertdialog", {
+      name: "¿Cerrar todas las sesiones?",
+    });
+    expect(screen.getByRole("button", { name: "Cancelar" })).toHaveFocus();
+    expect(dialog).toHaveAccessibleDescription(
+      /incluido este navegador.*volver a ingresar/i,
+    );
+    expect(confirmation.container).not.toHaveTextContent(current.sessionId);
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(
+      confirmation.handlers.onCancelOwnSessionRevocation,
+    ).toHaveBeenCalledOnce();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Confirmar cierre de todas las sesiones",
       }),
     );
     expect(

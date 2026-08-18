@@ -1744,23 +1744,68 @@ public sealed class IdentityApplicationService(
         IdentityRequestContext requestContext,
         CancellationToken cancellationToken)
     {
-        requestContext.RequirePlatformActor(currentSession.UserId);
-        UserSession session = await dbContext.Sessions
-            .SingleOrDefaultAsync(
-                item => item.Id == currentSession.SessionId && item.UserId == currentSession.UserId,
-                cancellationToken)
-            ?? throw IdentityErrors.SessionRequired();
+        try
+        {
+            await RevokeSessionCoreAsync(
+                currentSession,
+                requestContext,
+                cancellationToken);
+        }
+        catch (Exception exception) when (
+            !cancellationToken.IsCancellationRequested &&
+            IsSessionManagementInfrastructureFailure(exception))
+        {
+            throw IdentityErrors.SessionManagementUnavailable();
+        }
+    }
 
-        session.Revoke(timeProvider.GetUtcNow());
-        dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
-            currentSession.UserId,
-            currentSession.SessionId,
-            "session_revoked",
-            "succeeded",
-            null,
-            requestContext));
-        await dbContext.SaveChangesAsync(cancellationToken);
-        telemetry.Record("session_revoked", "succeeded");
+    private async Task RevokeSessionCoreAsync(
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        requestContext.RequirePlatformActor(currentSession.UserId);
+        RequireSessionManagementContext(currentSession);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted,
+            cancellationToken);
+        await SetSessionManagementDatabaseContextAsync(currentSession, cancellationToken);
+        RevokeCurrentOwnSessionDatabaseResult result = await dbContext.Database
+            .SqlQueryRaw<RevokeCurrentOwnSessionDatabaseResult>(
+                """
+                SELECT outcome AS "Outcome",
+                       session_id AS "SessionId",
+                       revoked_at_utc AS "RevokedAtUtc",
+                       version AS "Version"
+                FROM identity.revoke_current_own_session()
+                """)
+            .SingleAsync(cancellationToken);
+
+        switch (result.Outcome)
+        {
+            case "revoked":
+                ValidateCurrentSessionRevocationResult(result, currentSession.SessionId);
+                dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
+                    currentSession.UserId,
+                    currentSession.SessionId,
+                    "session_revoked",
+                    "succeeded",
+                    null,
+                    requestContext));
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                telemetry.Record("session_revoked", "succeeded");
+                return;
+            case "already_revoked":
+                ValidateCurrentSessionRevocationResult(result, currentSession.SessionId);
+                await transaction.CommitAsync(cancellationToken);
+                telemetry.Record("session_revoked", "replayed");
+                return;
+            case "not_available" when IsEmptySessionManagementResult(result):
+                throw IdentityErrors.SessionManagementUnavailable();
+            default:
+                throw IdentityErrors.SessionManagementUnavailable();
+        }
     }
 
     public async Task<OwnSessionPageResult> ListOwnActiveSessionsAsync(
@@ -1889,6 +1934,112 @@ public sealed class IdentityApplicationService(
         }
     }
 
+    public async Task RevokeAllOwnSessionsAsync(
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RevokeAllOwnSessionsCoreAsync(
+                currentSession,
+                requestContext,
+                cancellationToken);
+        }
+        catch (Exception exception) when (
+            !cancellationToken.IsCancellationRequested &&
+            IsSessionManagementInfrastructureFailure(exception))
+        {
+            throw IdentityErrors.SessionManagementUnavailable();
+        }
+    }
+
+    private async Task RevokeAllOwnSessionsCoreAsync(
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        requestContext.RequirePlatformActor(currentSession.UserId);
+        RequireSessionManagementContext(currentSession);
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        if (!HasCurrentSessionManagementAssurance(currentSession, now))
+        {
+            throw IdentityErrors.StrongAuthenticationRequired();
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted,
+            cancellationToken);
+        await SetSessionManagementDatabaseContextAsync(currentSession, cancellationToken);
+        RevokeAllOwnSessionsDatabaseResult[] rows = await dbContext.Database
+            .SqlQueryRaw<RevokeAllOwnSessionsDatabaseResult>(
+                """
+                SELECT outcome AS "Outcome",
+                       session_id AS "SessionId",
+                       revoked_at_utc AS "RevokedAtUtc",
+                       version AS "Version"
+                FROM identity.revoke_all_own_sessions({0})
+                """,
+                now.Subtract(runtimeOptions.StrongAuthenticationWindow))
+            .ToArrayAsync(cancellationToken);
+
+        if (rows.Length == 1 && IsEmptySessionManagementResult(rows[0]))
+        {
+            switch (rows[0].Outcome)
+            {
+                case "no_sessions":
+                    await transaction.CommitAsync(cancellationToken);
+                    telemetry.Record(
+                        "session_revoke_all",
+                        "replayed",
+                        purpose: StepUpPurposes.ManageSessions);
+                    return;
+                case "strong_authentication_required":
+                    throw IdentityErrors.StrongAuthenticationRequired();
+                case "not_available":
+                    throw IdentityErrors.SessionManagementUnavailable();
+            }
+        }
+
+        DateTimeOffset? revokedAtUtc = null;
+        HashSet<Guid> revokedSessionIds = [];
+        foreach (RevokeAllOwnSessionsDatabaseResult row in rows)
+        {
+            if (row.Outcome != "revoked" ||
+                row.SessionId is not Guid sessionId ||
+                sessionId == Guid.Empty ||
+                row.RevokedAtUtc is not DateTimeOffset rowRevokedAtUtc ||
+                row.Version is not Guid version ||
+                version == Guid.Empty ||
+                !revokedSessionIds.Add(sessionId) ||
+                (revokedAtUtc is not null && revokedAtUtc != rowRevokedAtUtc))
+            {
+                throw IdentityErrors.SessionManagementUnavailable();
+            }
+
+            revokedAtUtc ??= rowRevokedAtUtc;
+            dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
+                currentSession.UserId,
+                sessionId,
+                "session_revoked",
+                "succeeded",
+                null,
+                requestContext));
+        }
+
+        if (!revokedSessionIds.Contains(currentSession.SessionId))
+        {
+            throw IdentityErrors.SessionManagementUnavailable();
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        telemetry.Record(
+            "session_revoke_all",
+            "succeeded",
+            purpose: StepUpPurposes.ManageSessions);
+    }
+
     private async Task RevokeAllOtherOwnSessionsCoreAsync(
         AuthenticatedSession currentSession,
         IdentityRequestContext requestContext,
@@ -1981,6 +2132,31 @@ public sealed class IdentityApplicationService(
         result.SessionId is null &&
         result.RevokedAtUtc is null &&
         result.Version is null;
+
+    private static bool IsEmptySessionManagementResult(
+        RevokeAllOwnSessionsDatabaseResult result) =>
+        result.SessionId is null &&
+        result.RevokedAtUtc is null &&
+        result.Version is null;
+
+    private static bool IsEmptySessionManagementResult(
+        RevokeCurrentOwnSessionDatabaseResult result) =>
+        result.SessionId is null &&
+        result.RevokedAtUtc is null &&
+        result.Version is null;
+
+    private static void ValidateCurrentSessionRevocationResult(
+        RevokeCurrentOwnSessionDatabaseResult result,
+        Guid currentSessionId)
+    {
+        if (result.SessionId != currentSessionId ||
+            result.RevokedAtUtc is null ||
+            result.Version is not Guid version ||
+            version == Guid.Empty)
+        {
+            throw IdentityErrors.SessionManagementUnavailable();
+        }
+    }
 
     private async Task RevokeOtherOwnSessionCoreAsync(
         RevokeOwnSessionCommand command,
@@ -3796,6 +3972,28 @@ public sealed class IdentityApplicationService(
     }
 
     private sealed class RevokeAllOtherOwnSessionsDatabaseResult
+    {
+        public string Outcome { get; init; } = string.Empty;
+
+        public Guid? SessionId { get; init; }
+
+        public DateTimeOffset? RevokedAtUtc { get; init; }
+
+        public Guid? Version { get; init; }
+    }
+
+    private sealed class RevokeAllOwnSessionsDatabaseResult
+    {
+        public string Outcome { get; init; } = string.Empty;
+
+        public Guid? SessionId { get; init; }
+
+        public DateTimeOffset? RevokedAtUtc { get; init; }
+
+        public Guid? Version { get; init; }
+    }
+
+    private sealed class RevokeCurrentOwnSessionDatabaseResult
     {
         public string Outcome { get; init; } = string.Empty;
 

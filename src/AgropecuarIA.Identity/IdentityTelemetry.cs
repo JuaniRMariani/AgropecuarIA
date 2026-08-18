@@ -120,6 +120,7 @@ public sealed class IdentityTelemetry
         "organization_owner_invitation_revoke" or
         "organization_owner_membership_list" or
         "organization_owner_membership_remove" or
+        "session_revoke_all" or
         "session_revoke_all_others" or
         "session_revoked" => operation,
         _ => "other",

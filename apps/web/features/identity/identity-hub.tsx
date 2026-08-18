@@ -18,6 +18,7 @@ import {
   loadSession,
   resolveAuthorizationUrl,
   removeOrganizationOwnerMembership,
+  revokeAllOwnSessionsAndLogout,
   revokeAllOtherOwnSessions,
   revokeSession,
   revokeOwnSession,
@@ -303,6 +304,9 @@ function parseStoredOwnSessionRevocation(
   if (value.kind === "all-others") {
     return { kind: "all-others" };
   }
+  if (value.kind === "all-sessions") {
+    return { kind: "all-sessions" };
+  }
   if (
     value.kind === "single" &&
     "session" in value &&
@@ -549,6 +553,43 @@ function ownSessionResourceFailure(error: unknown): OwnSessionResourceState {
   return { kind: "error" };
 }
 
+function ownSessionReauthenticationMessage(
+  intent: OwnSessionRevocationIntent,
+): string {
+  switch (intent.kind) {
+    case "single":
+      return "Verificá tu identidad con MFA para cerrar esta sesión.";
+    case "all-others":
+      return "Verificá tu identidad con MFA para cerrar las otras sesiones.";
+    case "all-sessions":
+      return "Verificá tu identidad con MFA para cerrar todas las sesiones, incluida esta.";
+  }
+}
+
+function ownSessionGenericFailureMessage(
+  intent: OwnSessionRevocationIntent,
+): string {
+  switch (intent.kind) {
+    case "single":
+      return "No pudimos cerrar la sesión. No confirmamos ningún cambio.";
+    case "all-others":
+      return "No pudimos cerrar las otras sesiones. No confirmamos ningún cambio.";
+    case "all-sessions":
+      return "No pudimos confirmar el cierre de todas las sesiones.";
+  }
+}
+
+function requiresOwnSessionReconciliation(
+  error: unknown,
+  intent: OwnSessionRevocationIntent,
+): boolean {
+  if (intent.kind !== "all-sessions") return false;
+  return (
+    error instanceof TypeError ||
+    (error instanceof IdentityApiError && error.status === 503)
+  );
+}
+
 function ownSessionActionFailure(
   error: unknown,
   intent: OwnSessionRevocationIntent,
@@ -558,10 +599,7 @@ function ownSessionActionFailure(
       return {
         kind: "reauthentication-required",
         intent,
-        message:
-          intent.kind === "all-others"
-            ? "Verificá tu identidad con MFA para cerrar las otras sesiones."
-            : "Verificá tu identidad con MFA para cerrar esta sesión.",
+        message: ownSessionReauthenticationMessage(intent),
       };
     }
     if (intent.kind === "single" && error.status === 412) {
@@ -610,10 +648,7 @@ function ownSessionActionFailure(
   }
   return {
     kind: "error",
-    message:
-      intent.kind === "all-others"
-        ? "No pudimos cerrar las otras sesiones. No confirmamos ningún cambio."
-        : "No pudimos cerrar la sesión. No confirmamos ningún cambio.",
+    message: ownSessionGenericFailureMessage(intent),
   };
 }
 
@@ -1160,6 +1195,9 @@ export function IdentityHub() {
   const executeOwnSessionRevocation = useCallback(
     async (intent: StoredOwnSessionRevocation) => {
       ownSessionRevocation.current = intent;
+      if (intent.kind === "all-sessions") {
+        storeOwnSessionRevocation(intent);
+      }
       setOwnSessionAction({
         kind: "revoking",
         intent,
@@ -1170,12 +1208,26 @@ export function IdentityHub() {
             intent.session.sessionId,
             intent.session.version,
           );
-        } else {
+        } else if (intent.kind === "all-others") {
           await revokeAllOtherOwnSessions();
+        } else {
+          await revokeAllOwnSessionsAndLogout();
         }
         if (!mounted.current) return;
         ownSessionRevocation.current = null;
         clearOwnSessionRevocation();
+        if (intent.kind === "all-sessions") {
+          ownSessionRequestVersion.current += 1;
+          ownSessionContext.current = null;
+          setOwnSessions({ kind: "idle" });
+          setOwnSessionAction({ kind: "idle" });
+          setResource((current) =>
+            current.kind === "authenticated"
+              ? { kind: "signed-out", capabilities: current.capabilities }
+              : current,
+          );
+          return;
+        }
         setOwnSessionAction({
           kind: "revoked",
           message:
@@ -1194,6 +1246,27 @@ export function IdentityHub() {
         if (isAbort(error) || !mounted.current) return;
         if (handleOwnSessionUnauthorized(error)) return;
         const failure = ownSessionActionFailure(error, intent);
+        if (requiresOwnSessionReconciliation(error, intent)) {
+          setOwnSessionAction({
+            kind: "reconciling",
+            intent,
+            message:
+              "Comprobando si este navegador sigue autenticado antes de ofrecer un reintento…",
+          });
+          try {
+            await loadSession();
+            if (!mounted.current) return;
+            clearOwnSessionRevocation();
+            setOwnSessionAction(failure);
+          } catch (reconciliationError) {
+            if (isAbort(reconciliationError) || !mounted.current) return;
+            if (!handleOwnSessionUnauthorized(reconciliationError)) {
+              clearOwnSessionRevocation();
+              setOwnSessionAction(failure);
+            }
+          }
+          return;
+        }
         if (failure.kind === "reauthentication-required") {
           storeOwnSessionRevocation(intent);
         } else if (failure.kind === "stale" || failure.kind === "unavailable") {
@@ -1202,6 +1275,8 @@ export function IdentityHub() {
           void refreshOwnSessions(
             ownSessions.kind === "ready" ? ownSessions.page.offset : 0,
           );
+        } else if (intent.kind === "all-sessions") {
+          clearOwnSessionRevocation();
         }
         setOwnSessionAction(failure);
       }
@@ -1217,10 +1292,7 @@ export function IdentityHub() {
       setOwnSessionAction({
         kind: "reauthentication-required",
         intent,
-        message:
-          intent.kind === "all-others"
-            ? "Verificá tu identidad con MFA para cerrar las otras sesiones."
-            : "Verificá tu identidad con MFA para cerrar esta sesión.",
+        message: ownSessionReauthenticationMessage(intent),
       });
       try {
         const attempt = await startStepUp("manage_sessions");
@@ -1273,6 +1345,13 @@ export function IdentityHub() {
     setOwnSessionAction({
       kind: "confirming",
       intent: { kind: "all-others" },
+    });
+  }, []);
+
+  const handleBeginAllOwnSessionRevocation = useCallback(() => {
+    setOwnSessionAction({
+      kind: "confirming",
+      intent: { kind: "all-sessions" },
     });
   }, []);
 
@@ -2045,10 +2124,7 @@ export function IdentityHub() {
         setOwnSessionAction({
           kind: "reauthentication-required",
           intent: storedRevocation,
-          message:
-            storedRevocation.kind === "all-others"
-              ? "Verificá tu identidad con MFA para cerrar las otras sesiones."
-              : "Verificá tu identidad con MFA para cerrar esta sesión.",
+          message: ownSessionReauthenticationMessage(storedRevocation),
         });
       }
     });
@@ -2138,6 +2214,7 @@ export function IdentityHub() {
       notice={notice}
       ownSessionAction={ownSessionAction}
       ownSessions={ownSessions}
+      onBeginAllOwnSessionRevocation={handleBeginAllOwnSessionRevocation}
       onBeginAllOtherOwnSessionRevocation={
         handleBeginAllOtherOwnSessionRevocation
       }

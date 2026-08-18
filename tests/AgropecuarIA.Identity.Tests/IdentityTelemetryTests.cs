@@ -138,13 +138,22 @@ public sealed class IdentityTelemetryTests
         IReadOnlyDictionary<string, object?>[] recorded = CaptureMeasurements(telemetry =>
         {
             telemetry.Record("session_revoke_all_others", "succeeded");
+            telemetry.Record(
+                "session_revoke_all",
+                "succeeded",
+                purpose: StepUpPurposes.ManageSessions);
             telemetry.Record(targetIdentifier, targetIdentifier);
         });
 
         Assert.AreEqual("session_revoke_all_others", recorded[0]["identity.operation"]);
         Assert.AreEqual("succeeded", recorded[0]["identity.outcome"]);
-        Assert.AreEqual("other", recorded[1]["identity.operation"]);
-        Assert.AreEqual("other", recorded[1]["identity.outcome"]);
+        Assert.AreEqual("session_revoke_all", recorded[1]["identity.operation"]);
+        Assert.AreEqual("succeeded", recorded[1]["identity.outcome"]);
+        Assert.AreEqual(
+            StepUpPurposes.ManageSessions,
+            recorded[1]["identity.step_up_purpose"]);
+        Assert.AreEqual("other", recorded[2]["identity.operation"]);
+        Assert.AreEqual("other", recorded[2]["identity.outcome"]);
         Assert.IsFalse(string.Join(
             '|',
             recorded.SelectMany(tags => tags.Values)).Contains(

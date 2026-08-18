@@ -4,7 +4,7 @@ Fecha: 2026-08-18. Base publicada: `5f32e15`; alcance actual: worktree integrado
 
 ## Resultado ejecutivo
 
-No se confirmaron vulnerabilidades críticas, altas o medias explotables dentro del runtime local y la configuración default-off auditados. El registro vigente cubre 29/29 operaciones HTTP, incluido create/list/detail/rename de `ManagementUnit` en Productive Core e inventario/revocación individual/bulk de sesiones propias en Identity.
+No se confirmaron vulnerabilidades críticas, altas o medias explotables dentro del runtime local y la configuración default-off auditados. El registro vigente cubre 30/30 operaciones HTTP, incluido create/list/detail/rename de `ManagementUnit` en Productive Core e inventario/revocación individual/bulk/global de sesiones propias en Identity.
 
 La frontera Productive Core combina autenticación cookie, CSRF para escritura, autorización owner revalidada por un puerto Identity estrecho, contexto PostgreSQL transaction-local y `FORCE RLS`. La organización de la ruta funciona sólo como locator: actor, sesión y autorización se obtienen del servidor antes de recurso, alias o ledger. Creación y rename idempotentes son atómicos; rename suma ETag/If-Match fuerte, revisión monotónica, 412 neutral y un evento sin nombres.
 

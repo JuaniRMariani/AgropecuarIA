@@ -224,6 +224,14 @@ public sealed class OwnSessionInventoryApiTests
                     idempotencyKey: null),
                 HttpStatusCode.Forbidden,
                 "identity.strong_authentication_required");
+            await AssertProblemAsync(
+                await actor.DeleteWithConcurrencyAsync(
+                    "/api/identity/sessions",
+                    antiforgery,
+                    ifMatch: null,
+                    idempotencyKey: null),
+                HttpStatusCode.Forbidden,
+                "identity.strong_authentication_required");
 
             SessionPersistenceState state = await ReadSessionPersistenceStateAsync(
                 scenario.ConnectionString,
@@ -231,6 +239,206 @@ public sealed class OwnSessionInventoryApiTests
             Assert.IsNull(state.RevokedAtUtc);
             Assert.AreEqual(targetSession.Version, state.Version);
             Assert.AreEqual(0L, state.SuccessfulJournalCount);
+        }
+    }
+
+    [TestMethod]
+    public async Task RevokeAllOwnSessionsIsAtomicDeletesCookieAndKeepsForeignSession()
+    {
+        await using IdentityApiScenario scenario = await IdentityApiScenario.CreateAsync();
+        using BrowserSession actor = scenario.CreateBrowser();
+        using BrowserSession firstTarget = scenario.CreateBrowser();
+        using BrowserSession secondTarget = scenario.CreateBrowser();
+        using BrowserSession foreign = scenario.CreateBrowser();
+        string antiforgery = await IdentityApiTestActions.SignInAsync(actor, "email-owner");
+        await IdentityApiTestActions.SignInAsync(firstTarget, "email-owner");
+        await IdentityApiTestActions.SignInAsync(secondTarget, "email-owner");
+        await IdentityApiTestActions.SignInAsync(foreign, "identity-owned-by-another-user");
+        OwnSession firstTargetSession = await GetCurrentSessionAsync(firstTarget);
+        OwnSession secondTargetSession = await GetCurrentSessionAsync(secondTarget);
+        OwnSession foreignSession = await GetCurrentSessionAsync(foreign);
+
+        using (HttpResponseMessage missingCsrf = await actor.DeleteWithConcurrencyAsync(
+            "/api/identity/sessions",
+            antiforgeryToken: null,
+            ifMatch: null,
+            idempotencyKey: null))
+        {
+            Assert.AreEqual(HttpStatusCode.BadRequest, missingCsrf.StatusCode);
+        }
+
+        await AssertProblemAsync(
+            await actor.DeleteWithConcurrencyAsync(
+                "/api/identity/sessions",
+                antiforgery,
+                ifMatch: null,
+                idempotencyKey: null),
+            HttpStatusCode.Forbidden,
+            "identity.strong_authentication_required");
+
+        antiforgery = await CompleteManageSessionsStepUpAsync(actor, antiforgery);
+        OwnSession actorSession = await GetCurrentSessionAsync(actor);
+        using (HttpResponseMessage revoked = await actor.DeleteWithConcurrencyAsync(
+            "/api/identity/sessions",
+            antiforgery,
+            ifMatch: null,
+            idempotencyKey: null))
+        {
+            Assert.AreEqual(HttpStatusCode.NoContent, revoked.StatusCode);
+            Assert.AreEqual(string.Empty, await revoked.Content.ReadAsStringAsync());
+            AssertSessionCookieDeleted(revoked);
+        }
+
+        foreach (BrowserSession revokedBrowser in new[] { actor, firstTarget, secondTarget })
+        {
+            using HttpResponseMessage response = await revokedBrowser.GetAsync(
+                "/api/identity/session");
+            Assert.AreEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        using (HttpResponseMessage foreignStillAuthenticated = await foreign.GetAsync(
+            "/api/identity/session"))
+        {
+            Assert.AreEqual(HttpStatusCode.OK, foreignStillAuthenticated.StatusCode);
+        }
+
+        foreach (OwnSession revokedSession in new[]
+        {
+            actorSession,
+            firstTargetSession,
+            secondTargetSession,
+        })
+        {
+            Assert.AreEqual(
+                1L,
+                await CountSuccessfulRevocationsAsync(
+                    scenario.ConnectionString,
+                    revokedSession.SessionId));
+        }
+
+        Assert.AreEqual(
+            0L,
+            await CountSuccessfulRevocationsAsync(
+                scenario.ConnectionString,
+                foreignSession.SessionId));
+    }
+
+    [TestMethod]
+    public async Task RevokeAllOwnSessionsRevokesASingleCurrentSession()
+    {
+        await using IdentityApiScenario scenario = await IdentityApiScenario.CreateAsync();
+        using BrowserSession actor = scenario.CreateBrowser();
+        string antiforgery = await IdentityApiTestActions.SignInAsync(actor, "email-owner");
+        antiforgery = await CompleteManageSessionsStepUpAsync(actor, antiforgery);
+        OwnSession actorSession = await GetCurrentSessionAsync(actor);
+
+        using (HttpResponseMessage revoked = await actor.DeleteWithConcurrencyAsync(
+            "/api/identity/sessions",
+            antiforgery,
+            ifMatch: null,
+            idempotencyKey: null))
+        {
+            Assert.AreEqual(HttpStatusCode.NoContent, revoked.StatusCode);
+            AssertSessionCookieDeleted(revoked);
+        }
+
+        using HttpResponseMessage noLongerAuthenticated = await actor.GetAsync(
+            "/api/identity/session");
+        Assert.AreEqual(HttpStatusCode.Unauthorized, noLongerAuthenticated.StatusCode);
+        Assert.AreEqual(
+            1L,
+            await CountSuccessfulRevocationsAsync(
+                scenario.ConnectionString,
+                actorSession.SessionId));
+    }
+
+    [TestMethod]
+    public async Task GlobalAuditJournalFailureKeepsCookieAndRollsBackEverySession()
+    {
+        await using IdentityApiScenario scenario = await IdentityApiScenario.CreateAsync();
+        using BrowserSession actor = scenario.CreateBrowser();
+        using BrowserSession target = scenario.CreateBrowser();
+        string antiforgery = await IdentityApiTestActions.SignInAsync(actor, "email-owner");
+        await IdentityApiTestActions.SignInAsync(target, "email-owner");
+        OwnSession targetSession = await GetCurrentSessionAsync(target);
+        antiforgery = await CompleteManageSessionsStepUpAsync(actor, antiforgery);
+        OwnSession actorSession = await GetCurrentSessionAsync(actor);
+
+        await InstallFailingRevocationJournalTriggerAsync(scenario.ConnectionString);
+        try
+        {
+            using HttpResponseMessage response = await actor.DeleteWithConcurrencyAsync(
+                "/api/identity/sessions",
+                antiforgery,
+                ifMatch: null,
+                idempotencyKey: null);
+            AssertSessionCookieNotDeleted(response);
+            await AssertProblemAsync(
+                response,
+                HttpStatusCode.ServiceUnavailable,
+                "identity.session_management_unavailable");
+        }
+        finally
+        {
+            await RemoveFailingRevocationJournalTriggerAsync(scenario.ConnectionString);
+        }
+
+        foreach ((BrowserSession browser, OwnSession original) in new[]
+        {
+            (actor, actorSession),
+            (target, targetSession),
+        })
+        {
+            SessionPersistenceState state = await ReadSessionPersistenceStateAsync(
+                scenario.ConnectionString,
+                original.SessionId);
+            Assert.IsNull(state.RevokedAtUtc, "Every revocation must roll back with the journal.");
+            Assert.AreEqual(original.Version, state.Version);
+            Assert.AreEqual(0L, state.SuccessfulJournalCount);
+            using HttpResponseMessage stillAuthenticated = await browser.GetAsync(
+                "/api/identity/session");
+            Assert.AreEqual(HttpStatusCode.OK, stillAuthenticated.StatusCode);
+        }
+    }
+
+    [TestMethod]
+    public async Task GlobalRevocationBlocksIdentityAndProductiveEndpointsForEveryOwnCookie()
+    {
+        await using IdentityApiScenario scenario = await IdentityApiScenario.CreateAsync();
+        await ApplyProductiveCoreMigrationsAsync(scenario.ConnectionString);
+        using BrowserSession actor = scenario.CreateBrowser();
+        using BrowserSession target = scenario.CreateBrowser();
+        string antiforgery = await IdentityApiTestActions.SignInAsync(actor, "email-owner");
+        await IdentityApiTestActions.SignInAsync(target, "email-owner");
+        Guid organizationId = await IdentityApiTestActions.CreateOrganizationAsync(
+            actor,
+            "Cierre global productivo",
+            "global-session-revocation-productive-journey",
+            antiforgery);
+
+        using (HttpResponseMessage beforeRevocation = await target.GetAsync(
+            $"/api/organizations/{organizationId:D}/fields"))
+        {
+            Assert.AreEqual(HttpStatusCode.OK, beforeRevocation.StatusCode);
+        }
+
+        antiforgery = await CompleteManageSessionsStepUpAsync(actor, antiforgery);
+        using (HttpResponseMessage revoked = await actor.DeleteWithConcurrencyAsync(
+            "/api/identity/sessions",
+            antiforgery,
+            ifMatch: null,
+            idempotencyKey: null))
+        {
+            Assert.AreEqual(HttpStatusCode.NoContent, revoked.StatusCode);
+        }
+
+        foreach (BrowserSession revokedBrowser in new[] { actor, target })
+        {
+            await AssertProblemAsync(
+                await revokedBrowser.GetAsync(
+                    $"/api/organizations/{organizationId:D}/fields"),
+                HttpStatusCode.Unauthorized,
+                "identity.session_required");
         }
     }
 
@@ -776,6 +984,28 @@ public sealed class OwnSessionInventoryApiTests
                 await response.Content.ReadAsStreamAsync());
             Assert.AreEqual(code, problem.RootElement.GetProperty("code").GetString());
         }
+    }
+
+    private static void AssertSessionCookieDeleted(HttpResponseMessage response)
+    {
+        Assert.IsTrue(
+            response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? values) &&
+            values.Any(value =>
+                value.StartsWith("__Host-agro-session=", StringComparison.Ordinal) &&
+                value.Contains("expires=", StringComparison.OrdinalIgnoreCase)),
+            "The committed global revocation must expire the session cookie.");
+    }
+
+    private static void AssertSessionCookieNotDeleted(HttpResponseMessage response)
+    {
+        bool deletesSessionCookie =
+            response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? values) &&
+            values.Any(value =>
+                value.StartsWith("__Host-agro-session=", StringComparison.Ordinal) &&
+                value.Contains("expires=", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(
+            deletesSessionCookie,
+            "A failed transaction must not expire the still-valid session cookie.");
     }
 
     private static string Quote(Guid version) => $"\"{version:D}\"";

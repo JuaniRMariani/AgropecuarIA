@@ -225,12 +225,18 @@ export type OwnSessionResourceState =
 
 export type OwnSessionRevocationIntent =
   | Readonly<{ kind: "single"; session: OwnSessionSummary }>
-  | Readonly<{ kind: "all-others" }>;
+  | Readonly<{ kind: "all-others" }>
+  | Readonly<{ kind: "all-sessions" }>;
 
 export type OwnSessionActionState =
   | Readonly<{ kind: "idle" }>
   | Readonly<{ kind: "confirming"; intent: OwnSessionRevocationIntent }>
   | Readonly<{ kind: "revoking"; intent: OwnSessionRevocationIntent }>
+  | Readonly<{
+      kind: "reconciling";
+      intent: OwnSessionRevocationIntent;
+      message: string;
+    }>
   | Readonly<{
       kind: "reauthentication-required";
       intent: OwnSessionRevocationIntent;

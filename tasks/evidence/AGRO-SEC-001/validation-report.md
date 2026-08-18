@@ -336,3 +336,12 @@ PASS — 28/28 operations · 3/3 contexts · 9/9 NuGet projects and pnpm with no
 - Gates vigentes: raíz `371/371`, Identity `136/136`, own-session DB `12/12`, API `10/10`, Fitness `135/135`, Vitest `217/217`, Playwright `10/10`, FND `45/45`, SEC `56/56`, EF `3/3`, SCA sin vulnerabilidades conocidas.
 
 PASS integrado-local. `AGRO-SEC-001` permanece `En curso`; el cierre bulk no aprueba Auth0/edge/hosting compartido, notificaciones, dispositivos, cierre de current en lote, retención/purge ni producción.
+
+## Refresh actual: cierre global de sesiones propias — 2026-08-18
+
+- RS-001 incorpora `DELETE /api/identity/sessions`; OpenAPI/runtime/surface register y SEC-002 coinciden en `30/30` operaciones.
+- RS-003 incorpora la migración SQL-only `20260818234500_AddRevokeAllOwnSessions`: funciones execute-only para global y logout, advisory compartido y revalidación current `FOR UPDATE` post-lock. El global incluye current; la cookie se elimina sólo después del commit.
+- Pruebas PostgreSQL cubren 0/1/N, global×global/×individual/×bulk-others/×logout, login post-corte, replay seguro, journal rollback, cancelación/pool, grants y N/N-1/Down sin reactivar sesiones.
+- Gates vigentes: raíz `381/381`, Identity `146/146`, DB revoke-all-own `18/18`, API own-session `14/14`, Fitness `135/135`, Vitest `225/225`, Playwright `10/10`, FND `45/45`, SEC `56/56`, SEC-002 `30/30`, EF `3/3`, SCA sin vulnerabilidades conocidas y UTF-8/JSON/secrets/diff PASS.
+
+PASS integrado-local. `AGRO-SEC-001` y `AGRO-ID-004` permanecen `En curso`; no se aprueban dispositivos, notificaciones, familias, delivery/consumer, retención/purge, Auth0/edge/hosting compartido ni producción.

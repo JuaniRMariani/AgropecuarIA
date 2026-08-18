@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgropecuarIA Identity API
-  version: 1.5.0
+  version: 1.6.0
 paths:
   /api/identity/capabilities:
     get:
@@ -49,6 +49,20 @@ paths:
               schema: { $ref: '#/components/schemas/OwnSessionPage' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/SessionManagementUnavailable' }
+    delete:
+      summary: Revoke every active session owned by the authenticated user
+      description: Requires purpose-bound manage_sessions strong assurance. Every active, unexpired own session visible at the update boundary is revoked atomically, including the current session, and the current cookie is removed only after commit. A session confirmed after that boundary is not part of the command. A lost response must not be treated as global success. A subsequent 401 proves only that the current cookie no longer authenticates; the user must sign in again and inspect the inventory before assuming the other sessions were revoked. A 200 permits retry. No session identifiers or counts are returned.
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/AntiforgeryHeader'
+      responses:
+        '204': { description: All active own sessions were revoked and the current cookie was removed }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/SessionManagementUnavailable' }
   /api/identity/sessions/others:
@@ -241,6 +255,7 @@ paths:
   /api/identity/session/revoke:
     post:
       summary: Revoke the current durable session
+      description: The current-session revocation shares the actor serialization order used by the other own-session revocation commands. The cookie is removed only after the revocation and its journal entry commit.
       security:
         - SessionCookie: []
       parameters:
@@ -250,6 +265,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/SessionManagementUnavailable' }
   /api/identity/organizations:
     post:
       summary: Create a private organization and its initial owner membership

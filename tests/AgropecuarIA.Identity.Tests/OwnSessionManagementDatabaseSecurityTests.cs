@@ -10,7 +10,7 @@ namespace AgropecuarIA.Identity.Tests;
 
 [TestClass]
 [DoNotParallelize]
-public sealed class OwnSessionManagementDatabaseSecurityTests
+public sealed partial class OwnSessionManagementDatabaseSecurityTests
 {
     private const string PreviousMigration =
         "20260818180000_AddProductiveCoreAuthorizationPort";

@@ -4,7 +4,7 @@ Incremento integrado-local de la tarea multirelease `AGRO-SEC-002`. El padre per
 
 ## Qué queda comprobado
 
-- Las 29 operaciones HTTP actuales de Identity, Territory y Productive Core coinciden entre OpenAPI, rutas y `authorization-surface-register.json`.
+- Las 30 operaciones HTTP actuales de Identity, Territory y Productive Core coinciden entre OpenAPI, rutas y `authorization-surface-register.json`.
 - Cada operación declara recurso, acción, frontera, autenticación, fuentes de actor/tenant, autorización de aplicación, frontera de storage, error neutral, owner y prueba ejecutable.
 - Las cuatro operaciones de Productive Core —crear, listar, abrir y renombrar un campo— son tenant-scoped y sólo admiten owner activo con sesión viva revalidada antes de cualquier lookup de recurso o idempotencia.
 - `POST /api/organizations/{organizationId}/fields` exige cookie, CSRF y `Idempotency-Key` URL-safe de 32..128 caracteres. Actor, sesión, tenant, tipo `field` y estados `draft/not_configured` se fijan en servidor.
@@ -18,11 +18,12 @@ Incremento integrado-local de la tarea multirelease `AGRO-SEC-002`. El padre per
 - El inventario de sesiones es platform-scoped y actor-only: lista únicamente sesiones propias activas, no expone token/hash, IP, user-agent, dispositivo, proveedor ni tenant, y marca la actual desde la sesión revalidada.
 - La revocación individual exige CSRF, `If-Match` y purpose exacto `manage_sessions`; excluye la sesión actual, aplica CAS dentro de PostgreSQL y escribe un único journal en la primera transición.
 - El cierre de todas las demás sesiones exige CSRF y el mismo purpose exacto; una función execute-only serializa por actor, excluye current y produce un journal por target cambiado dentro de la transacción, sin exponer IDs o count.
+- El cierre global propio exige CSRF y el mismo purpose exacto; comparte el lock actor, incluye current, elimina la cookie sólo post-commit y conserva respuesta/copy sin IDs, count ni afirmación falsa ante respuesta perdida.
 
 ## Artefactos
 
 - `architecture.md`: reconnaissance y fronteras auditadas.
-- `authorization-surface-register.json`: matriz machine-readable vigente de 29 operaciones.
+- `authorization-surface-register.json`: matriz machine-readable vigente de 30 operaciones.
 - `REPORT.md`, `FINDINGS-DETAIL.md`, `findings.json`: resultado del security audit.
 - `validation-report.md`: comandos, resultados y límites reproducibles.
 - Fitness FND/SEC: enforcement de rutas, contratos, eventos y storage boundaries.

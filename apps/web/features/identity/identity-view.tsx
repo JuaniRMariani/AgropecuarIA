@@ -24,6 +24,7 @@ import type {
   OwnerMembershipActionState,
   OwnerMembershipResourceState,
   OwnSessionActionState,
+  OwnSessionRevocationIntent,
   OwnSessionResourceState,
   OwnSessionSummary,
   OwnerInvitationAcceptanceState,
@@ -73,6 +74,7 @@ type IdentityViewProps = Readonly<{
   onDismissOwnerRemoval: () => void;
   ownSessions: OwnSessionResourceState;
   ownSessionAction: OwnSessionActionState;
+  onBeginAllOwnSessionRevocation: () => void;
   onBeginAllOtherOwnSessionRevocation: () => void;
   onBeginOwnSessionRevocation: (session: OwnSessionSummary) => void;
   onCancelOwnSessionRevocation: () => void;
@@ -1155,9 +1157,60 @@ function OwnerInvitationAcceptance({
   );
 }
 
+function ownSessionProgressMessage(intent: OwnSessionRevocationIntent): string {
+  switch (intent.kind) {
+    case "single":
+      return "Cerrando la sesión de forma segura…";
+    case "all-others":
+      return "Cerrando las otras sesiones de forma segura…";
+    case "all-sessions":
+      return "Cerrando todas las sesiones de forma segura…";
+  }
+}
+
+function ownSessionConfirmationTitle(
+  intent: OwnSessionRevocationIntent,
+): string {
+  switch (intent.kind) {
+    case "single":
+      return `¿Cerrar la sesión ${formatShortId(intent.session.sessionId)}?`;
+    case "all-others":
+      return "¿Cerrar las otras sesiones?";
+    case "all-sessions":
+      return "¿Cerrar todas las sesiones?";
+  }
+}
+
+function ownSessionConfirmationDescription(
+  intent: OwnSessionRevocationIntent,
+): string {
+  switch (intent.kind) {
+    case "single":
+      return "Ese acceso dejará de funcionar en su próxima solicitud. Tu sesión actual permanecerá abierta.";
+    case "all-others":
+      return "Todos los demás accesos abiertos dejarán de funcionar en su próxima solicitud. Esta sesión actual permanecerá abierta.";
+    case "all-sessions":
+      return "Todos tus accesos abiertos dejarán de funcionar, incluido este navegador. Tendrás que volver a ingresar para continuar.";
+  }
+}
+
+function ownSessionConfirmationAction(
+  intent: OwnSessionRevocationIntent,
+): string {
+  switch (intent.kind) {
+    case "single":
+      return `Confirmar cierre de sesión ${formatShortId(intent.session.sessionId)}`;
+    case "all-others":
+      return "Confirmar cierre de las otras sesiones";
+    case "all-sessions":
+      return "Confirmar cierre de todas las sesiones";
+  }
+}
+
 function OwnSessionManagement({
   resources,
   action,
+  onBeginAllRevocation,
   onBeginAllOtherRevocation,
   onBeginRevocation,
   onCancelRevocation,
@@ -1171,6 +1224,7 @@ function OwnSessionManagement({
 }: Readonly<{
   resources: IdentityViewProps["ownSessions"];
   action: IdentityViewProps["ownSessionAction"];
+  onBeginAllRevocation: IdentityViewProps["onBeginAllOwnSessionRevocation"];
   onBeginAllOtherRevocation: IdentityViewProps["onBeginAllOtherOwnSessionRevocation"];
   onBeginRevocation: IdentityViewProps["onBeginOwnSessionRevocation"];
   onCancelRevocation: IdentityViewProps["onCancelOwnSessionRevocation"];
@@ -1215,11 +1269,16 @@ function OwnSessionManagement({
   const actionLocked =
     action.kind === "confirming" ||
     action.kind === "revoking" ||
+    action.kind === "reconciling" ||
     action.kind === "reauthentication-required";
 
   return (
     <section
-      aria-busy={resources.kind === "loading" || action.kind === "revoking"}
+      aria-busy={
+        resources.kind === "loading" ||
+        action.kind === "revoking" ||
+        action.kind === "reconciling"
+      }
       aria-labelledby={titleId}
       className="own-session-management identity-card"
     >
@@ -1235,6 +1294,17 @@ function OwnSessionManagement({
           </p>
         </div>
         <div className="own-session-management__actions">
+          <button
+            className="button button--danger-quiet"
+            disabled={resources.kind !== "ready" || actionLocked}
+            onClick={(event) => {
+              triggerRef.current = event.currentTarget;
+              onBeginAllRevocation();
+            }}
+            type="button"
+          >
+            Cerrar todas las sesiones
+          </button>
           <button
             className="button button--danger-quiet"
             disabled={
@@ -1265,11 +1335,13 @@ function OwnSessionManagement({
         {action.kind === "revoking" ? (
           <div className="inline-notice" role="status">
             <Spinner />
-            <p>
-              {action.intent.kind === "all-others"
-                ? "Cerrando las otras sesiones de forma segura…"
-                : "Cerrando la sesión de forma segura…"}
-            </p>
+            <p>{ownSessionProgressMessage(action.intent)}</p>
+          </div>
+        ) : null}
+        {action.kind === "reconciling" ? (
+          <div className="inline-notice" role="status">
+            <Spinner />
+            <p>{action.message}</p>
           </div>
         ) : null}
         {action.kind === "reauthentication-required" ? (
@@ -1450,14 +1522,10 @@ function OwnSessionManagement({
           role="alertdialog"
         >
           <h3 id={confirmationTitleId}>
-            {confirmingIntent.kind === "all-others"
-              ? "¿Cerrar las otras sesiones?"
-              : `¿Cerrar la sesión ${formatShortId(confirmingIntent.session.sessionId)}?`}
+            {ownSessionConfirmationTitle(confirmingIntent)}
           </h3>
           <p id={confirmationDescriptionId}>
-            {confirmingIntent.kind === "all-others"
-              ? "Todos los demás accesos abiertos dejarán de funcionar en su próxima solicitud. Esta sesión actual permanecerá abierta."
-              : "Ese acceso dejará de funcionar en su próxima solicitud. Tu sesión actual permanecerá abierta."}
+            {ownSessionConfirmationDescription(confirmingIntent)}
           </p>
           <div className="own-session-confirmation__actions">
             <button
@@ -1473,9 +1541,7 @@ function OwnSessionManagement({
               onClick={onConfirmRevocation}
               type="button"
             >
-              {confirmingIntent.kind === "all-others"
-                ? "Confirmar cierre de las otras sesiones"
-                : `Confirmar cierre de sesión ${formatShortId(confirmingIntent.session.sessionId)}`}
+              {ownSessionConfirmationAction(confirmingIntent)}
             </button>
           </div>
         </div>
@@ -1518,6 +1584,7 @@ function CurrentSession({
   onDismissOwnerRemoval,
   ownSessions,
   ownSessionAction,
+  onBeginAllOwnSessionRevocation,
   onBeginAllOtherOwnSessionRevocation,
   onBeginOwnSessionRevocation,
   onCancelOwnSessionRevocation,
@@ -1563,6 +1630,7 @@ function CurrentSession({
   onDismissOwnerRemoval: IdentityViewProps["onDismissOwnerRemoval"];
   ownSessions: IdentityViewProps["ownSessions"];
   ownSessionAction: IdentityViewProps["ownSessionAction"];
+  onBeginAllOwnSessionRevocation: IdentityViewProps["onBeginAllOwnSessionRevocation"];
   onBeginAllOtherOwnSessionRevocation: IdentityViewProps["onBeginAllOtherOwnSessionRevocation"];
   onBeginOwnSessionRevocation: IdentityViewProps["onBeginOwnSessionRevocation"];
   onCancelOwnSessionRevocation: IdentityViewProps["onCancelOwnSessionRevocation"];
@@ -1792,6 +1860,7 @@ function CurrentSession({
 
               <OwnSessionManagement
                 action={ownSessionAction}
+                onBeginAllRevocation={onBeginAllOwnSessionRevocation}
                 onBeginAllOtherRevocation={onBeginAllOtherOwnSessionRevocation}
                 onBeginRevocation={onBeginOwnSessionRevocation}
                 onCancelRevocation={onCancelOwnSessionRevocation}
@@ -1918,6 +1987,7 @@ export function IdentityView({
   onDismissOwnerRemoval,
   ownSessions,
   ownSessionAction,
+  onBeginAllOwnSessionRevocation,
   onBeginAllOtherOwnSessionRevocation,
   onBeginOwnSessionRevocation,
   onCancelOwnSessionRevocation,
@@ -2029,6 +2099,7 @@ export function IdentityView({
                 onDismissOwnerRemoval={onDismissOwnerRemoval}
                 ownSessions={ownSessions}
                 ownSessionAction={ownSessionAction}
+                onBeginAllOwnSessionRevocation={onBeginAllOwnSessionRevocation}
                 onBeginAllOtherOwnSessionRevocation={
                   onBeginAllOtherOwnSessionRevocation
                 }

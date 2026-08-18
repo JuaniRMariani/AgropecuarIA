@@ -814,7 +814,7 @@ test.describe("identity access", () => {
     expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(390);
   });
 
-  test("lists, revokes, and closes all other own sessions without exposing private metadata", async ({
+  test("lists, revokes, and closes all own sessions without exposing private metadata", async ({
     browser,
     page,
   }, testInfo) => {
@@ -1001,6 +1001,72 @@ test.describe("identity access", () => {
       ),
     ).toBe(false);
     await expectNoAccessibilityViolations(page);
+
+    const globalContext = await browser.newContext();
+    const globalPage = await globalContext.newPage();
+    await globalPage.goto("/");
+    await signInWithExplicitFixture(globalPage, profiles.sessionFixture);
+    await globalPage.reload();
+    await expect(
+      globalPage.getByRole("heading", { name: "Tu acceso", exact: true }),
+    ).toBeVisible();
+
+    await sessionRegion.getByRole("button", { name: "Actualizar" }).click();
+    const closeEverySession = sessionRegion.getByRole("button", {
+      name: "Cerrar todas las sesiones",
+    });
+    await expect(closeEverySession).toBeEnabled();
+    await closeEverySession.focus();
+    await page.keyboard.press("Enter");
+    let globalConfirmation = sessionRegion.getByRole("alertdialog", {
+      name: "¿Cerrar todas las sesiones?",
+    });
+    await expect(globalConfirmation).toBeVisible();
+    await expect(
+      globalConfirmation.getByText(
+        /incluido este navegador.*volver a ingresar/i,
+      ),
+    ).toBeVisible();
+    await expect(
+      globalConfirmation.getByRole("button", { name: "Cancelar" }),
+    ).toBeFocused();
+    await expectNoAccessibilityViolations(page);
+    await page.keyboard.press("Escape");
+    await expect(globalConfirmation).toBeHidden();
+    await expect(closeEverySession).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    globalConfirmation = sessionRegion.getByRole("alertdialog", {
+      name: "¿Cerrar todas las sesiones?",
+    });
+    await globalConfirmation
+      .getByRole("button", {
+        name: "Confirmar cierre de todas las sesiones",
+      })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Ingresá de forma segura" }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(async () => {
+        const response = await fetch("/api/identity/session", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        return response.status;
+      }),
+    ).toBe(401);
+    expect(
+      await globalPage.evaluate(async () => {
+        const response = await fetch("/api/identity/session", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        return response.status;
+      }),
+    ).toBe(401);
+    await expectNoAccessibilityViolations(page);
+    await globalContext.close();
     await bulkContextA.close();
     await bulkContextB.close();
     await otherContext.close();

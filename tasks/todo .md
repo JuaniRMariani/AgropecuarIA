@@ -1655,3 +1655,32 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - La revisión independiente detectó una carrera cross-current Medium antes de publicar. El lock actor compartido, la revalidación current `FOR UPDATE` y una prueba determinista con waiter observado en `pg_locks` la cerraron. Dictamen final: GO, 0 Critical, 0 High, 0 Medium.
 - Publicación funcional: `36429af` (`feat(identity): close other active sessions`) en `origin/main`; author y committer verificados como `JuaniRMariani <juanirmariani@gmail.com>`.
 - `RevokeAllOtherOwnSessionsV1` queda aprobado integrado-local. `AGRO-ID-004` permanece `En curso`; no hubo deploy.
+
+## Iteración 34 — selección del próximo sub-slice Ready (2026-08-18)
+
+### Plan
+
+- [x] Auditar en paralelo Product/QA, Security/Data y Architecture sobre el backlog R1 vigente después de `RevokeAllOtherOwnSessionsV1`.
+- [x] Exigir un ranking único con un solo candidato GO, sus dependencias satisfechas, micro-DoR, valor sponsor, riesgos, límites y gates; no inventar consumidor, proveedor, rol o política de retención.
+- [x] Contrastar especialmente `ArchiveFieldDraft`, el siguiente incremento ID-004 sin PII/proveedor, FE-001 y cualquier slice Productive/Catalog realmente habilitado por el runtime actual.
+- [x] Seleccionar por unanimidad `RevokeAllOwnSessionsAndLogoutV1` como único GO; `ArchiveFieldDraft`, deep links/preferencias FE y Productive/Catalog permanecen NO-GO por decisiones o runtime ausentes.
+- [x] Congelar contrato y aceptación de un único sub-slice antes de editar runtime; documentar NO-GO de los demás.
+- [ ] Implementar con ownership disjunto, gates completos, revisión independiente, commit/push con identidad local y sin deploy.
+
+### Micro-DoR y aceptación congelada
+
+- [x] `DELETE /api/identity/sessions`, cookie + CSRF + assurance exacta `manage_sessions`; sin body, tenant, IDs, `If-Match`, idempotency key, count ni payload de respuesta.
+- [x] Revocar atómicamente todas las sesiones propias activas/no expiradas visibles al statement, incluida current; login confirmado después del corte queda fuera.
+- [x] Compartir advisory lock por actor con logout, revocación individual y bulk-others; revalidar current `FOR UPDATE` después del lock.
+- [x] Usar timestamp común y nueva `Version` por target; escribir exactamente un journal `session_revoked` por transición en la misma transacción. Cualquier fallo o cancelación revierte todo.
+- [x] Devolver 204 y eliminar la cookie HttpOnly sólo después del commit. Ante respuesta perdida, no afirmar éxito global: 401 sólo confirma que current ya no autentica y exige reingreso+inventario; 200 permite reintento.
+- [x] Mantener sin cambios sesiones ajenas, expiradas y ya revocadas; no agregar evento, outbox, notificación, dispositivo, IP, UA, fingerprint, proveedor ni retención.
+- [x] UI Cuenta ofrece CTA y confirmación accesibles, explica que este navegador también se cerrará, evita doble submit, maneja 401/403/429/503/offline y no muestra UUID/count/metadata.
+- [x] Probar 0/1/N, Identity y Productive 401 post-commit, purpose/CSRF/stale, global×global/×individual/×bulk-others/×logout, login post-corte, journal rollback, commit incierto, cancelación/pool y N/N-1.
+
+### Review
+
+- Readiness unánime: `RevokeAllOwnSessionsAndLogoutV1` fue el único GO; Archive, FE residual y Catalog permanecen NO-GO por decisiones/runtime ausentes.
+- Gate integrado preliminar: restore locked y build Release 9 proyectos `0/0`; raíz `381/381`; Identity `146/146`; DB global `18/18`; API own-session `14/14`; Fitness `135/135`; EF `3/3`; Vitest `225/225`; Playwright `10/10`; FND `45/45`; SEC `56/56`; SEC-002 `30/30`; format/lint/typecheck/build/SCA/UTF-8/JSON/secrets/diff PASS.
+- La revisión independiente detectó un Medium contractual: un 401 posterior a respuesta perdida no confirma el cierre global si logout ganó la carrera. Wording, UX/evidencia y test reverso same-current quedaron corregidos; el 401 sólo prueba current inválida y exige reingreso+inventario.
+- Dictamen final: GO integrado-local, 0 Critical, 0 High, 0 Medium y 0 Low. Publicación pendiente; no hubo deploy.

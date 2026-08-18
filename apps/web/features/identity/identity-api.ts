@@ -800,6 +800,13 @@ export async function revokeAllOtherOwnSessions(
   await mutate("/api/identity/sessions/others", "DELETE", undefined, signal);
 }
 
+export async function revokeAllOwnSessionsAndLogout(
+  signal?: AbortSignal,
+): Promise<void> {
+  await mutate("/api/identity/sessions", "DELETE", undefined, signal);
+  invalidateAntiforgeryToken();
+}
+
 export async function developmentSignIn(
   signal?: AbortSignal,
 ): Promise<IdentitySession> {

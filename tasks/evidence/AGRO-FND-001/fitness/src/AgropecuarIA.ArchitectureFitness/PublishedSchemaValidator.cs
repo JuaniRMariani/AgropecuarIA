@@ -13,6 +13,7 @@ public static class PublishedSchemaValidator
         "identity-linked.v1.schema.json",
         "identity-step-up-completed.v1.schema.json",
         "management-unit-created.v1.schema.json",
+        "management-unit-display-name-changed.v1.schema.json",
         "organization-created.v1.schema.json",
         "organization-owner-invited.v1.schema.json",
         "organization-owner-invitation-accepted.v1.schema.json",
@@ -196,6 +197,22 @@ public static class PublishedSchemaValidator
                 ValidateStringProperty(root, fileName, "createdAtUtc", "date-time", issues);
                 ValidateConstProperty(root, fileName, "unitType", "field", issues);
                 ValidateConstProperty(root, fileName, "status", "draft", issues);
+                break;
+            case "management-unit-display-name-changed.v1.schema.json":
+                ValidateClosedObject(
+                    root,
+                    fileName,
+                    ["organizationId", "managementUnitId", "revision", "changedAtUtc"],
+                    issues);
+                ValidateExactProperties(
+                    root,
+                    fileName,
+                    ["organizationId", "managementUnitId", "revision", "changedAtUtc"],
+                    issues);
+                ValidateStringProperty(root, fileName, "organizationId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "managementUnitId", "uuid", issues);
+                ValidateIntegerProperty(root, fileName, "revision", 2, issues);
+                ValidateStringProperty(root, fileName, "changedAtUtc", "date-time", issues);
                 break;
             default:
                 Add(issues, "schema.unregistered", $"Schema '{fileName}' is not registered.");

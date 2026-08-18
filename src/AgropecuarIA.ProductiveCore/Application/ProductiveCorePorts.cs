@@ -48,6 +48,25 @@ public interface IProductiveCoreUnitOfWork : IAsyncDisposable
         Guid organizationId,
         CancellationToken cancellationToken);
 
+    Task<ManagementUnit?> GetManagementUnitForUpdateAsync(
+        Guid organizationId,
+        Guid managementUnitId,
+        CancellationToken cancellationToken);
+
+    Task<bool> RetainedRenameKeyVersionsCoveredAsync(
+        IReadOnlyCollection<string> retainedKeyVersions,
+        CancellationToken cancellationToken);
+
+    Task<Guid?> FindRenameLedgerIdAsync(
+        Guid organizationId,
+        IReadOnlyDictionary<string, byte[]> aliases,
+        CancellationToken cancellationToken);
+
+    Task<ManagementUnitRenameLedger?> GetRenameLedgerAsync(
+        Guid organizationId,
+        Guid ledgerId,
+        CancellationToken cancellationToken);
+
     void AddCreation(
         ManagementUnit managementUnit,
         ManagementUnitCreationLedger ledger,
@@ -56,6 +75,19 @@ public interface IProductiveCoreUnitOfWork : IAsyncDisposable
         ProductiveOutboxMessage outboxMessage);
 
     Task AddMissingAliasesAsync(
+        Guid organizationId,
+        Guid ledgerId,
+        IReadOnlyDictionary<string, byte[]> aliases,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken);
+
+    void AddRename(
+        ManagementUnitRenameLedger ledger,
+        IReadOnlyCollection<ManagementUnitRenameKeyAlias> aliases,
+        ProductiveJournalEntry journalEntry,
+        ProductiveOutboxMessage outboxMessage);
+
+    Task AddMissingRenameAliasesAsync(
         Guid organizationId,
         Guid ledgerId,
         IReadOnlyDictionary<string, byte[]> aliases,
@@ -82,5 +114,9 @@ public sealed class ProductiveCommitOutcomeUnknownException(
     Exception? innerException = null) : Exception(message, innerException);
 
 public sealed class ProductivePersistenceUnavailableException(
+    string message,
+    Exception? innerException = null) : Exception(message, innerException);
+
+public sealed class ProductiveStaleVersionException(
     string message,
     Exception? innerException = null) : Exception(message, innerException);

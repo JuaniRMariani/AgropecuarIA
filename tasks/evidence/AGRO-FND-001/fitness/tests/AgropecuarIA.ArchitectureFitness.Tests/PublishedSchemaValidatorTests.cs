@@ -72,6 +72,9 @@ public sealed class PublishedSchemaValidatorTests
     [DataRow("management-unit-created.v1.schema.json", "organizationId")]
     [DataRow("management-unit-created.v1.schema.json", "managementUnitId")]
     [DataRow("management-unit-created.v1.schema.json", "createdAtUtc")]
+    [DataRow("management-unit-display-name-changed.v1.schema.json", "organizationId")]
+    [DataRow("management-unit-display-name-changed.v1.schema.json", "managementUnitId")]
+    [DataRow("management-unit-display-name-changed.v1.schema.json", "changedAtUtc")]
     public void PublishedEventPayloadSchemasRejectMissingExtraAndWronglyTypedFields(
         string fileName,
         string requiredProperty)
@@ -86,6 +89,18 @@ public sealed class PublishedSchemaValidatorTests
 
         Assert.IsTrue(issues.Any(issue => issue.Code == "schema.required.missing"));
         Assert.IsTrue(issues.Any(issue => issue.Code == "schema.properties.invalid"));
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-shape.invalid"));
+    }
+
+    [TestMethod]
+    public void ManagementUnitRenameSchemaRequiresMonotonicRevision()
+    {
+        const string FileName = "management-unit-display-name-changed.v1.schema.json";
+        var schema = Schema(FileName);
+        schema["properties"]!["revision"]!["minimum"] = 1;
+
+        var issues = PublishedSchemaValidator.Validate(FileName, schema.ToJsonString());
+
         Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-shape.invalid"));
     }
 

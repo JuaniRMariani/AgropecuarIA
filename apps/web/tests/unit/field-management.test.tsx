@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   CreatedField,
   FieldSummary,
+  RenamedField,
 } from "../../features/fields/field-types";
 
 const apiMocks = vi.hoisted(() => ({
@@ -31,6 +32,18 @@ const apiMocks = vi.hoisted(() => ({
         signal?: AbortSignal,
       ) => Promise<readonly FieldSummary[]>
     >(),
+  renameField: vi.fn<
+    (
+      request: Readonly<{
+        organizationId: string;
+        fieldId: string;
+        displayName: string;
+        version: string;
+        idempotencyKey: string;
+        signal?: AbortSignal;
+      }>,
+    ) => Promise<RenamedField>
+  >(),
 }));
 
 vi.mock("../../features/fields/field-api", async (importOriginal) => {
@@ -62,12 +75,21 @@ const fieldA: FieldSummary = {
   createdAtUtc: "2026-08-18T18:00:00Z",
   version: "5a5ed442-141f-4fd4-a8e8-52598a5d7426",
 };
+const renamedVersion = "bb8da0de-af15-42f1-87a6-40583dff5abe";
+const renamedFieldA: RenamedField = {
+  ...fieldA,
+  displayName: "Campo Sur",
+  version: renamedVersion,
+  isReplay: false,
+  revision: 2,
+};
 
 beforeEach(() => {
   globalThis.sessionStorage.clear();
   apiMocks.createField.mockReset();
   apiMocks.getField.mockReset();
   apiMocks.listFields.mockReset();
+  apiMocks.renameField.mockReset();
   apiMocks.listFields.mockResolvedValue([]);
 });
 
@@ -396,6 +418,315 @@ describe("FieldManagement", () => {
     expect(
       screen.queryByRole("heading", { name: "Campo Norte", level: 4 }),
     ).not.toBeInTheDocument();
+  });
+
+  it("renames only after confirmation and keeps the short field ID", async () => {
+    let resolveRename: ((field: RenamedField) => void) | undefined;
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    apiMocks.renameField.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRename = resolve;
+        }),
+    );
+    render(<FieldManagement organizations={[organizationA]} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /abrir ficha/i }),
+    );
+    await screen.findByRole("heading", { name: "Campo Norte", level: 4 });
+    fireEvent.click(screen.getByRole("button", { name: "Editar nombre" }));
+    const input = screen.getByRole("textbox", {
+      name: "Nuevo nombre del campo",
+    });
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("Campo Norte");
+    expect(input).not.toHaveAttribute("maxlength");
+    fireEvent.change(input, { target: { value: "  Campo Sur  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar nombre" }));
+
+    await waitFor(() => expect(apiMocks.renameField).toHaveBeenCalledOnce());
+    const request = apiMocks.renameField.mock.calls[0]?.[0];
+    expect(request).toEqual({
+      organizationId: organizationA.organizationId,
+      fieldId: fieldA.fieldId,
+      displayName: "Campo Sur",
+      version: fieldA.version,
+      idempotencyKey: expect.stringMatching(/^[0-9a-f]{32}$/),
+    });
+    expect(
+      screen.getByRole("heading", { name: "Campo Norte", level: 4 }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Guardando nombre" }),
+    ).toBeDisabled();
+
+    resolveRename?.(renamedFieldA);
+    expect(
+      await screen.findByRole("heading", { name: "Campo Sur", level: 4 }),
+    ).toBeVisible();
+    expect(screen.getAllByText("Campo F0185B")).toHaveLength(2);
+    expect(screen.queryByText(fieldA.fieldId)).not.toBeInTheDocument();
+    expect(screen.getByText(/ahora se llama Campo Sur/i)).toBeVisible();
+  });
+
+  it("cancels rename with Escape and restores focus to its trigger", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    render(<FieldManagement organizations={[organizationA]} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /abrir ficha/i }),
+    );
+    const trigger = await screen.findByRole("button", {
+      name: "Editar nombre",
+    });
+    fireEvent.click(trigger);
+    const input = screen.getByRole("textbox", {
+      name: "Nuevo nombre del campo",
+    });
+    fireEvent.change(input, { target: { value: "Campo Sur" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(
+      screen.queryByRole("textbox", { name: "Nuevo nombre del campo" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Editar nombre" })).toHaveFocus();
+    expect(apiMocks.renameField).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unchanged canonical name without sending PATCH", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    render(<FieldManagement organizations={[organizationA]} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /abrir ficha/i }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Editar nombre" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guardar nombre" }));
+
+    expect(
+      await screen.findByText(/nombre válido y distinto del actual/i),
+    ).toBeVisible();
+    expect(apiMocks.renameField).not.toHaveBeenCalled();
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.fields.rename-attempt.v1",
+      ),
+    ).toBeNull();
+  });
+
+  it.each([
+    ["offline", new TypeError("Failed to fetch")],
+    ["generic response loss", new Error("Response lost after send")],
+    [
+      "rate limited",
+      new FieldApiError("rate-limited", 429, "request.rate_limited"),
+    ],
+    [
+      "idempotency in progress",
+      new FieldApiError("in-progress", 409, "idempotency.in_progress"),
+    ],
+    [
+      "reconciliation required",
+      new FieldApiError(
+        "reconciliation-required",
+        503,
+        "idempotency.reconciliation_required",
+      ),
+    ],
+    [
+      "service unavailable",
+      new FieldApiError(
+        "service-unavailable",
+        503,
+        "productive_core.unavailable",
+      ),
+    ],
+    ["signed out", new FieldApiError("signed-out", 401, "session.revoked")],
+    [
+      "reauthentication required",
+      new FieldApiError(
+        "reauthentication-required",
+        403,
+        "authorization.step_up_required",
+      ),
+    ],
+  ])("retains the rename attempt after %s", async (_scenario, failure) => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    apiMocks.renameField.mockRejectedValue(failure);
+    render(<FieldManagement organizations={[organizationA]} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /abrir ficha/i }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Editar nombre" }),
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Nuevo nombre del campo" }),
+      { target: { value: "Campo Sur" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guardar nombre" }));
+
+    await waitFor(() => expect(apiMocks.renameField).toHaveBeenCalledOnce());
+    const key = apiMocks.renameField.mock.calls[0]?.[0].idempotencyKey;
+    const serialized = globalThis.sessionStorage.getItem(
+      "agropecuaria.fields.rename-attempt.v1",
+    );
+    expect(serialized).not.toBeNull();
+    expect(JSON.parse(serialized ?? "null")).toMatchObject({
+      organizationId: organizationA.organizationId,
+      fieldId: fieldA.fieldId,
+      baseDisplayName: "Campo Norte",
+      displayName: "Campo Sur",
+      version: fieldA.version,
+      idempotencyKey: key,
+    });
+  });
+
+  it.each([
+    [
+      "neutral 404",
+      new FieldApiError("unavailable", 404, "resource.not_available"),
+      /campo no está disponible/i,
+    ],
+    [
+      "idempotency mismatch",
+      new FieldApiError("conflict", 409, "idempotency.key_reused"),
+      /clave ya corresponde a otro cambio/i,
+    ],
+  ])(
+    "clears the terminal rename attempt after %s",
+    async (_scenario, failure, message) => {
+      apiMocks.listFields.mockResolvedValue([fieldA]);
+      apiMocks.getField.mockResolvedValue(fieldA);
+      apiMocks.renameField.mockRejectedValue(failure);
+      render(<FieldManagement organizations={[organizationA]} />);
+      fireEvent.click(
+        await screen.findByRole("button", { name: /abrir ficha/i }),
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Editar nombre" }),
+      );
+      fireEvent.change(
+        screen.getByRole("textbox", { name: "Nuevo nombre del campo" }),
+        { target: { value: "Campo Sur" } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Guardar nombre" }));
+
+      expect(await screen.findByText(message)).toBeVisible();
+      expect(
+        globalThis.sessionStorage.getItem(
+          "agropecuaria.fields.rename-attempt.v1",
+        ),
+      ).toBeNull();
+    },
+  );
+
+  it("resumes an ambiguous rename after reload with the same key", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    apiMocks.renameField
+      .mockRejectedValueOnce(new Error("Response lost after send"))
+      .mockResolvedValueOnce({ ...renamedFieldA, isReplay: true });
+    render(<FieldManagement organizations={[organizationA]} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /abrir ficha/i }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Editar nombre" }),
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Nuevo nombre del campo" }),
+      { target: { value: "Campo Sur" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guardar nombre" }));
+    await waitFor(() => expect(apiMocks.renameField).toHaveBeenCalledOnce());
+    const originalKey = apiMocks.renameField.mock.calls[0]?.[0].idempotencyKey;
+
+    cleanup();
+    render(<FieldManagement organizations={[organizationA]} />);
+    expect(
+      await screen.findByText(/retomamos el cambio pendiente/i),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("textbox", { name: "Nuevo nombre del campo" }),
+    ).toHaveValue("Campo Sur");
+    fireEvent.click(screen.getByRole("button", { name: "Guardar nombre" }));
+
+    await waitFor(() => expect(apiMocks.renameField).toHaveBeenCalledTimes(2));
+    expect(apiMocks.renameField.mock.calls[1]?.[0].idempotencyKey).toBe(
+      originalKey,
+    );
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.fields.rename-attempt.v1",
+      ),
+    ).toBeNull();
+    expect(screen.getByText(/confirmamos el cambio anterior/i)).toBeVisible();
+  });
+
+  it("reloads a stale field, preserves the draft and retries on the new version", async () => {
+    const concurrentField = {
+      ...fieldA,
+      displayName: "Campo Este",
+      version: "c081ae09-ea8a-4be6-8bb2-844dd75d9872",
+    };
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField
+      .mockResolvedValueOnce(fieldA)
+      .mockResolvedValueOnce(concurrentField);
+    apiMocks.renameField
+      .mockRejectedValueOnce(
+        new FieldApiError(
+          "stale",
+          412,
+          "productive_core.management_unit_version_stale",
+        ),
+      )
+      .mockResolvedValueOnce(renamedFieldA);
+    render(<FieldManagement organizations={[organizationA]} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /abrir ficha/i }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Editar nombre" }),
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Nuevo nombre del campo" }),
+      { target: { value: "Campo Sur" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guardar nombre" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Recargar y revisar" }),
+    ).toBeVisible();
+    const firstKey = apiMocks.renameField.mock.calls[0]?.[0].idempotencyKey;
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.fields.rename-attempt.v1",
+      ),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Recargar y revisar" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Campo Este", level: 4 }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("textbox", { name: "Nuevo nombre del campo" }),
+    ).toHaveValue("Campo Sur");
+    fireEvent.click(screen.getByRole("button", { name: "Guardar nombre" }));
+
+    await waitFor(() => expect(apiMocks.renameField).toHaveBeenCalledTimes(2));
+    expect(apiMocks.renameField.mock.calls[1]?.[0]).toMatchObject({
+      displayName: "Campo Sur",
+      version: concurrentField.version,
+    });
+    expect(apiMocks.renameField.mock.calls[1]?.[0].idempotencyKey).not.toBe(
+      firstKey,
+    );
   });
 
   it("renders a neutral unavailable state without leaking fields", async () => {

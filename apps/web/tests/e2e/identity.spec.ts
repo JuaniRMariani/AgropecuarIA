@@ -251,6 +251,37 @@ test.describe("identity access", () => {
       page.getByText("Sin geometría", { exact: true }).last(),
     ).toBeVisible();
 
+    const editFieldName = page.getByRole("button", { name: "Editar nombre" });
+    await editFieldName.focus();
+    await expect(editFieldName).toBeFocused();
+    await page.keyboard.press("Enter");
+    const renamedFieldName = page.getByRole("textbox", {
+      name: "Nuevo nombre del campo",
+    });
+    await expect(renamedFieldName).toBeFocused();
+    await expect(renamedFieldName).toHaveValue("Campo Norte");
+    await renamedFieldName.fill("Campo Sur");
+    await page.keyboard.press("Escape");
+    await expect(editFieldName).toBeFocused();
+    await page.keyboard.press("Enter");
+    await renamedFieldName.fill("Campo Sur");
+    await page.getByRole("button", { name: "Guardar nombre" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Campo Sur", level: 4 }),
+    ).toBeVisible();
+    await expect(page.getByText(/ahora se llama Campo Sur/i)).toBeVisible();
+    await expectNoAccessibilityViolations(page);
+
+    await page.reload();
+    const renamedFieldDetailButton = page.getByRole("button", {
+      name: /Abrir ficha de Campo Sur/i,
+    });
+    await expect(renamedFieldDetailButton).toBeVisible();
+    await renamedFieldDetailButton.click();
+    await expect(
+      page.getByRole("heading", { name: "Campo Sur", level: 4 }),
+    ).toBeVisible();
+
     const linkGoogle = page.getByRole("button", {
       name: "Vincular Google",
       exact: true,
@@ -606,6 +637,24 @@ test.describe("identity access", () => {
     await mobileFieldName.press("Enter");
     await expect(
       page.getByText(/Lote móvil quedó como borrador sin geometría/i),
+    ).toBeVisible();
+    const mobileEditFieldName = mobileOrganizationCard.getByRole("button", {
+      name: "Editar nombre",
+    });
+    await mobileEditFieldName.focus();
+    await expect(mobileEditFieldName).toBeFocused();
+    await page.keyboard.press("Enter");
+    const mobileRenameInput = mobileOrganizationCard.getByRole("textbox", {
+      name: "Nuevo nombre del campo",
+    });
+    await expect(mobileRenameInput).toBeFocused();
+    await mobileRenameInput.fill("Lote móvil sur");
+    await mobileRenameInput.press("Enter");
+    await expect(
+      mobileOrganizationCard.getByRole("heading", {
+        name: "Lote móvil sur",
+        level: 4,
+      }),
     ).toBeVisible();
     await expectNoAccessibilityViolations(page);
 

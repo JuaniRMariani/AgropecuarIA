@@ -530,6 +530,39 @@ public sealed class ProductiveCoreApplicationServiceTests
                 store.Units.Values.Count(unit => unit.OrganizationId == organizationId));
         }
 
+        public Task<ManagementUnit?> GetManagementUnitForUpdateAsync(
+            Guid organizationId,
+            Guid managementUnitId,
+            CancellationToken cancellationToken) =>
+            GetManagementUnitAsync(organizationId, managementUnitId, cancellationToken);
+
+        public Task<bool> RetainedRenameKeyVersionsCoveredAsync(
+            IReadOnlyCollection<string> retainedKeyVersions,
+            CancellationToken cancellationToken) =>
+            RetainedKeyVersionsCoveredAsync(retainedKeyVersions, cancellationToken);
+
+        public Task<Guid?> FindRenameLedgerIdAsync(
+            Guid organizationId,
+            IReadOnlyDictionary<string, byte[]> aliases,
+            CancellationToken cancellationToken)
+        {
+            _ = organizationId;
+            _ = aliases;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Guid?>(null);
+        }
+
+        public Task<ManagementUnitRenameLedger?> GetRenameLedgerAsync(
+            Guid organizationId,
+            Guid ledgerId,
+            CancellationToken cancellationToken)
+        {
+            _ = organizationId;
+            _ = ledgerId;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<ManagementUnitRenameLedger?>(null);
+        }
+
         public void AddCreation(
             ManagementUnit managementUnit,
             ManagementUnitCreationLedger ledger,
@@ -562,6 +595,28 @@ public sealed class ProductiveCoreApplicationServiceTests
                 store.Aliases.TryAdd(AliasKey(organizationId, version, digest), ledgerId);
             }
 
+            return Task.CompletedTask;
+        }
+
+        public void AddRename(
+            ManagementUnitRenameLedger ledger,
+            IReadOnlyCollection<ManagementUnitRenameKeyAlias> aliases,
+            ProductiveJournalEntry journalEntry,
+            ProductiveOutboxMessage outboxMessage) =>
+            throw new NotSupportedException("Rename is covered by its dedicated application tests.");
+
+        public Task AddMissingRenameAliasesAsync(
+            Guid organizationId,
+            Guid ledgerId,
+            IReadOnlyDictionary<string, byte[]> aliases,
+            DateTimeOffset createdAtUtc,
+            CancellationToken cancellationToken)
+        {
+            _ = organizationId;
+            _ = ledgerId;
+            _ = aliases;
+            _ = createdAtUtc;
+            cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
 

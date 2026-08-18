@@ -155,14 +155,14 @@ Un estado tiene esta semántica:
 
 ### PI-13 — Productive Core PostgreSQL local
 
-- **Estado/fase:** `INTEGRADO LOCAL/SIN PROVEEDOR EXTERNO`. Cubre únicamente crear, listar y ver campos draft no espaciales.
-- **Datos y dirección:** navegador same-origin → API autenticada → puerto Identity SQL → schema PostgreSQL `productive_core`. Cruzan actor/tenant/session derivados por servidor, nombre de campo `Confidential`, UUID internos, fingerprint/aliases HMAC versionados, journal y outbox tipado. No cruzan coordenadas, área, geometría, key idempotente cruda, token ni identidad externa.
+- **Estado/fase:** `INTEGRADO LOCAL/SIN PROVEEDOR EXTERNO`. Cubre únicamente crear, listar, ver y renombrar campos draft no espaciales.
+- **Datos y dirección:** navegador same-origin → API autenticada → puerto Identity SQL → schema PostgreSQL `productive_core`. Cruzan actor/tenant/session derivados por servidor, nombre de campo `Confidential`, UUID internos, ETag/If-Match, revisión, fingerprint/aliases HMAC versionados, journal y outbox tipado. El evento rename omite ambos nombres. No cruzan coordenadas, área, geometría, key idempotente cruda, token ni identidad externa.
 - **Región, credenciales, retención y subencargados:** PostgreSQL efímero local; no acredita DB administrada, región, backup, DPA, subencargados, retención ni secret manager. Roles owner/app/job son `NOLOGIN`, `NOINHERIT`, `NOBYPASSRLS`; el principal de prueba es efímero.
 - **Egress/SSRF:** ninguno en este slice. No recibe URL, host, callback ni destino por tenant/request. El outbox se persiste localmente y no tiene worker de delivery.
-- **Degradación:** sesión vencida/revocada, membership removida, tenant ajeno o contexto ausente niegan antes de lookup/replay; error de DB/serialización revierte la unidad, ledger, journal y outbox. La ausencia del puerto Identity o un orden de migración incorrecto falla cerrado.
+- **Degradación:** sesión vencida/revocada, membership removida, tenant ajeno o contexto ausente niegan antes de lookup/replay; un rename stale responde 412 neutral; error de DB/serialización revierte unidad, ledger, aliases, journal y outbox. La ausencia del puerto Identity o un orden de migración incorrecto falla cerrado.
 - **Owner:** Productive Core + Identity + Data + AppSec.
 - **Evidencia R1 local:** [`contracts/productive-core.openapi.yaml`](../../../contracts/productive-core.openapi.yaml), [`ProductiveCoreDbContext.cs`](../../../src/AgropecuarIA.ProductiveCore/Infrastructure/ProductiveCoreDbContext.cs), [`ProductiveCoreDatabaseSecurityTests.cs`](../../../tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs), [`ProductiveCoreAuthorizationPortDatabaseTests.cs`](../../../tests/AgropecuarIA.Identity.Tests/ProductiveCoreAuthorizationPortDatabaseTests.cs).
-- **Gate:** `GO integrado-local` solo para campos draft no espaciales. Geometría/área/tiles/historial, roles no-owner, delivery externo, DB/backup/credenciales administradas, hosting compartido y producción permanecen `NO-GO`.
+- **Gate:** `GO integrado-local` solo para campos draft no espaciales y rename del nombre. Geometría/área/tiles/historial, roles no-owner, otras ediciones, delivery externo, DB/backup/credenciales administradas, hosting compartido y producción permanecen `NO-GO`.
 
 ## Mapeo amenaza → control → prueba
 

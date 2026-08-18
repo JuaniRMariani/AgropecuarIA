@@ -1,4 +1,4 @@
-import type { CreatedField, FieldSummary } from "./field-types";
+import type { CreatedField, FieldSummary, RenamedField } from "./field-types";
 
 export type FieldFailureKind =
   | "signed-out"
@@ -8,6 +8,7 @@ export type FieldFailureKind =
   | "in-progress"
   | "capacity-reached"
   | "conflict"
+  | "stale"
   | "rate-limited"
   | "reconciliation-required"
   | "service-unavailable"
@@ -91,6 +92,22 @@ function requiredBoolean(record: JsonRecord, key: string): boolean {
   return value;
 }
 
+function requiredInteger(
+  record: JsonRecord,
+  key: string,
+  minimum: number,
+): number {
+  const value = record[key];
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < minimum
+  ) {
+    throw new FieldApiError("error", 502);
+  }
+  return value;
+}
+
 function validateIdentifier(value: string): void {
   if (!UUID_PATTERN.test(value)) {
     throw new FieldApiError("validation", 400);
@@ -141,6 +158,33 @@ export function parseCreatedField(value: unknown): CreatedField {
   };
 }
 
+export function parseRenamedField(value: unknown): RenamedField {
+  const expectedKeys = new Set([
+    "fieldId",
+    "organizationId",
+    "displayName",
+    "type",
+    "status",
+    "spatialStatus",
+    "createdAtUtc",
+    "version",
+    "isReplay",
+    "revision",
+  ]);
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== expectedKeys.size ||
+    Object.keys(value).some((key) => !expectedKeys.has(key))
+  ) {
+    throw new FieldApiError("error", 502);
+  }
+  return {
+    ...parseFieldSummary(value),
+    isReplay: requiredBoolean(value, "isReplay"),
+    revision: requiredInteger(value, "revision", 2),
+  };
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const text = await response.text();
   if (text.length === 0) {
@@ -172,6 +216,7 @@ function classifyFailure(status: number, body: unknown): FieldFailureKind {
     }
     return code.includes("in_progress") ? "in-progress" : "conflict";
   }
+  if (status === 412) return "stale";
   if (status === 429) return "rate-limited";
   if (status === 503) {
     return code.includes("reconciliation")
@@ -218,33 +263,42 @@ async function getAntiforgeryToken(signal?: AbortSignal): Promise<string> {
   return antiforgeryToken;
 }
 
-async function postField(
-  path: string,
-  displayName: string,
-  idempotencyKey: string,
-  signal?: AbortSignal,
-  retryAntiforgery = true,
-): Promise<Response> {
-  const token = await getAntiforgeryToken(signal);
-  const response = await fetch(path, {
-    method: "POST",
+type FieldMutationRequest = Readonly<{
+  path: string;
+  method: "POST" | "PATCH";
+  displayName: string;
+  idempotencyKey: string;
+  version?: string;
+  signal?: AbortSignal;
+  retryAntiforgery?: boolean;
+}>;
+
+async function mutateField(request: FieldMutationRequest): Promise<Response> {
+  const token = await getAntiforgeryToken(request.signal);
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    "Idempotency-Key": request.idempotencyKey,
+    "X-CSRF-TOKEN": token,
+  };
+  if (request.version !== undefined) {
+    validateIdentifier(request.version);
+    headers["If-Match"] = `"${request.version}"`;
+  }
+  const response = await fetch(request.path, {
+    method: request.method,
     cache: "no-store",
     credentials: "include",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey,
-      "X-CSRF-TOKEN": token,
-    },
-    body: JSON.stringify({ displayName }),
-    signal,
+    headers,
+    body: JSON.stringify({ displayName: request.displayName }),
+    signal: request.signal,
   });
 
-  if (!response.ok && retryAntiforgery) {
+  if (!response.ok && request.retryAntiforgery !== false) {
     const body = await readJson(response.clone());
     if (problemCode(body) === "request.invalid_antiforgery") {
       invalidateFieldAntiforgeryToken();
-      return postField(path, displayName, idempotencyKey, signal, false);
+      return mutateField({ ...request, retryAntiforgery: false });
     }
   }
   await ensureSuccessful(response);
@@ -257,6 +311,16 @@ export function createFieldIdempotencyKey(): string {
   return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join(
     "",
   );
+}
+
+function validateStrongFieldEtag(response: Response, version: string): void {
+  const etag = response.headers.get("ETag");
+  const match = etag?.match(
+    /^"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"$/i,
+  );
+  if (match?.[1]?.toLowerCase() !== version.toLowerCase()) {
+    throw new FieldApiError("error", 502);
+  }
 }
 
 export async function listFields(
@@ -305,15 +369,53 @@ export async function createField(
   if (!/^[A-Za-z0-9_-]{32,128}$/.test(idempotencyKey)) {
     throw new FieldApiError("validation", 400);
   }
-  const response = await postField(
-    `/api/organizations/${encodeURIComponent(organizationId)}/fields`,
+  const response = await mutateField({
+    path: `/api/organizations/${encodeURIComponent(organizationId)}/fields`,
+    method: "POST",
     displayName,
     idempotencyKey,
     signal,
-  );
+  });
   const field = parseCreatedField(await readJson(response));
   if (field.organizationId !== organizationId) {
     throw new FieldApiError("error", 502);
   }
+  return field;
+}
+
+export async function renameField({
+  organizationId,
+  fieldId,
+  displayName,
+  version,
+  idempotencyKey,
+  signal,
+}: Readonly<{
+  organizationId: string;
+  fieldId: string;
+  displayName: string;
+  version: string;
+  idempotencyKey: string;
+  signal?: AbortSignal;
+}>): Promise<RenamedField> {
+  validateIdentifier(organizationId);
+  validateIdentifier(fieldId);
+  validateIdentifier(version);
+  if (!/^[A-Za-z0-9_-]{32,128}$/.test(idempotencyKey)) {
+    throw new FieldApiError("validation", 400);
+  }
+  const response = await mutateField({
+    path: `/api/organizations/${encodeURIComponent(organizationId)}/fields/${encodeURIComponent(fieldId)}`,
+    method: "PATCH",
+    displayName,
+    idempotencyKey,
+    version,
+    signal,
+  });
+  const field = parseRenamedField(await readJson(response));
+  if (field.organizationId !== organizationId || field.fieldId !== fieldId) {
+    throw new FieldApiError("error", 502);
+  }
+  validateStrongFieldEtag(response, field.version);
   return field;
 }

@@ -17,6 +17,7 @@ import {
   getField,
   listFields,
   normalizeFieldDisplayName,
+  renameField,
 } from "./field-api";
 
 import type { FieldOrganization, FieldSummary } from "./field-types";
@@ -73,6 +74,48 @@ type FieldDetailState =
       message: string;
     }>;
 
+type FieldRenameAttempt = Readonly<{
+  organizationId: string;
+  fieldId: string;
+  baseDisplayName: string;
+  displayName: string;
+  version: string;
+  idempotencyKey: string;
+}>;
+
+type FieldRenameFailureKind =
+  | "validation"
+  | "signed-out"
+  | "forbidden"
+  | "unavailable"
+  | "in-progress"
+  | "capacity-reached"
+  | "conflict"
+  | "stale"
+  | "rate-limited"
+  | "reconciliation-required"
+  | "service-unavailable"
+  | "offline"
+  | "error";
+
+type FieldRenameState =
+  | Readonly<{ kind: "idle" }>
+  | Readonly<{
+      kind: "editing" | "submitting" | "reloading";
+      attempt: FieldRenameAttempt;
+    }>
+  | Readonly<{
+      kind: FieldRenameFailureKind;
+      attempt: FieldRenameAttempt;
+      message: string;
+    }>
+  | Readonly<{
+      kind: "success";
+      organizationId: string;
+      field: FieldSummary;
+      isReplay: boolean;
+    }>;
+
 type StoredFieldAttempt = Readonly<{
   organizationId: string;
   displayName: string;
@@ -80,7 +123,14 @@ type StoredFieldAttempt = Readonly<{
   reason: "pending" | "reauthentication" | "unavailable";
 }>;
 
+type StoredFieldRenameAttempt = FieldRenameAttempt &
+  Readonly<{
+    reason: "pending" | "reauthentication" | "unavailable";
+  }>;
+
 const FIELD_ATTEMPT_STORAGE_KEY = "agropecuaria.fields.create-attempt.v1";
+const FIELD_RENAME_ATTEMPT_STORAGE_KEY =
+  "agropecuaria.fields.rename-attempt.v1";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -138,6 +188,72 @@ function clearStoredAttempt(): void {
   }
 }
 
+function isStoredFieldRenameAttempt(
+  value: unknown,
+): value is StoredFieldRenameAttempt {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "organizationId" in value &&
+    typeof value.organizationId === "string" &&
+    UUID_PATTERN.test(value.organizationId) &&
+    "fieldId" in value &&
+    typeof value.fieldId === "string" &&
+    UUID_PATTERN.test(value.fieldId) &&
+    "baseDisplayName" in value &&
+    typeof value.baseDisplayName === "string" &&
+    normalizeFieldDisplayName(value.baseDisplayName) ===
+      value.baseDisplayName &&
+    "displayName" in value &&
+    typeof value.displayName === "string" &&
+    normalizeFieldDisplayName(value.displayName) === value.displayName &&
+    "version" in value &&
+    typeof value.version === "string" &&
+    UUID_PATTERN.test(value.version) &&
+    "idempotencyKey" in value &&
+    typeof value.idempotencyKey === "string" &&
+    /^[A-Za-z0-9_-]{32,128}$/.test(value.idempotencyKey) &&
+    "reason" in value &&
+    (value.reason === "pending" ||
+      value.reason === "reauthentication" ||
+      value.reason === "unavailable")
+  );
+}
+
+function readStoredRenameAttempt(): StoredFieldRenameAttempt | null {
+  try {
+    const serialized = globalThis.sessionStorage.getItem(
+      FIELD_RENAME_ATTEMPT_STORAGE_KEY,
+    );
+    if (serialized === null) return null;
+    const value: unknown = JSON.parse(serialized);
+    if (isStoredFieldRenameAttempt(value)) return value;
+    globalThis.sessionStorage.removeItem(FIELD_RENAME_ATTEMPT_STORAGE_KEY);
+  } catch {
+    // Browser storage is optional; malformed state never crosses the boundary.
+  }
+  return null;
+}
+
+function storeRenameAttempt(attempt: StoredFieldRenameAttempt): void {
+  try {
+    globalThis.sessionStorage.setItem(
+      FIELD_RENAME_ATTEMPT_STORAGE_KEY,
+      JSON.stringify(attempt),
+    );
+  } catch {
+    // The in-memory state still preserves the attempt for this page lifetime.
+  }
+}
+
+function clearStoredRenameAttempt(): void {
+  try {
+    globalThis.sessionStorage.removeItem(FIELD_RENAME_ATTEMPT_STORAGE_KEY);
+  } catch {
+    // Nothing else is required when storage is unavailable.
+  }
+}
+
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
@@ -175,6 +291,7 @@ function resourceFailure(error: unknown): FieldResourceState {
       case "in-progress":
       case "capacity-reached":
       case "conflict":
+      case "stale":
       case "error":
         return {
           kind: "error",
@@ -251,6 +368,12 @@ function creationFailure(
           message:
             "La clave ya corresponde a otro contenido. Iniciá un intento nuevo.",
         };
+      case "stale":
+        return {
+          kind: "conflict",
+          organizationId,
+          message: "El estado cambió. Iniciá un intento nuevo.",
+        };
       case "rate-limited":
         return {
           kind: "rate-limited",
@@ -301,6 +424,128 @@ function creationFailure(
   };
 }
 
+function renameFailure(
+  error: unknown,
+  attempt: FieldRenameAttempt,
+): Exclude<
+  FieldRenameState,
+  { kind: "idle" | "editing" | "submitting" | "reloading" | "success" }
+> {
+  if (error instanceof FieldApiError) {
+    switch (error.kind) {
+      case "validation":
+        return {
+          kind: "validation",
+          attempt,
+          message: "Ingresá un nombre válido y distinto del actual.",
+        };
+      case "signed-out":
+        return {
+          kind: "signed-out",
+          attempt,
+          message:
+            "Tu sesión venció. Conservamos el nombre para retomarlo al ingresar.",
+        };
+      case "reauthentication-required":
+        return {
+          kind: "forbidden",
+          attempt,
+          message:
+            "Verificá nuevamente tu acceso. Conservamos el nombre y la clave del intento.",
+        };
+      case "unavailable":
+        return {
+          kind: "unavailable",
+          attempt,
+          message: "El campo no está disponible o ya no tenés acceso.",
+        };
+      case "in-progress":
+        return {
+          kind: "in-progress",
+          attempt,
+          message:
+            "El cambio sigue en curso. Reintentá con el mismo nombre y clave.",
+        };
+      case "capacity-reached":
+        return {
+          kind: "capacity-reached",
+          attempt,
+          message: "No pudimos modificar este campo.",
+        };
+      case "conflict":
+        return {
+          kind: "conflict",
+          attempt,
+          message:
+            "La clave ya corresponde a otro cambio. Revisá el nombre e intentá nuevamente.",
+        };
+      case "stale":
+        return {
+          kind: "stale",
+          attempt,
+          message:
+            "El campo cambió en otra sesión. Recargá y revisá antes de guardar.",
+        };
+      case "rate-limited":
+        return {
+          kind: "rate-limited",
+          attempt,
+          message:
+            "Hay demasiadas solicitudes. Esperá y reintentá el mismo cambio.",
+        };
+      case "reconciliation-required":
+        return {
+          kind: "reconciliation-required",
+          attempt,
+          message:
+            "Todavía no podemos confirmar el cambio. Conservamos el intento para reconciliarlo.",
+        };
+      case "service-unavailable":
+        return {
+          kind: "service-unavailable",
+          attempt,
+          message:
+            "Campos no está disponible. Conservamos el intento para reintentar sin duplicarlo.",
+        };
+      case "error":
+        return {
+          kind: "error",
+          attempt,
+          message:
+            "No pudimos confirmar el cambio. Reintentá para comprobar el resultado.",
+        };
+      default: {
+        const exhaustive: never = error.kind;
+        return exhaustive;
+      }
+    }
+  }
+  if (error instanceof TypeError) {
+    return {
+      kind: "offline",
+      attempt,
+      message:
+        "La red no respondió. Conservamos el nombre para reintentar el mismo cambio.",
+    };
+  }
+  return {
+    kind: "error",
+    attempt,
+    message:
+      "No pudimos confirmar el cambio. Reintentá para comprobar el resultado.",
+  };
+}
+
+function isTerminalRenameFailure(kind: FieldRenameFailureKind): boolean {
+  return (
+    kind === "validation" ||
+    kind === "unavailable" ||
+    kind === "capacity-reached" ||
+    kind === "conflict" ||
+    kind === "stale"
+  );
+}
+
 function detailFailure(error: unknown): string {
   if (error instanceof FieldApiError) {
     if (error.kind === "unavailable") {
@@ -345,9 +590,14 @@ export function FieldManagement({
   const [creation, setCreation] = useState<FieldCreationState>({
     kind: "idle",
   });
+  const [rename, setRename] = useState<FieldRenameState>({ kind: "idle" });
   const attemptKey = useRef<string | null>(null);
   const restoredAttempt = useRef(false);
+  const restoredRenameAttempt = useRef(false);
+  const restoreRenameFocusToFieldId = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const renameTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
 
   const refreshFields = useCallback(
     async (organizationId: string, signal?: AbortSignal) => {
@@ -371,6 +621,26 @@ export function FieldManagement({
     },
     [],
   );
+
+  const applyField = useCallback((field: FieldSummary) => {
+    setResources((current) => {
+      const previous = current[field.organizationId];
+      if (previous?.kind !== "ready") return current;
+      return {
+        ...current,
+        [field.organizationId]: {
+          kind: "ready",
+          items: previous.items.map((item) =>
+            item.fieldId === field.fieldId ? field : item,
+          ),
+        },
+      };
+    });
+    setDetails((current) => ({
+      ...current,
+      [field.organizationId]: { kind: "ready", field },
+    }));
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -550,12 +820,230 @@ export function FieldManagement({
     [],
   );
 
-  const closeDetail = useCallback((organizationId: string) => {
-    setDetails((current) => ({
-      ...current,
-      [organizationId]: { kind: "closed" },
-    }));
+  useEffect(() => {
+    if (restoredRenameAttempt.current || ownerOrganizations.length === 0) {
+      return;
+    }
+    restoredRenameAttempt.current = true;
+    const stored = readStoredRenameAttempt();
+    if (
+      stored === null ||
+      !ownerOrganizations.some(
+        (organization) => organization.organizationId === stored.organizationId,
+      )
+    ) {
+      clearStoredRenameAttempt();
+      return;
+    }
+
+    const attempt: FieldRenameAttempt = {
+      organizationId: stored.organizationId,
+      fieldId: stored.fieldId,
+      baseDisplayName: stored.baseDisplayName,
+      displayName: stored.displayName,
+      version: stored.version,
+      idempotencyKey: stored.idempotencyKey,
+    };
+    setRename({
+      kind:
+        stored.reason === "reauthentication"
+          ? "forbidden"
+          : "service-unavailable",
+      attempt,
+      message:
+        "Retomamos el cambio pendiente. Reintentá para confirmar el resultado sin repetirlo.",
+    });
+    void openDetail(stored.organizationId, stored.fieldId);
+  }, [openDetail, ownerOrganizations]);
+
+  useEffect(() => {
+    if ("attempt" in rename) {
+      if (renameInputRef.current !== document.activeElement) {
+        renameInputRef.current?.focus();
+      }
+      return;
+    }
+    if (
+      rename.kind === "idle" &&
+      restoreRenameFocusToFieldId.current !== null
+    ) {
+      const fieldId = restoreRenameFocusToFieldId.current;
+      restoreRenameFocusToFieldId.current = null;
+      renameTriggerRefs.current.get(fieldId)?.focus();
+    }
+  }, [details, rename]);
+
+  const startRename = useCallback((field: FieldSummary) => {
+    clearStoredRenameAttempt();
+    setRename({
+      kind: "editing",
+      attempt: {
+        organizationId: field.organizationId,
+        fieldId: field.fieldId,
+        baseDisplayName: field.displayName,
+        displayName: field.displayName,
+        version: field.version,
+        idempotencyKey: createFieldIdempotencyKey(),
+      },
+    });
   }, []);
+
+  const cancelRename = useCallback(() => {
+    if (rename.kind === "submitting" || rename.kind === "reloading") return;
+    clearStoredRenameAttempt();
+    if ("attempt" in rename) {
+      restoreRenameFocusToFieldId.current = rename.attempt.fieldId;
+    }
+    setRename({ kind: "idle" });
+  }, [rename]);
+
+  const changeRenameDraft = useCallback((value: string) => {
+    setRename((current) => {
+      if (!("attempt" in current)) return current;
+      const newIntent = current.kind !== "editing";
+      if (newIntent) clearStoredRenameAttempt();
+      return {
+        kind: "editing",
+        attempt: {
+          ...current.attempt,
+          displayName: value,
+          idempotencyKey: newIntent
+            ? createFieldIdempotencyKey()
+            : current.attempt.idempotencyKey,
+        },
+      };
+    });
+  }, []);
+
+  const submitRename = useCallback(async () => {
+    if (
+      !("attempt" in rename) ||
+      rename.kind === "submitting" ||
+      rename.kind === "reloading" ||
+      rename.kind === "stale"
+    ) {
+      return;
+    }
+    const displayName = normalizeFieldDisplayName(rename.attempt.displayName);
+    if (
+      displayName === null ||
+      displayName === rename.attempt.baseDisplayName
+    ) {
+      clearStoredRenameAttempt();
+      setRename({
+        kind: "validation",
+        attempt: {
+          ...rename.attempt,
+          displayName: displayName ?? rename.attempt.displayName,
+          idempotencyKey: createFieldIdempotencyKey(),
+        },
+        message: "Ingresá un nombre válido y distinto del actual.",
+      });
+      return;
+    }
+
+    const attempt: FieldRenameAttempt = {
+      ...rename.attempt,
+      displayName,
+    };
+    storeRenameAttempt({ ...attempt, reason: "pending" });
+    setRename({ kind: "submitting", attempt });
+
+    try {
+      const renamed = await renameField({
+        organizationId: attempt.organizationId,
+        fieldId: attempt.fieldId,
+        displayName: attempt.displayName,
+        version: attempt.version,
+        idempotencyKey: attempt.idempotencyKey,
+      });
+      clearStoredRenameAttempt();
+      applyField(renamed);
+      setRename({
+        kind: "success",
+        organizationId: attempt.organizationId,
+        field: renamed,
+        isReplay: renamed.isReplay,
+      });
+    } catch (error) {
+      const failure = renameFailure(error, attempt);
+      if (failure.kind === "signed-out" || failure.kind === "forbidden") {
+        storeRenameAttempt({ ...attempt, reason: "reauthentication" });
+      } else if (
+        failure.kind === "reconciliation-required" ||
+        failure.kind === "service-unavailable"
+      ) {
+        storeRenameAttempt({ ...attempt, reason: "unavailable" });
+      }
+
+      if (isTerminalRenameFailure(failure.kind)) {
+        clearStoredRenameAttempt();
+        setRename({
+          ...failure,
+          attempt: {
+            ...attempt,
+            idempotencyKey: createFieldIdempotencyKey(),
+          },
+        });
+      } else {
+        setRename(failure);
+      }
+    }
+  }, [applyField, rename]);
+
+  const reloadRename = useCallback(async () => {
+    if (!("attempt" in rename) || rename.kind !== "stale") return;
+    const staleAttempt = rename.attempt;
+    setRename({ kind: "reloading", attempt: staleAttempt });
+    try {
+      const field = await getField(
+        staleAttempt.organizationId,
+        staleAttempt.fieldId,
+      );
+      applyField(field);
+      clearStoredRenameAttempt();
+      setRename({
+        kind: "editing",
+        attempt: {
+          ...staleAttempt,
+          baseDisplayName: field.displayName,
+          version: field.version,
+          idempotencyKey: createFieldIdempotencyKey(),
+        },
+      });
+    } catch {
+      setRename({
+        kind: "stale",
+        attempt: staleAttempt,
+        message:
+          "No pudimos recargar el campo. Reintentá para revisar la versión actual.",
+      });
+    }
+  }, [applyField, rename]);
+
+  const closeDetail = useCallback(
+    (organizationId: string) => {
+      const renameForOrganization =
+        ("attempt" in rename &&
+          rename.attempt.organizationId === organizationId) ||
+        (rename.kind === "success" && rename.organizationId === organizationId);
+      if (
+        renameForOrganization &&
+        (rename.kind === "submitting" || rename.kind === "reloading")
+      ) {
+        return;
+      }
+      if (renameForOrganization) {
+        clearStoredRenameAttempt();
+        setRename({ kind: "idle" });
+      }
+      setDetails((current) => ({
+        ...current,
+        [organizationId]: { kind: "closed" },
+      }));
+    },
+    [rename],
+  );
 
   if (ownerOrganizations.length === 0) return null;
 
@@ -592,6 +1080,17 @@ export function FieldManagement({
             creation.organizationId === organization.organizationId;
           const submitting =
             creation.kind === "submitting" && creationForOrganization;
+          const renameAttemptState =
+            "attempt" in rename &&
+            rename.attempt.organizationId === organization.organizationId
+              ? rename
+              : null;
+          const renameSuccessForOrganization =
+            rename.kind === "success" &&
+            rename.organizationId === organization.organizationId;
+          const renameBusy =
+            renameAttemptState?.kind === "submitting" ||
+            renameAttemptState?.kind === "reloading";
 
           return (
             <article
@@ -805,20 +1304,164 @@ export function FieldManagement({
                   aria-labelledby={`field-detail-${detail.field.fieldId}`}
                   className="field-detail"
                   onKeyDown={(event) => {
-                    if (event.key === "Escape") {
+                    if (
+                      event.key === "Escape" &&
+                      !(
+                        renameAttemptState !== null &&
+                        renameAttemptState.attempt.fieldId ===
+                          detail.field.fieldId
+                      )
+                    ) {
                       event.preventDefault();
                       closeDetail(organization.organizationId);
                     }
                   }}
                   tabIndex={-1}
                 >
-                  <div>
-                    <p className="section-kicker">Ficha del campo</p>
-                    <h4 id={`field-detail-${detail.field.fieldId}`}>
-                      {detail.field.displayName}
-                    </h4>
-                    <p>Campo {formatShortId(detail.field.fieldId)}</p>
+                  <div className="field-detail__heading">
+                    <div>
+                      <p className="section-kicker">Ficha del campo</p>
+                      <h4 id={`field-detail-${detail.field.fieldId}`}>
+                        {detail.field.displayName}
+                      </h4>
+                      <p>Campo {formatShortId(detail.field.fieldId)}</p>
+                    </div>
+                    {renameAttemptState === null ||
+                    renameAttemptState.attempt.fieldId !==
+                      detail.field.fieldId ? (
+                      <button
+                        className="button button--quiet"
+                        disabled={
+                          rename.kind === "submitting" ||
+                          rename.kind === "reloading"
+                        }
+                        onClick={() => startRename(detail.field)}
+                        ref={(element) => {
+                          if (element === null) {
+                            renameTriggerRefs.current.delete(
+                              detail.field.fieldId,
+                            );
+                          } else {
+                            renameTriggerRefs.current.set(
+                              detail.field.fieldId,
+                              element,
+                            );
+                          }
+                        }}
+                        type="button"
+                      >
+                        Editar nombre
+                      </button>
+                    ) : null}
                   </div>
+
+                  {renameAttemptState !== null &&
+                  renameAttemptState.attempt.fieldId ===
+                    detail.field.fieldId ? (
+                    <form
+                      aria-busy={renameBusy}
+                      className="field-rename-form"
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape" && !renameBusy) {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          cancelRename();
+                        }
+                      }}
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void submitRename();
+                      }}
+                    >
+                      <div className="form-field">
+                        <label htmlFor={`field-rename-${detail.field.fieldId}`}>
+                          Nuevo nombre del campo
+                        </label>
+                        <input
+                          aria-describedby={`field-rename-help-${detail.field.fieldId}`}
+                          aria-invalid={
+                            renameAttemptState.kind === "validation"
+                          }
+                          disabled={
+                            renameBusy || renameAttemptState.kind === "stale"
+                          }
+                          id={`field-rename-${detail.field.fieldId}`}
+                          onChange={(event) =>
+                            changeRenameDraft(event.target.value)
+                          }
+                          ref={renameInputRef}
+                          value={renameAttemptState.attempt.displayName}
+                        />
+                        <small id={`field-rename-help-${detail.field.fieldId}`}>
+                          Entre 2 y 120 caracteres Unicode, sin controles.
+                        </small>
+                        {renameAttemptState.attempt.displayName !==
+                        renameAttemptState.attempt.baseDisplayName ? (
+                          <small className="field-rename-current">
+                            Nombre actual:{" "}
+                            {renameAttemptState.attempt.baseDisplayName}
+                          </small>
+                        ) : null}
+                      </div>
+
+                      {"message" in renameAttemptState ? (
+                        <div
+                          className={`field-action-state field-action-state--${renameAttemptState.kind}`}
+                          role="alert"
+                        >
+                          <p>{renameAttemptState.message}</p>
+                        </div>
+                      ) : null}
+
+                      <div className="field-rename-form__actions">
+                        {renameAttemptState.kind === "stale" ? (
+                          <button
+                            className="button button--secondary"
+                            onClick={() => void reloadRename()}
+                            type="button"
+                          >
+                            Recargar y revisar
+                          </button>
+                        ) : (
+                          <button
+                            className="button button--primary"
+                            disabled={renameBusy}
+                            type="submit"
+                          >
+                            {renameAttemptState.kind === "submitting" ? (
+                              <>
+                                <FieldSpinner /> Guardando nombre
+                              </>
+                            ) : (
+                              "Guardar nombre"
+                            )}
+                          </button>
+                        )}
+                        <button
+                          className="button button--quiet"
+                          disabled={renameBusy}
+                          onClick={cancelRename}
+                          type="button"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
+
+                  {renameSuccessForOrganization &&
+                  rename.field.fieldId === detail.field.fieldId ? (
+                    <div
+                      className="field-action-state field-action-state--success"
+                      role="status"
+                    >
+                      <p>
+                        {rename.isReplay
+                          ? `Confirmamos el cambio anterior: ahora se llama ${rename.field.displayName}.`
+                          : `El campo ahora se llama ${rename.field.displayName}.`}
+                      </p>
+                    </div>
+                  ) : null}
                   <dl>
                     <div>
                       <dt>Estado</dt>
@@ -831,6 +1474,7 @@ export function FieldManagement({
                   </dl>
                   <button
                     className="button button--quiet"
+                    disabled={renameBusy}
                     onClick={() => closeDetail(organization.organizationId)}
                     type="button"
                   >

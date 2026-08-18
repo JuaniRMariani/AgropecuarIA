@@ -116,3 +116,9 @@ Los riesgos de backfill/ETag, staging/restore y outbox delivery/idempotencia con
 El catálogo contractual incorpora `OrganizationOwnerMembershipRemoved` con scope tenant y agregado canónico `Membership`. El payload v1 cerrado contiene únicamente organizationId, membershipId, authorizationVersion, revokedInvitationCount y removedAtUtc; no incluye userId, display name, email, bearer ni digest. Factory tipada, schema JSON, runtime map, consumer map y outbox quedan alineados; `consumers: []` conserva explícito que delivery/dispatcher continúa pendiente de `AGRO-FND-002`.
 
 Architecture Fitness PASS `101/101` y suite raíz MTP PASS `256/256`. La extensión no reabre `AGRO-FND-001`, ya completada; demuestra que el nuevo productor respeta el catálogo y la compatibilidad vigente.
+
+## Extensión compatible: ManagementUnitDisplayNameChanged v1 — 2026-08-18
+
+Productive Core agrega `ManagementUnitDisplayNameChanged` con scope tenant y agregado `ManagementUnit`. El payload v1 cerrado contiene únicamente `organizationId`, `managementUnitId`, `revision` y `changedAtUtc`; no incluye nombre anterior/nuevo, actor, sesión, key, digest ni request payload. Factory tipada, JSON Schema 2020-12, runtime map y consumer map quedan alineados. `consumers: []` mantiene explícito que delivery durable continúa pendiente de `AGRO-FND-002`.
+
+Architecture Fitness PASS `135/135`, suite raíz MTP PASS `348/348` y validadores FND/SEC PASS `45/45` y `56/56`. La extensión es compatible y no reabre `AGRO-FND-001`, que permanece `Completada`.

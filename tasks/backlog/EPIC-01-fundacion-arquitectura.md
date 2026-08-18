@@ -68,6 +68,7 @@ Objetivo: establecer contratos e invariantes que desbloquean slices concretos si
 
 ## AGRO-FND-003 — Evolucionar datos y contratos con conflicto explícito
 
+- **Estado:** En curso. El primer consumidor local acotado `RenameFieldDraft` está autorizado; backfills masivos, contract migrations, rectificación histórica general y restore de ambiente continúan pendientes del padre.
 - **Release, épica, prioridad y tamaño:** R1 · EPIC-01 · Must · M.
 - **Owner y colaboradores:** Data/Backend; Frontend, QA y SRE.
 - **Resultado/valor esperado:** ediciones concurrentes y migraciones compatibles sin pérdida silenciosa.

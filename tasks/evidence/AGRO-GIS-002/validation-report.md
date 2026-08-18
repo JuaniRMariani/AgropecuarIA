@@ -31,6 +31,6 @@ El primer rerun Playwright terminó `5/6` porque el journey crítico de Chromium
 
 ## Riesgos residuales
 
-- `AGRO-GIS-002` completo continúa bloqueado por geometría/área/tolerancias, catálogo, tiles y decisiones de proveedor.
+- `AGRO-GIS-002` completo continúa bloqueado por geometría/área/tolerancias, catálogo, tiles y decisiones de proveedor. El rename posterior del nombre bajo `AGRO-FND-003` no resuelve esas dependencias ni habilita otras ediciones.
 - Delivery de outbox/inbox permanece pendiente de `AGRO-FND-002`; este slice sólo demuestra producer-side atómico.
 - El incremento es evidencia local integrada, no aprobación de producción o proveedor.

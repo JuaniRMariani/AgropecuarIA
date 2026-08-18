@@ -37,7 +37,7 @@ public sealed class ProductiveCoreTelemetry
 
     private static string NormalizeOperation(string operation) => operation switch
     {
-        "field_create" or "field_list" or "field_detail" => operation,
+        "field_create" or "field_list" or "field_detail" or "field_rename" => operation,
         _ => "other",
     };
 
@@ -52,6 +52,7 @@ public sealed class ProductiveCoreTelemetry
         "reconciliation_required" or
         "commit_unknown" or
         "not_available" or
+        "stale" or
         "unavailable" or
         "rejected" => outcome,
         _ => "other",

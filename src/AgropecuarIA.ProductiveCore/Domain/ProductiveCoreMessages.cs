@@ -74,8 +74,17 @@ public static class ProductiveCoreIntegrationEvents
         nameof(ManagementUnit),
         "tasks/evidence/AGRO-FND-001/contracts/management-unit-created.v1.schema.json");
 
+    public static ProductiveCoreIntegrationEventDefinition ManagementUnitDisplayNameChanged { get; } = new(
+        "ManagementUnitDisplayNameChanged",
+        1,
+        "1.0.0",
+        "productive-core",
+        "tenant",
+        nameof(ManagementUnit),
+        "tasks/evidence/AGRO-FND-001/contracts/management-unit-display-name-changed.v1.schema.json");
+
     public static IReadOnlyList<ProductiveCoreIntegrationEventDefinition> All { get; } =
-        Array.AsReadOnly(new[] { ManagementUnitCreated });
+        Array.AsReadOnly(new[] { ManagementUnitCreated, ManagementUnitDisplayNameChanged });
 }
 
 public sealed class ProductiveJournalEntry
@@ -91,10 +100,34 @@ public sealed class ProductiveJournalEntry
         Guid sessionId,
         string correlationId,
         DateTimeOffset occurredAtUtc)
+        : this(
+            id,
+            organizationId,
+            actorUserId,
+            sessionId,
+            "management_unit_created",
+            correlationId,
+            occurredAtUtc)
+    {
+    }
+
+    private ProductiveJournalEntry(
+        Guid id,
+        Guid organizationId,
+        Guid actorUserId,
+        Guid sessionId,
+        string action,
+        string correlationId,
+        DateTimeOffset occurredAtUtc)
     {
         if (id == Guid.Empty || organizationId == Guid.Empty || actorUserId == Guid.Empty || sessionId == Guid.Empty)
         {
             throw new ArgumentException("Journal, tenant, actor, and session IDs are required.");
+        }
+
+        if (action is not ("management_unit_created" or "management_unit_display_name_changed"))
+        {
+            throw new ArgumentException("The Productive Core journal action is invalid.", nameof(action));
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
@@ -107,11 +140,27 @@ public sealed class ProductiveJournalEntry
         OrganizationId = organizationId;
         ActorUserId = actorUserId;
         SessionId = sessionId;
-        Action = "management_unit_created";
+        Action = action;
         Outcome = "succeeded";
         CorrelationId = correlationId;
         OccurredAtUtc = occurredAtUtc;
     }
+
+    public static ProductiveJournalEntry CreateManagementUnitDisplayNameChanged(
+        Guid id,
+        Guid organizationId,
+        Guid actorUserId,
+        Guid sessionId,
+        string correlationId,
+        DateTimeOffset occurredAtUtc) =>
+        new(
+            id,
+            organizationId,
+            actorUserId,
+            sessionId,
+            "management_unit_display_name_changed",
+            correlationId,
+            occurredAtUtc);
 
     public Guid Id { get; private set; }
 
@@ -137,6 +186,12 @@ public sealed record ManagementUnitCreatedIntegrationEventPayload(
     string Status,
     DateTimeOffset CreatedAtUtc);
 
+public sealed record ManagementUnitDisplayNameChangedIntegrationEventPayload(
+    Guid OrganizationId,
+    Guid ManagementUnitId,
+    long Revision,
+    DateTimeOffset ChangedAtUtc);
+
 public sealed class ProductiveOutboxMessage
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
@@ -152,21 +207,21 @@ public sealed class ProductiveOutboxMessage
         Guid id,
         Guid organizationId,
         Guid aggregateId,
+        ProductiveCoreIntegrationEventDefinition definition,
+        long aggregateVersion,
         string correlationId,
         DateTimeOffset occurredAtUtc,
         string payloadJson)
     {
         Id = id;
         OrganizationId = organizationId;
-        ProductiveCoreIntegrationEventDefinition definition =
-            ProductiveCoreIntegrationEvents.ManagementUnitCreated;
         EventType = definition.Type;
         SchemaVersion = definition.SchemaVersion;
         Source = definition.Source;
         Scope = definition.Scope;
         AggregateType = definition.AggregateType;
         AggregateId = aggregateId;
-        AggregateVersion = 1;
+        AggregateVersion = aggregateVersion;
         CorrelationId = correlationId;
         OccurredAtUtc = occurredAtUtc;
         AvailableAtUtc = occurredAtUtc;
@@ -220,8 +275,35 @@ public sealed class ProductiveOutboxMessage
             id,
             payload.OrganizationId,
             payload.ManagementUnitId,
+            ProductiveCoreIntegrationEvents.ManagementUnitCreated,
+            1,
             correlationId,
             payload.CreatedAtUtc,
+            JsonSerializer.Serialize(payload, SerializerOptions));
+    }
+
+    public static ProductiveOutboxMessage CreateManagementUnitDisplayNameChanged(
+        Guid id,
+        string correlationId,
+        ManagementUnitDisplayNameChangedIntegrationEventPayload payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        if (id == Guid.Empty || payload.OrganizationId == Guid.Empty ||
+            payload.ManagementUnitId == Guid.Empty || payload.Revision < 2)
+        {
+            throw new ArgumentException(
+                "Event, organization, management unit, and revision are required.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
+        return new ProductiveOutboxMessage(
+            id,
+            payload.OrganizationId,
+            payload.ManagementUnitId,
+            ProductiveCoreIntegrationEvents.ManagementUnitDisplayNameChanged,
+            payload.Revision,
+            correlationId,
+            payload.ChangedAtUtc,
             JsonSerializer.Serialize(payload, SerializerOptions));
     }
 }

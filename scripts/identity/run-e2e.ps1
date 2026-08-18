@@ -41,6 +41,9 @@ $previousEnvironment = @{
     ProductiveCore__ManagementUnitCreation__Enabled = $env:ProductiveCore__ManagementUnitCreation__Enabled
     ProductiveCore__ManagementUnitCreation__CurrentKeyVersion = $env:ProductiveCore__ManagementUnitCreation__CurrentKeyVersion
     ProductiveCore__ManagementUnitCreation__HmacKeys__e2e_v1 = $env:ProductiveCore__ManagementUnitCreation__HmacKeys__e2e_v1
+    ProductiveCore__ManagementUnitRename__Enabled = $env:ProductiveCore__ManagementUnitRename__Enabled
+    ProductiveCore__ManagementUnitRename__CurrentKeyVersion = $env:ProductiveCore__ManagementUnitRename__CurrentKeyVersion
+    ProductiveCore__ManagementUnitRename__HmacKeys__e2e_v1 = $env:ProductiveCore__ManagementUnitRename__HmacKeys__e2e_v1
     ProductiveCore__RateLimits__PerSessionPerMinute = $env:ProductiveCore__RateLimits__PerSessionPerMinute
     AGRO_E2E_REUSE_SERVER = $env:AGRO_E2E_REUSE_SERVER
     PGPASSWORD = $env:PGPASSWORD
@@ -176,7 +179,8 @@ try {
     $idempotencyHmacKey = New-EphemeralSecret
     $ownerInvitationHmacKey = New-EphemeralSecret
     $fieldIdempotencyHmacKey = New-EphemeralSecret
-    if (@($postgresPassword, $idempotencyHmacKey, $ownerInvitationHmacKey, $fieldIdempotencyHmacKey) |
+    $fieldRenameHmacKey = New-EphemeralSecret
+    if (@($postgresPassword, $idempotencyHmacKey, $ownerInvitationHmacKey, $fieldIdempotencyHmacKey, $fieldRenameHmacKey) |
         Group-Object | Where-Object Count -gt 1) {
         throw 'Cryptographic secret generation produced a duplicate value.'
     }
@@ -248,6 +252,9 @@ try {
     $env:ProductiveCore__ManagementUnitCreation__Enabled = 'true'
     $env:ProductiveCore__ManagementUnitCreation__CurrentKeyVersion = 'e2e_v1'
     $env:ProductiveCore__ManagementUnitCreation__HmacKeys__e2e_v1 = $fieldIdempotencyHmacKey
+    $env:ProductiveCore__ManagementUnitRename__Enabled = 'true'
+    $env:ProductiveCore__ManagementUnitRename__CurrentKeyVersion = 'e2e_v1'
+    $env:ProductiveCore__ManagementUnitRename__HmacKeys__e2e_v1 = $fieldRenameHmacKey
     $env:ProductiveCore__RateLimits__PerSessionPerMinute = '300'
     $env:AGRO_E2E_REUSE_SERVER = 'false'
 
@@ -323,4 +330,5 @@ finally {
     $idempotencyHmacKey = $null
     $ownerInvitationHmacKey = $null
     $fieldIdempotencyHmacKey = $null
+    $fieldRenameHmacKey = $null
 }

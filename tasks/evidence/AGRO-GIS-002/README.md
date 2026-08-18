@@ -2,7 +2,7 @@
 
 Este incremento integra el primer `ManagementUnit` tenant-owned de Productive Core. Permite crear, listar y abrir la ficha de un campo borrador sin geometría.
 
-La evidencia no cierra `AGRO-GIS-002`: mapa, PostGIS, área, tiles, establecimiento/parcela/lote/potrero, edición y catálogo permanecen fuera hasta cerrar sus decisiones y dependencias.
+La evidencia no cierra `AGRO-GIS-002`: mapa, PostGIS, área, tiles, establecimiento/parcela/lote/potrero, edición distinta del nombre y catálogo permanecen fuera hasta cerrar sus decisiones y dependencias. El rename exclusivo de `displayName` se incorpora después como primer consumidor de `AGRO-FND-003`, sin ampliar este slice a geometría o lifecycle.
 
 Artefactos:
 

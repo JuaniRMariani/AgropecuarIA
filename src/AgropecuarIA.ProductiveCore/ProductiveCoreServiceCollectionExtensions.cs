@@ -24,6 +24,13 @@ public static class ProductiveCoreServiceCollectionExtensions
             ServiceDescriptor.Singleton<
                 Microsoft.Extensions.Options.IValidateOptions<ManagementUnitCreationOptions>,
                 ManagementUnitCreationOptionsValidator>());
+        services.AddOptions<ManagementUnitRenameOptions>()
+            .Bind(configuration.GetSection(ManagementUnitRenameOptions.SectionName))
+            .ValidateOnStart();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<
+                Microsoft.Extensions.Options.IValidateOptions<ManagementUnitRenameOptions>,
+                ManagementUnitRenameOptionsValidator>());
         services.AddDbContextFactory<ProductiveCoreDbContext>(options =>
             options.UseNpgsql(connectionString, npgsql =>
             {
@@ -37,6 +44,7 @@ public static class ProductiveCoreServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<ProductiveCoreTelemetry>();
         services.AddScoped<ProductiveCoreApplicationService>();
+        services.AddScoped<ProductiveCoreRenameApplicationService>();
         services.AddExceptionHandler<ProductiveCoreExceptionHandler>();
         return services;
     }

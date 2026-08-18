@@ -4,6 +4,13 @@ namespace AgropecuarIA.ProductiveCore.Application;
 
 public sealed record CreateFieldCommand(Guid OrganizationId, string DisplayName, string IdempotencyKey);
 
+public sealed record RenameFieldDraftCommand(
+    Guid OrganizationId,
+    Guid FieldId,
+    string DisplayName,
+    Guid ExpectedVersion,
+    string IdempotencyKey);
+
 public sealed record ManagementUnitResult(
     Guid FieldId,
     Guid OrganizationId,
@@ -22,6 +29,18 @@ public sealed record CreatedManagementUnitResult(
     string Status,
     string SpatialStatus,
     DateTimeOffset CreatedAtUtc,
+    Guid Version,
+    bool IsReplay);
+
+public sealed record RenamedManagementUnitResult(
+    Guid FieldId,
+    Guid OrganizationId,
+    string DisplayName,
+    string Type,
+    string Status,
+    string SpatialStatus,
+    DateTimeOffset CreatedAtUtc,
+    long Revision,
     Guid Version,
     bool IsReplay);
 
@@ -102,6 +121,18 @@ public static class ProductiveCoreErrors
             StatusCodes.Status400BadRequest,
             "The idempotency key is invalid.");
 
+    public static ProductiveCoreOperationException InvalidFieldVersion() =>
+        new(
+            "productive_core.invalid_field_version",
+            StatusCodes.Status400BadRequest,
+            "A valid strong field version is required.");
+
+    public static ProductiveCoreOperationException FieldDisplayNameUnchanged() =>
+        new(
+            "productive_core.field_display_name_unchanged",
+            StatusCodes.Status400BadRequest,
+            "The field display name must change.");
+
     public static ProductiveCoreOperationException FieldNotAvailable() =>
         new(
             "productive_core.field_not_available",
@@ -121,6 +152,12 @@ public static class ProductiveCoreErrors
             "productive_core.management_unit_capacity_reached",
             StatusCodes.Status409Conflict,
             "The organization has reached the current field capacity.");
+
+    public static ProductiveCoreOperationException FieldVersionStale() =>
+        new(
+            "productive_core.field_version_stale",
+            StatusCodes.Status412PreconditionFailed,
+            "The field changed before this request was applied.");
 
     public static ProductiveCoreOperationException IdempotencyKeyReused() =>
         new(

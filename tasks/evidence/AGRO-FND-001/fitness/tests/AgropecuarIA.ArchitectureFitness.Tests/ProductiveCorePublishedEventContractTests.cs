@@ -17,7 +17,8 @@ public sealed class ProductiveCorePublishedEventContractTests
     [TestMethod]
     public void ScopeSourceAggregateAndVersionDriftAreRejected()
     {
-        RuntimeEventContract created = RuntimeEvents().Single();
+        RuntimeEventContract created = RuntimeEvents().Single(item =>
+            item.Type == ProductiveCoreIntegrationEvents.ManagementUnitCreated.Type);
         RuntimeEventContract[] invalidEvents =
         [
             created with
@@ -68,6 +69,29 @@ public sealed class ProductiveCorePublishedEventContractTests
             missingSchema,
             EvidenceFixture.Boundaries());
 
+        Assert.IsTrue(issues.Any(issue => issue.Code == "runtime-event.schema.missing"));
+    }
+
+    [TestMethod]
+    public void RenameEventScopeAggregateAndSchemaMustRemainReviewed()
+    {
+        RuntimeEventContract renamed = RuntimeEvents().Single(item =>
+            item.Type == ProductiveCoreIntegrationEvents.ManagementUnitDisplayNameChanged.Type);
+        RuntimeEventContract[] invalidEvents = RuntimeEvents()
+            .Select(item => item.Type == renamed.Type
+                ? item with
+                {
+                    Scope = "platform",
+                    AggregateType = "ForeignAggregate",
+                    PayloadSchemaPath = "contracts/unreviewed.json",
+                }
+                : item)
+            .ToArray();
+
+        IReadOnlyList<ValidationIssue> issues = Validate(invalidEvents);
+
+        Assert.IsTrue(issues.Any(issue => issue.Code == "runtime-event.scope.mismatch"));
+        Assert.IsTrue(issues.Any(issue => issue.Code == "runtime-event.aggregate.unowned"));
         Assert.IsTrue(issues.Any(issue => issue.Code == "runtime-event.schema.missing"));
     }
 

@@ -9,6 +9,8 @@ import {
   normalizeFieldDisplayName,
   parseCreatedField,
   parseFieldSummary,
+  parseRenamedField,
+  renameField,
 } from "../../features/fields/field-api";
 
 const organizationId = "1266395e-ec88-481e-9a72-81fa2cc2904a";
@@ -23,13 +25,20 @@ const field = {
   createdAtUtc: "2026-08-18T18:00:00Z",
   version: "5a5ed442-141f-4fd4-a8e8-52598a5d7426",
 } satisfies Record<string, unknown>;
+const renamedVersion = "bb8da0de-af15-42f1-87a6-40583dff5abe";
 
 const fetchMock = vi.fn<typeof fetch>();
 
-function jsonResponse(value: unknown, status = 200): Response {
+function jsonResponse(
+  value: unknown,
+  status = 200,
+  responseHeaders?: HeadersInit,
+): Response {
+  const headers = new Headers(responseHeaders);
+  headers.set("Content-Type", "application/json");
   return new Response(JSON.stringify(value), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers,
   });
 }
 
@@ -91,6 +100,26 @@ describe("field API boundary", () => {
       parseFieldSummary({ ...field, spatialStatus: "configured" }),
     ).toThrow(FieldApiError);
     expect(() => parseCreatedField(field)).toThrow(FieldApiError);
+  });
+
+  it("strictly parses the frozen rename result including revision", () => {
+    const renamed = {
+      ...field,
+      displayName: "Campo Sur",
+      version: renamedVersion,
+      isReplay: false,
+      revision: 2,
+    };
+    expect(parseRenamedField(renamed)).toEqual(renamed);
+    expect(() => parseRenamedField({ ...renamed, revision: 1 })).toThrow(
+      FieldApiError,
+    );
+    expect(() => parseRenamedField({ ...renamed, revision: 2.5 })).toThrow(
+      FieldApiError,
+    );
+    expect(() => parseRenamedField({ ...renamed, unexpected: true })).toThrow(
+      FieldApiError,
+    );
   });
 
   it("rejects a list item attributed to a different organization", async () => {
@@ -161,6 +190,148 @@ describe("field API boundary", () => {
     expect(new Headers(retriedPost?.headers).get("X-CSRF-TOKEN")).toBe("fresh");
   });
 
+  it("sends an exact rename PATCH with CSRF, strong If-Match and idempotency", async () => {
+    const idempotencyKey = "37dd6174317ee878f12c414ef5450449";
+    const renamed = {
+      ...field,
+      displayName: "Campo Sur",
+      version: renamedVersion,
+      isReplay: false,
+      revision: 2,
+    };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ token: "csrf-token" }))
+      .mockResolvedValueOnce(
+        jsonResponse(renamed, 200, { ETag: `"${renamedVersion}"` }),
+      );
+
+    await expect(
+      renameField({
+        organizationId,
+        fieldId,
+        displayName: "Campo Sur",
+        version: String(field.version),
+        idempotencyKey,
+      }),
+    ).resolves.toEqual(renamed);
+
+    const renameCall = fetchMock.mock.calls[1];
+    expect(renameCall?.[0]).toBe(
+      `/api/organizations/${organizationId}/fields/${fieldId}`,
+    );
+    const request = renameCall?.[1];
+    expect(request?.method).toBe("PATCH");
+    const headers = new Headers(request?.headers);
+    expect(headers.get("X-CSRF-TOKEN")).toBe("csrf-token");
+    expect(headers.get("Idempotency-Key")).toBe(idempotencyKey);
+    expect(headers.get("If-Match")).toBe(`"${field.version}"`);
+    const body: unknown = JSON.parse(String(request?.body));
+    expect(body).toEqual({ displayName: "Campo Sur" });
+  });
+
+  it("retries rename antiforgery without changing If-Match or idempotency", async () => {
+    const idempotencyKey = "37dd6174317ee878f12c414ef5450449";
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ token: "stale" }))
+      .mockResolvedValueOnce(
+        jsonResponse({ code: "request.invalid_antiforgery" }, 400),
+      )
+      .mockResolvedValueOnce(jsonResponse({ token: "fresh" }))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            ...field,
+            displayName: "Campo Sur",
+            version: renamedVersion,
+            isReplay: true,
+            revision: 2,
+          },
+          200,
+          { ETag: `"${renamedVersion}"` },
+        ),
+      );
+
+    await renameField({
+      organizationId,
+      fieldId,
+      displayName: "Campo Sur",
+      version: String(field.version),
+      idempotencyKey,
+    });
+
+    for (const callIndex of [1, 3]) {
+      const headers = new Headers(
+        fetchMock.mock.calls[callIndex]?.[1]?.headers,
+      );
+      expect(headers.get("Idempotency-Key")).toBe(idempotencyKey);
+      expect(headers.get("If-Match")).toBe(`"${field.version}"`);
+    }
+    expect(
+      new Headers(fetchMock.mock.calls[3]?.[1]?.headers).get("X-CSRF-TOKEN"),
+    ).toBe("fresh");
+  });
+
+  it("rejects a renamed field attributed to another route resource", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ token: "csrf-token" }))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            ...field,
+            fieldId: "ceb92343-63e6-41da-b338-c70f7d87a41d",
+            displayName: "Campo Sur",
+            version: renamedVersion,
+            isReplay: false,
+            revision: 2,
+          },
+          200,
+          { ETag: `"${renamedVersion}"` },
+        ),
+      );
+
+    await expect(
+      renameField({
+        organizationId,
+        fieldId,
+        displayName: "Campo Sur",
+        version: String(field.version),
+        idempotencyKey: "37dd6174317ee878f12c414ef5450449",
+      }),
+    ).rejects.toMatchObject({ kind: "error", status: 502 });
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["weak", `W/"${renamedVersion}"`],
+    ["mismatched", '"6c55ca79-3aa2-44ab-8f40-5f5803c64e16"'],
+  ])("rejects a %s response ETag", async (_scenario, etag) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ token: "csrf-token" }));
+    const headers = etag === undefined ? undefined : { ETag: etag };
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          ...field,
+          displayName: "Campo Sur",
+          version: renamedVersion,
+          isReplay: false,
+          revision: 2,
+        },
+        200,
+        headers,
+      ),
+    );
+
+    await expect(
+      renameField({
+        organizationId,
+        fieldId,
+        displayName: "Campo Sur",
+        version: String(field.version),
+        idempotencyKey: "37dd6174317ee878f12c414ef5450449",
+      }),
+    ).rejects.toMatchObject({ kind: "error", status: 502 });
+  });
+
   it.each([
     [401, "session.revoked", "signed-out"],
     [403, "authorization.denied", "reauthentication-required"],
@@ -172,6 +343,7 @@ describe("field API boundary", () => {
       "capacity-reached",
     ],
     [409, "idempotency.key_reused", "conflict"],
+    [412, "productive_core.management_unit_version_stale", "stale"],
     [429, "request.rate_limited", "rate-limited"],
     [503, "idempotency.reconciliation_required", "reconciliation-required"],
     [503, "productive_core.unavailable", "service-unavailable"],

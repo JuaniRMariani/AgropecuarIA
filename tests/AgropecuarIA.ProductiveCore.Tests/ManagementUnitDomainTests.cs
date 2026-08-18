@@ -10,6 +10,8 @@ public sealed class ManagementUnitDomainTests
 {
     private static readonly string[] EventPayloadProperties =
         ["organizationId", "managementUnitId", "unitType", "status", "createdAtUtc"];
+    private static readonly string[] RenameEventPayloadProperties =
+        ["organizationId", "managementUnitId", "revision", "changedAtUtc"];
     private static readonly string[] InvalidUnicodeNames =
         ["Campo \uD800", "Campo \uDC00", "Campo\u0085Norte"];
 
@@ -112,5 +114,73 @@ public sealed class ManagementUnitDomainTests
             Guid.NewGuid());
 
         Assert.AreEqual(120, field.DisplayName.EnumerateRunes().Count());
+    }
+
+    [TestMethod]
+    public void RenameNormalizesAndAdvancesRevisionAndVersionExactlyOnce()
+    {
+        Guid originalVersion = Guid.NewGuid();
+        Guid renamedVersion = Guid.NewGuid();
+        ManagementUnit field = new(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Campo Norte",
+            DateTimeOffset.UtcNow,
+            originalVersion);
+
+        field.Rename("  Campo Sur e\u0301lite  ", originalVersion, renamedVersion);
+
+        Assert.AreEqual("Campo Sur élite", field.DisplayName);
+        Assert.AreEqual(2L, field.Revision);
+        Assert.AreEqual(renamedVersion, field.Version);
+    }
+
+    [TestMethod]
+    public void RenameRejectsStaleVersionAndCanonicalNoChangeWithoutEffect()
+    {
+        Guid originalVersion = Guid.NewGuid();
+        ManagementUnit field = new(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Campo Norte",
+            DateTimeOffset.UtcNow,
+            originalVersion);
+
+        Assert.ThrowsExactly<ManagementUnitVersionConflictException>(() =>
+            field.Rename("Campo Sur", Guid.NewGuid(), Guid.NewGuid()));
+        Assert.ThrowsExactly<ManagementUnitNoChangeException>(() =>
+            field.Rename("  Campo Norte  ", originalVersion, Guid.NewGuid()));
+        Assert.AreEqual("Campo Norte", field.DisplayName);
+        Assert.AreEqual(1L, field.Revision);
+        Assert.AreEqual(originalVersion, field.Version);
+    }
+
+    [TestMethod]
+    public void RenameEventContainsNoNameActorOrIdempotencyMaterial()
+    {
+        ProductiveOutboxMessage message =
+            ProductiveOutboxMessage.CreateManagementUnitDisplayNameChanged(
+                Guid.NewGuid(),
+                "correlation-rename",
+                new ManagementUnitDisplayNameChangedIntegrationEventPayload(
+                    Guid.NewGuid(),
+                    Guid.NewGuid(),
+                    2,
+                    DateTimeOffset.UtcNow));
+
+        using JsonDocument payload = JsonDocument.Parse(message.PayloadJson);
+        string[] properties = payload.RootElement
+            .EnumerateObject()
+            .Select(property => property.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        CollectionAssert.AreEquivalent(
+            RenameEventPayloadProperties,
+            properties);
+        Assert.IsFalse(message.PayloadJson.Contains("display", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(message.PayloadJson.Contains("actor", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(message.PayloadJson.Contains("key", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(message.PayloadJson.Contains("digest", StringComparison.OrdinalIgnoreCase));
+        Assert.AreEqual(2L, message.AggregateVersion);
     }
 }

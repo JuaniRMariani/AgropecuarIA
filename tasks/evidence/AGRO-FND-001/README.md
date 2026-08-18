@@ -11,7 +11,7 @@ Evidencia ejecutable R0/R1 que ratifica 15 bounded contexts, ownership de datos,
 - Consumidores dependen de contratos públicos, nunca de tablas. El grafo usa dirección consumidor → proveedor.
 - Cambios compatibles son aditivos y tolerados por N-1. Remover/cambiar tipo, volver un campo required o cerrar un enum es breaking.
 - Eventos duplicados o fuera de orden no cambian estado. El módulo dueño reautoriza antes de evaluar `If-Match`.
-- Todo evento público del runtime sale de un catálogo inmutable y tiene payload schema cerrado. El fitness compara el catálogo Identity de forma bidireccional con `consumer-map.json` y `runtime-map.json`.
+- Todo evento público del runtime sale de un catálogo inmutable y tiene payload schema cerrado. El fitness compara los catálogos Identity y Productive Core de forma bidireccional con `consumer-map.json` y `runtime-map.json`.
 
 ## Verificación
 

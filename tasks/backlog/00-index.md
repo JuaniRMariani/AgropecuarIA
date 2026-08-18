@@ -53,7 +53,7 @@ La columna “plan” contiene release, épica, MoSCoW y tamaño. Las dependenci
 | [AGRO-DIS-007](EPIC-00-discovery-spikes-validacion.md#agro-dis-007) | Fijar capacidad, SLO, equipo, costos y riesgo de conectividad | R0 · EPIC-00 · Must · M | En revisión | mediciones/estimaciones del piloto y disponibilidad de sponsor |
 | [AGRO-FND-001](EPIC-01-fundacion-arquitectura.md#agro-fnd-001) | Ratificar límites modulares y contratos compatibles | R0/R1 · EPIC-01 · Must · M | Completada | AGRO-DIS-003/004; mapa de consumidores |
 | [AGRO-FND-002](EPIC-01-fundacion-arquitectura.md#agro-fnd-002) | Ejecutar mutaciones tenant-safe exactamente una vez | R1 · EPIC-01 · Must · L | En curso | FND-001, tenancy/RLS y política de auditoría |
-| [AGRO-FND-003](EPIC-01-fundacion-arquitectura.md#agro-fnd-003) | Evolucionar datos y contratos con conflicto explícito | R1 · EPIC-01 · Must · M | Propuesto | FND-001 y política de migración |
+| [AGRO-FND-003](EPIC-01-fundacion-arquitectura.md#agro-fnd-003) | Evolucionar datos y contratos con conflicto explícito | R1 · EPIC-01 · Must · M | En curso | FND-001 y política de migración |
 | [AGRO-ID-001](EPIC-02-identidad-tenancy-autorizacion.md#agro-id-001) | Registrar y vincular identidades sin duplicar usuarios | R1 · EPIC-02 · Must · M | En revisión | AGRO-DIS-003 y FND-001 |
 | [AGRO-ID-002](EPIC-02-identidad-tenancy-autorizacion.md#agro-id-002) | Activar passkeys, TOTP y recuperación resistente | R1 · EPIC-02 · Must · M | En curso | ID-001 y política MFA/roles |
 | [AGRO-ID-003](EPIC-02-identidad-tenancy-autorizacion.md#agro-id-003) | Crear organización, invitar y asignar alcance por campo | R1 · EPIC-02 · Must · L | En curso | ID-001, FND-002 y matriz de roles |

@@ -14,6 +14,12 @@ export type CreatedField = FieldSummary &
     isReplay: boolean;
   }>;
 
+export type RenamedField = FieldSummary &
+  Readonly<{
+    isReplay: boolean;
+    revision: number;
+  }>;
+
 export type FieldOrganization = Readonly<{
   organizationId: string;
   organizationName: string;

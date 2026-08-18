@@ -72,7 +72,35 @@ public static class ProductiveCoreEndpoints
                 fieldId,
                 RequestContext(context, session, organizationId),
                 cancellationToken);
+            SetEntityTag(context.Response, result.Version);
             return Results.Ok(ToResponse(result));
+        });
+
+        organizations.MapPatch("/fields/{fieldId:guid}", async (
+            Guid organizationId,
+            Guid fieldId,
+            RenameFieldDraftRequest request,
+            HttpContext context,
+            IAntiforgery antiforgery,
+            ProductiveCoreRenameApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            SetPrivateResponseHeaders(context.Response);
+            await antiforgery.ValidateRequestAsync(context);
+            string idempotencyKey = ReadSingleIdempotencyKey(context.Request.Headers);
+            Guid expectedVersion = ReadStrongVersion(context.Request.Headers);
+            AuthenticatedSession session = AuthenticatedSessionClaims.Read(context.User);
+            RenamedManagementUnitResult renamed = await service.RenameFieldDraftAsync(
+                new RenameFieldDraftCommand(
+                    organizationId,
+                    fieldId,
+                    request.DisplayName,
+                    expectedVersion,
+                    idempotencyKey),
+                RequestContext(context, session, organizationId),
+                cancellationToken);
+            SetEntityTag(context.Response, renamed.Version);
+            return Results.Ok(ToRenamedResponse(renamed));
         });
 
         return endpoints;
@@ -98,11 +126,32 @@ public static class ProductiveCoreEndpoints
         return values[0] ?? string.Empty;
     }
 
+    private static Guid ReadStrongVersion(IHeaderDictionary headers)
+    {
+        if (!headers.TryGetValue("If-Match", out StringValues values) || values.Count != 1)
+        {
+            throw ProductiveCoreErrors.InvalidFieldVersion();
+        }
+
+        string value = values[0] ?? string.Empty;
+        if (value.Length != 38 || value[0] != '"' || value[^1] != '"' ||
+            !Guid.TryParseExact(value[1..^1], "D", out Guid version) ||
+            version == Guid.Empty)
+        {
+            throw ProductiveCoreErrors.InvalidFieldVersion();
+        }
+
+        return version;
+    }
+
     private static void SetPrivateResponseHeaders(HttpResponse response)
     {
         response.Headers.CacheControl = "no-store";
         response.Headers.Pragma = "no-cache";
     }
+
+    private static void SetEntityTag(HttpResponse response, Guid version) =>
+        response.Headers.ETag = $"\"{version:D}\"";
 
     private static FieldResponse ToResponse(ManagementUnitResult field) =>
         new(
@@ -127,7 +176,22 @@ public static class ProductiveCoreEndpoints
             field.Version,
             field.IsReplay);
 
+    private static RenamedFieldResponse ToRenamedResponse(RenamedManagementUnitResult field) =>
+        new(
+            field.FieldId,
+            field.OrganizationId,
+            field.DisplayName,
+            field.Type,
+            field.Status,
+            field.SpatialStatus,
+            field.CreatedAtUtc,
+            field.Revision,
+            field.Version,
+            field.IsReplay);
+
     public sealed record CreateFieldRequest(string DisplayName);
+
+    public sealed record RenameFieldDraftRequest(string DisplayName);
 
     public sealed record FieldResponse(
         Guid FieldId,
@@ -147,6 +211,18 @@ public static class ProductiveCoreEndpoints
         string Status,
         string SpatialStatus,
         DateTimeOffset CreatedAtUtc,
+        Guid Version,
+        bool IsReplay);
+
+    public sealed record RenamedFieldResponse(
+        Guid FieldId,
+        Guid OrganizationId,
+        string DisplayName,
+        string Type,
+        string Status,
+        string SpatialStatus,
+        DateTimeOffset CreatedAtUtc,
+        long Revision,
         Guid Version,
         bool IsReplay);
 }

@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: AgropecuarIA Productive Core API
-  version: 1.0.0
-  description: Tenant-owned productive units. Version 1 creates fields as non-spatial drafts; it does not claim geometry, area, cadastral status or agronomic location.
+  version: 1.1.0
+  description: Tenant-owned productive units. Version 1 creates and renames fields as non-spatial drafts; it does not claim geometry, area, cadastral status or agronomic location.
 paths:
   /api/organizations/{organizationId}/fields:
     get:
@@ -70,11 +70,58 @@ paths:
       responses:
         '200':
           description: Authorized field
+          headers:
+            ETag:
+              description: Strong entity tag backed by the current field version
+              schema: { $ref: '#/components/schemas/StrongFieldETag' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Field' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotAvailable' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    patch:
+      summary: Rename one non-spatial field draft
+      description: The server reauthorizes the owner before replay or resource lookup. A new attempt requires a strong current If-Match value; an authorized replay is resolved before comparing the now-stale resource version.
+      security:
+        - SessionCookie: []
+          AntiforgeryCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - in: path
+          name: fieldId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: header
+          name: If-Match
+          required: true
+          description: Exactly one strong quoted UUID ETag returned by GET detail or a previous successful rename
+          schema: { $ref: '#/components/schemas/StrongFieldETag' }
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 32, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenameFieldRequest' }
+      responses:
+        '200':
+          description: Field renamed, or the authorized result of an identical replay
+          headers:
+            ETag:
+              description: Strong entity tag backed by the resulting field version
+              schema: { $ref: '#/components/schemas/StrongFieldETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RenamedField' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotAvailable' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/Unavailable' }
 components:
@@ -96,7 +143,7 @@ components:
       schema: { type: string, format: uuid }
   responses:
     BadRequest:
-      description: Invalid display name or idempotency key
+      description: Invalid display name, idempotency key, If-Match syntax or unchanged canonical name
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
@@ -115,6 +162,11 @@ components:
       headers:
         Retry-After:
           schema: { type: integer, minimum: 1 }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    PreconditionFailed:
+      description: The authorized field changed after the supplied strong ETag was issued; the current representation is not disclosed in the error
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
@@ -138,6 +190,13 @@ components:
     CreateFieldRequest:
       type: object
       description: displayName trims leading and trailing Unicode White_Space plus U+FEFF, then normalizes to NFC, counts Unicode scalars and rejects controls or lone surrogates.
+      additionalProperties: false
+      required: [displayName]
+      properties:
+        displayName: { type: string, minLength: 2, maxLength: 120 }
+    RenameFieldRequest:
+      type: object
+      description: displayName follows the same Unicode White_Space plus U+FEFF trim, NFC, scalar-count and control/surrogate policy as create.
       additionalProperties: false
       required: [displayName]
       properties:
@@ -169,6 +228,24 @@ components:
         createdAtUtc: { type: string, format: date-time }
         version: { type: string, format: uuid }
         isReplay: { type: boolean }
+    RenamedField:
+      type: object
+      additionalProperties: false
+      required: [fieldId, organizationId, displayName, type, status, spatialStatus, createdAtUtc, revision, version, isReplay]
+      properties:
+        fieldId: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        displayName: { type: string, minLength: 2, maxLength: 120 }
+        type: { type: string, const: field }
+        status: { type: string, const: draft }
+        spatialStatus: { type: string, const: not_configured }
+        createdAtUtc: { type: string, format: date-time }
+        revision: { type: integer, minimum: 2 }
+        version: { type: string, format: uuid }
+        isReplay: { type: boolean }
+    StrongFieldETag:
+      type: string
+      pattern: '^"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"$'
     Problem:
       type: object
       additionalProperties: false

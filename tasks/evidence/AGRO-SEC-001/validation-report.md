@@ -282,3 +282,29 @@ PASS — 6/6.
 ```
 
 `AGRO-SEC-001` permanece `En curso`. El `GO` es solo integrado-local para campos draft no espaciales. Geometría/área/tiles/history, roles no-owner, dispatcher/inbox/worker y delivery externo, DB/backup/secretos administrados, hosting/edge/collector compartidos, CI/provenance, Privacy/Legal y producción permanecen `NO-GO`; ninguna suite local aprueba esas capacidades.
+
+## Refresh actual: RenameFieldDraft con conflicto explícito — 2026-08-18
+
+`RS-011` incorpora el PATCH tenant-scoped de nombre sobre `ManagementUnit field/draft/not_configured`. La operación revalida owner/sesión dentro de PostgreSQL antes de alias, ledger o recurso; exige CSRF, key idempotente e `If-Match` UUID fuerte. Replay autorizado precede el chequeo de versión actual, mientras un intento nuevo stale recibe 412 neutral y no revela el valor vigente.
+
+La migración aplica `FORCE RLS`, grants UPDATE sólo para `DisplayName`, `Revision` y `Version`, y un trigger que impide modificar tipo, estado, tenant o atributos espaciales. Field, ledger/aliases, journal y outbox confirman atómicamente. Fault injection por ledger, journal y outbox demuestra rollback total; el evento `ManagementUnitDisplayNameChanged` omite nombres, actor, sesión y material idempotente. La rotación HMAC overlap/lazy alias/retiro temprano y alias split permanecen fail-closed.
+
+### Gate reproducido
+
+```text
+validate-threat-model.ps1 -SelfTest
+PASS — 56/56 mutations; 14 threats; 7 critical; 7 high; 0 critical without owner/test/gate.
+
+dotnet test --solution AgropecuarIA.slnx --configuration Release --no-build
+PASS — 348/348; 0 failed; 0 skipped.
+
+Productive Core / Architecture Fitness / Vitest / Playwright
+PASS — 56/56 · 135/135 · 153/153 · 6/6.
+
+FND protocol / SEC-002 register / EF model drift
+PASS — 45/45 mutations · 26/26 operations · 3/3 contexts without pending changes.
+```
+
+`AGRO-SEC-001` permanece `En curso`. El GO sigue limitado a runtime local integrado; deploy compartido, secretos administrados, delivery/consumers, restore representativo, edge/collector, Privacy/Legal y producción permanecen `NO-GO`.
+
+La revisión independiente detectó y cerró antes de publicación dos defectos medios: un alias split durante recovery que podía escapar como 500 y un grant UPDATE excesivo sobre rename ledgers. El runtime vigente responde 503 de reconciliación sin elegir ledger, y el rol app sólo posee SELECT/INSERT con UPDATE real denegado `42501`.

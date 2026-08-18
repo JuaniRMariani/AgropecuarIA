@@ -2,10 +2,8 @@ namespace AgropecuarIA.ProductiveCore.Application;
 
 using Microsoft.Extensions.Options;
 
-public sealed class ManagementUnitCreationOptions
+public abstract class ManagementUnitIdempotencyOptions
 {
-    public static string SectionName => "ProductiveCore:ManagementUnitCreation";
-
     public bool Enabled { get; set; }
 
     public string CurrentKeyVersion { get; set; } = string.Empty;
@@ -15,12 +13,46 @@ public sealed class ManagementUnitCreationOptions
     public TimeSpan LeaseLifetime { get; set; } = TimeSpan.FromMinutes(1);
 }
 
+public sealed class ManagementUnitCreationOptions : ManagementUnitIdempotencyOptions
+{
+    public static string SectionName => "ProductiveCore:ManagementUnitCreation";
+}
+
+public sealed class ManagementUnitRenameOptions : ManagementUnitIdempotencyOptions
+{
+    public static string SectionName => "ProductiveCore:ManagementUnitRename";
+}
+
 public sealed class ManagementUnitCreationOptionsValidator : IValidateOptions<ManagementUnitCreationOptions>
 {
     public ValidateOptionsResult Validate(string? name, ManagementUnitCreationOptions options)
     {
         _ = name;
+        return ManagementUnitIdempotencyOptionsValidation.Validate(
+            options,
+            "Management unit creation configuration is invalid.");
+    }
+}
+
+public sealed class ManagementUnitRenameOptionsValidator : IValidateOptions<ManagementUnitRenameOptions>
+{
+    public ValidateOptionsResult Validate(string? name, ManagementUnitRenameOptions options)
+    {
+        _ = name;
+        return ManagementUnitIdempotencyOptionsValidation.Validate(
+            options,
+            "Management unit rename configuration is invalid.");
+    }
+}
+
+internal static class ManagementUnitIdempotencyOptionsValidation
+{
+    public static ValidateOptionsResult Validate(
+        ManagementUnitIdempotencyOptions options,
+        string failureMessage)
+    {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureMessage);
         if (!options.Enabled)
         {
             return ValidateOptionsResult.Success;
@@ -32,7 +64,7 @@ public sealed class ManagementUnitCreationOptionsValidator : IValidateOptions<Ma
             string.IsNullOrWhiteSpace(options.CurrentKeyVersion) ||
             !options.HmacKeys.ContainsKey(options.CurrentKeyVersion))
         {
-            return ValidateOptionsResult.Fail("Management unit creation configuration is invalid.");
+            return ValidateOptionsResult.Fail(failureMessage);
         }
 
         HashSet<string> uniqueKeys = new(StringComparer.Ordinal);
@@ -41,7 +73,7 @@ public sealed class ManagementUnitCreationOptionsValidator : IValidateOptions<Ma
             if (string.IsNullOrWhiteSpace(version) || version.Length > 32 ||
                 string.IsNullOrWhiteSpace(encodedKey))
             {
-                return ValidateOptionsResult.Fail("Management unit creation configuration is invalid.");
+                return ValidateOptionsResult.Fail(failureMessage);
             }
 
             byte[] key;
@@ -51,12 +83,12 @@ public sealed class ManagementUnitCreationOptionsValidator : IValidateOptions<Ma
             }
             catch (FormatException)
             {
-                return ValidateOptionsResult.Fail("Management unit creation configuration is invalid.");
+                return ValidateOptionsResult.Fail(failureMessage);
             }
 
             if (key.Length < 32 || !uniqueKeys.Add(Convert.ToHexString(key)))
             {
-                return ValidateOptionsResult.Fail("Management unit creation configuration is invalid.");
+                return ValidateOptionsResult.Fail(failureMessage);
             }
         }
 

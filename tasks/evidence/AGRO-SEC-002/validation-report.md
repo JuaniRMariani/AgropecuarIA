@@ -56,3 +56,16 @@ El registro vigente cubre exactamente `25/25` operaciones HTTP: las 22 previas d
 - Límite local: no se verifican Auth0, proxy/edge/TLS, Data Protection, limiter distribuido, collector, secrets compartidos, backups ni egress Georef en un ambiente desplegado.
 
 Resultado del refresh: PASS de seguridad integrado-local para este sub-slice. `AGRO-SEC-002` permanece `En curso`.
+
+## Refresh: RenameFieldDraft y control de versión — 2026-08-18
+
+El registro vigente cubre exactamente `26/26` operaciones HTTP y agrega `productive-core.field.rename`. El PATCH exige sesión, CSRF, `Idempotency-Key` e `If-Match` fuerte; tenant, actor, sesión y autorización se derivan del servidor. Owner removido, sesión revocada, tenant ajeno, recurso ausente y contexto incompleto fallan neutralmente antes de lookup/replay.
+
+- PostgreSQL usa `FORCE RLS`, grants UPDATE por columna y trigger de transición; dos escritores con el mismo ETag producen un único rename y el perdedor recibe 412.
+- Replay, mismatch, in-flight, commit incierto, rotación HMAC N/N-1, retiro temprano y alias split están cubiertos sin reejecución ciega.
+- El evento y la telemetría no contienen display name, actor, sesión, key, digest ni payload. El frontend conserva la key ante respuestas ambiguas y revalida ETag/tenant/field desde respuestas `unknown`.
+- Suite raíz `348/348`; Productive Core `56/56`; Architecture Fitness `135/135`; Vitest `153/153`; Playwright `6/6`; FND `45/45`; SEC `56/56`; EF `3/3`; SCA, JSON, parser, secretos y diff-check PASS.
+
+Resultado vigente: PASS integrado-local, sin vulnerabilidades críticas, altas o medias confirmadas. `AGRO-SEC-002` permanece `En curso`; cada nueva mutación, job, export, retrieval o boundary debe agregarse al registro con sus pruebas negativas.
+
+La revisión independiente cerró dos Medium antes del gate final: recuperación de alias split tipada como reconciliación 503 y eliminación del privilegio UPDATE de la app sobre rename ledgers. Los probes PostgreSQL confirman sólo SELECT/INSERT y UPDATE denegado `42501`.

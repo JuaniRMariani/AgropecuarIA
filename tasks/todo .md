@@ -1479,3 +1479,43 @@ Outcome observable: un owner crea `Campo Norte`, recarga, lo ve en una lista y a
 - La revisión independiente cerró cinco hallazgos medios antes de publicar: errores de apertura/commit read tipados como 503, seguridad OpenAPI AND, persistencia idempotente ante respuesta ambigua, capacidad atómica de 100 sin truncamiento y canonicalización Unicode idéntica. Verificó 0 Critical, 0 High y 0 Medium restantes.
 - `AGRO-GIS-002` permanece `En curso`: geometría, área, mapas/tiles, catálogo, edición, delivery y gates de ambiente compartido continúan fuera de este sub-slice.
 - Publicación funcional: `4d4fe70` (`feat(productive-core): create non-spatial field drafts`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`.
+
+## Iteración 30 — AGRO-FND-003 renombrar campo borrador (2026-08-18)
+
+Estado inicial: micro-DoR cerrado con defaults técnicos reversibles; transición `Propuesto → Ready → En curso` únicamente para `RenameFieldDraft`. `AGRO-FND-003` permanece `En curso` y no absorbe backfills masivos, contract migrations, geometría, catálogo, archivo/borrado ni edición de otros campos.
+
+### Plan y decisiones congeladas
+
+- [x] Elegir un consumidor vertical real: renombrar sólo `ManagementUnit field/draft/not_configured` ya autorizado; owner activo, sin step-up adicional.
+- [x] Congelar `PATCH /api/organizations/{organizationId}/fields/{fieldId}` con body cerrado `{displayName}`, cookie, CSRF, `If-Match` fuerte e `Idempotency-Key`; respuesta 200 flat + `isReplay` y ETag nuevo.
+- [x] Ordenar la decisión como authz vigente → replay ligado → recurso/If-Match → mutación. Un replay válido conserva resultado; versión stale nueva responde 412 neutral y nunca aplica last-write-wins.
+- [x] Canonicalizar el nombre con la misma regla CreateField: Unicode `White_Space`+`U+FEFF`, NFC, 2..120 escalares, sin controles ni surrogates aislados; duplicados siguen permitidos.
+- [x] Rotar `Version` UUID y aumentar una revisión monotónica por rename. Journal/outbox no guardan nombre, key, digest, actor ni payload; `ManagementUnitDisplayNameChanged` publica sólo IDs internos, revisión y fecha.
+- [x] Mantener compatibilidad expand N/N-1: revisión con default 1 y tablas/índices aditivos; rollback de aplicación deshabilita PATCH sin revertir el nombre confirmado y ambientes compartidos usan roll-forward.
+
+### Aceptación verificable
+
+- [x] Un owner cambia sólo el nombre, recibe nuevo ETag y list/detail convergen; mismo nombre canónico no crea versión, ledger, journal ni outbox.
+- [x] Dos editores con el mismo ETag dejan un único nombre: uno confirma y el otro recibe 412 sin sobrescribir ni filtrar datos.
+- [x] Mismo key/fingerprint/versión reproduce el resultado; key con nombre o `If-Match` distinto da 409; commit incierto reconcilia o falla cerrado sin repetir el rename.
+- [x] Org B, owner removido, sesión revocada, recurso ausente/ajeno y contexto faltante fallan 404 neutral antes de lookup/replay.
+- [x] Field + ledger/aliases + journal + outbox confirman atómicamente; fault injection por cada sink demuestra rollback total y ETag anterior vigente.
+- [x] PostgreSQL real prueba `FORCE RLS`, grants mínimos, A/B/sin contexto/pool/job, concurrencia EF/Serializable, cancelación y migración clean/N/N-1/rollback/roll-forward.
+- [x] UI ofrece “Editar nombre” en ficha, conserva draft+key ante offline/429/in-progress/503/reauth y ofrece “Recargar y revisar” ante 412; foco, teclado, Axe, 390 px y UUID corto.
+- [x] OpenAPI, schema/event/runtime/consumer maps, SEC-002 y Architecture Fitness fallan ante drift de PATCH, ETag, evento, boundary o test negativo.
+
+### Ownership y gates
+
+- [x] Backend: dominio/aplicación/API/telemetría y tests no-DB, sin editar migración, contratos, Program, web ni evidencia.
+- [x] Database/Security: DbContext, migración, adapter PostgreSQL/RLS/grants y pruebas DB, sin editar API/web/docs.
+- [x] Frontend/QA: cliente/UI/Vitest/Playwright y estados accesibles, sin editar backend/contratos/docs.
+- [x] Principal: contrato compartido, composición/config, eventos/maps/evidencia, integración, gates y Git.
+- [x] Ejecutar restore locked, build Release, MTP raíz/dirigidos, format, EF pending/N-N-1/rollback, pnpm frozen/format/lint/typecheck/Vitest/build, Playwright, FND/SEC/SEC-002, SCA, secrets, UTF-8/JSON y diff-check.
+- [x] Revisión independiente con 0 Critical/High/Medium; mantener `AGRO-FND-003` `En curso`.
+- [ ] Commit/push con `JuaniRMariani <juanirmariani@gmail.com>`; verificar author/committer y no desplegar.
+
+### Review final
+
+- PASS integrado-local: restore locked; build Release 9 proyectos `0/0`; MTP raíz `348/348`; Productive Core/PostgreSQL `56/56`; no-DB/API `37/37`; Architecture Fitness `135/135`; Vitest `153/153`; Playwright oficial `6/6`; FND `45/45`; SEC `56/56`; SEC-002 `26/26`; EF `3/3`, format, SCA, secretos, UTF-8/JSON, parser y diff-check verdes.
+- La revisión independiente cerró dos Medium antes de publicar: alias split en recovery ahora falla 503 `idempotency.reconciliation_required`, y el rol app sólo conserva SELECT/INSERT sobre rename ledgers con UPDATE real denegado `42501`. Resultado final: 0 Critical, 0 High y 0 Medium pendientes.
+- `AGRO-FND-003` permanece `En curso`; backfills/contract migrations/restore general y otros agregados siguen fuera. No hubo deploy.

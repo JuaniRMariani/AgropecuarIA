@@ -789,6 +789,7 @@ input:focus-visible {
 .field-organizations,
 .field-organization,
 .field-form,
+.field-rename-form,
 .field-list,
 .field-list__copy,
 .field-chips,
@@ -827,9 +828,11 @@ input:focus-visible {
 }
 
 .field-organization__heading,
+.field-detail__heading,
 .field-list li,
 .field-resource__state,
-.field-detail__actions {
+.field-detail__actions,
+.field-rename-form__actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -837,6 +840,10 @@ input:focus-visible {
 }
 
 .field-organization__heading {
+  align-items: flex-start;
+}
+
+.field-detail__heading {
   align-items: flex-start;
 }
 
@@ -865,10 +872,24 @@ input:focus-visible {
   background: #f7faf3;
 }
 
-.field-form__actions {
+.field-rename-form {
+  padding: 14px;
+  gap: 12px;
+  border: 1px solid #b7c7b2;
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.field-form__actions,
+.field-rename-form__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.field-rename-current {
+  color: #526255;
+  font-weight: 650;
 }
 
 .field-action-state,
@@ -889,6 +910,12 @@ input:focus-visible {
 .field-resource__state p {
   margin: 0;
   line-height: 1.5;
+}
+
+.field-action-state--success {
+  color: #245a37;
+  border-color: #a9c8ae;
+  background: #edf7ee;
 }
 
 .field-resource__state {
@@ -1883,18 +1910,22 @@ input:focus-visible {
   }
 
   .field-organization__heading,
+  .field-detail__heading,
   .field-list li,
   .field-resource__state,
-  .field-detail__actions {
+  .field-detail__actions,
+  .field-rename-form__actions {
     align-items: stretch;
     flex-direction: column;
   }
 
   .field-organization__heading .button,
+  .field-detail__heading .button,
   .field-list li .button,
   .field-resource__state .button,
   .field-detail__actions .button,
   .field-form__actions .button,
+  .field-rename-form__actions .button,
   .field-detail > .button {
     width: 100%;
   }

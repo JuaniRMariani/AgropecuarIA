@@ -3,10 +3,13 @@ using AgropecuarIA.ProductiveCore.Application;
 using AgropecuarIA.ProductiveCore.Delivery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Primitives;
+using System.Reflection;
 using System.Threading.RateLimiting;
 
 namespace AgropecuarIA.ProductiveCore.Tests;
@@ -23,6 +26,7 @@ public sealed class ProductiveCoreEndpointContractTests
         builder.Services.AddAuthorization();
         builder.Services.AddAntiforgery();
         builder.Services.AddScoped<ProductiveCoreApplicationService>(_ => null!);
+        builder.Services.AddScoped<ProductiveCoreRenameApplicationService>(_ => null!);
         builder.Services.AddRateLimiter(options => options.AddPolicy(
             ProductiveCoreEndpoints.RateLimitPolicy,
             _ => RateLimitPartition.GetNoLimiter("test")));
@@ -36,10 +40,11 @@ public sealed class ProductiveCoreEndpointContractTests
             .ThenBy(endpoint => string.Join(',', endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? []))
             .ToArray();
 
-        Assert.AreEqual(3, routes.Length);
+        Assert.AreEqual(4, routes.Length);
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields", "GET");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields", "POST");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}", "GET");
+        AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}", "PATCH");
         Assert.IsTrue(routes.All(route => route.Metadata.GetMetadata<IAuthorizeData>() is not null));
         Assert.IsTrue(routes.All(route =>
             route.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName ==
@@ -71,9 +76,21 @@ public sealed class ProductiveCoreEndpointContractTests
             detail.CreatedAtUtc,
             detail.Version,
             true);
+        ProductiveCoreEndpoints.RenamedFieldResponse renamed = new(
+            detail.FieldId,
+            detail.OrganizationId,
+            "Campo Sur",
+            detail.Type,
+            detail.Status,
+            detail.SpatialStatus,
+            detail.CreatedAtUtc,
+            2,
+            Guid.NewGuid(),
+            false);
 
         using JsonDocument detailJson = JsonDocument.Parse(JsonSerializer.Serialize(detail, WebJson));
         using JsonDocument createdJson = JsonDocument.Parse(JsonSerializer.Serialize(created, WebJson));
+        using JsonDocument renamedJson = JsonDocument.Parse(JsonSerializer.Serialize(renamed, WebJson));
 
         Assert.AreEqual(fieldId, detailJson.RootElement.GetProperty("fieldId").GetGuid());
         Assert.AreEqual("field", detailJson.RootElement.GetProperty("type").GetString());
@@ -81,6 +98,55 @@ public sealed class ProductiveCoreEndpointContractTests
         Assert.IsFalse(detailJson.RootElement.TryGetProperty("isReplay", out _));
         Assert.IsTrue(createdJson.RootElement.GetProperty("isReplay").GetBoolean());
         Assert.AreEqual(9, createdJson.RootElement.EnumerateObject().Count());
+        Assert.AreEqual(2, renamedJson.RootElement.GetProperty("revision").GetInt64());
+        Assert.IsFalse(renamedJson.RootElement.GetProperty("isReplay").GetBoolean());
+        Assert.AreEqual(10, renamedJson.RootElement.EnumerateObject().Count());
+    }
+
+    [TestMethod]
+    public void RenameAcceptsOnlyASingleStrongQuotedUuidEntityTag()
+    {
+        Guid version = Guid.NewGuid();
+        var validHeaders = new HeaderDictionary
+        {
+            ["If-Match"] = $"\"{version:D}\"",
+        };
+
+        Assert.AreEqual(version, InvokeStrongVersionParser(validHeaders));
+
+        foreach (string invalidValue in new[]
+        {
+            version.ToString("D"),
+            $"W/\"{version:D}\"",
+            "\"00000000-0000-0000-0000-000000000000\"",
+            "\"not-a-uuid\"",
+        })
+        {
+            var invalidHeaders = new HeaderDictionary { ["If-Match"] = invalidValue };
+            AssertInvalidFieldVersion(invalidHeaders);
+        }
+
+        var repeatedHeaders = new HeaderDictionary
+        {
+            ["If-Match"] = new StringValues([$"\"{version:D}\"", $"\"{Guid.NewGuid():D}\""]),
+        };
+        AssertInvalidFieldVersion(repeatedHeaders);
+        AssertInvalidFieldVersion(new HeaderDictionary());
+    }
+
+    [TestMethod]
+    public void DetailAndRenameEntityTagWriterUsesAStrongUuidVersion()
+    {
+        Guid version = Guid.NewGuid();
+        var context = new DefaultHttpContext();
+        MethodInfo writer = typeof(ProductiveCoreEndpoints).GetMethod(
+            "SetEntityTag",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("The entity-tag writer is missing.");
+
+        _ = writer.Invoke(null, [context.Response, version]);
+
+        Assert.AreEqual($"\"{version:D}\"", context.Response.Headers.ETag.ToString());
     }
 
     private static void AssertRoute(
@@ -103,5 +169,26 @@ public sealed class ProductiveCoreEndpointContractTests
                     " [",
                     string.Join(',', route.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? []),
                     "]"))));
+    }
+
+    private static Guid InvokeStrongVersionParser(IHeaderDictionary headers)
+    {
+        MethodInfo parser = typeof(ProductiveCoreEndpoints).GetMethod(
+            "ReadStrongVersion",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("The strong entity-tag parser is missing.");
+        return (Guid)(parser.Invoke(null, [headers])
+            ?? throw new InvalidOperationException("The strong entity-tag parser returned no version."));
+    }
+
+    private static void AssertInvalidFieldVersion(IHeaderDictionary headers)
+    {
+        TargetInvocationException wrapper = Assert.ThrowsExactly<TargetInvocationException>(
+            () => InvokeStrongVersionParser(headers));
+        ProductiveCoreOperationException error =
+            wrapper.InnerException as ProductiveCoreOperationException
+            ?? throw new InvalidOperationException("The endpoint returned an unexpected error.");
+        Assert.AreEqual("productive_core.invalid_field_version", error.Code);
+        Assert.AreEqual(400, error.StatusCode);
     }
 }

@@ -639,7 +639,7 @@ function Test-R1Evidence {
     $productiveSurface = @($SurfaceRegister.surfaces | Where-Object { $_.id -eq 'RS-011' }) | Select-Object -First 1
     if ($null -ne $productiveSurface) {
         $productiveEvidence = "$($productiveSurface.control) $($productiveSurface.gate)"
-        foreach ($requiredToken in @('non-spatial', 'FORCE RLS', 'SECURITY DEFINER', 'active owner membership', 'before lookup/replay', 'atomic', 'append-only', 'excludes field name', 'NO-GO')) {
+        foreach ($requiredToken in @('non-spatial', 'FORCE RLS', 'SECURITY DEFINER', 'active owner membership', 'before lookup/replay', 'atomic', 'append-only', 'strong If-Match', 'neutral 412', 'ManagementUnitDisplayNameChanged excludes both names', 'excludes field name', 'NO-GO')) {
             if (-not $productiveEvidence.Contains($requiredToken)) {
                 $errors.Add("RS-011 must keep its local Productive Core boundary explicit: $requiredToken.")
             }
@@ -824,6 +824,9 @@ function Invoke-MutationTests {
         'authorize-before-replay' = 'before lookup/replay'
         'atomic-write' = 'atomic'
         'append-only-journal' = 'append-only'
+        'strong-if-match' = 'strong If-Match'
+        'neutral-stale-conflict' = 'neutral 412'
+        'rename-event-redaction' = 'ManagementUnitDisplayNameChanged excludes both names'
         'telemetry-redaction' = 'excludes field name'
         'external-no-go' = 'NO-GO'
     }

@@ -22,6 +22,8 @@ public sealed class ProductiveCoreDatabaseSecurityTests
 {
     private const string IdentityBeforeAuthorizationPort =
         "20260818153846_AddOrganizationOwnerRemoval";
+    private const string ProductiveInitialMigration =
+        "20260818170935_InitializeProductiveCore";
 
     [TestMethod]
     public async Task MigrationRequiresIdentityPortAndSupportsEmptyToNAndEphemeralRollbackForward()
@@ -87,6 +89,92 @@ public sealed class ProductiveCoreDatabaseSecurityTests
     }
 
     [TestMethod]
+    public async Task RenameMigrationSupportsNMinusOneWriterRollbackAndForward()
+    {
+        PostgreSqlTestServer postgresql = RequirePostgreSql();
+        string connectionString = await postgresql.CreateDatabaseAsync(CancellationToken.None);
+        try
+        {
+            await using var identity = CreateIdentityDbContext(connectionString);
+            await identity.Database.MigrateAsync();
+            await using var productive = CreateProductiveDbContext(connectionString);
+            IMigrator migrator = productive.Database.GetService<IMigrator>();
+            await migrator.MigrateAsync(ProductiveInitialMigration);
+
+            Guid organizationId = Guid.NewGuid();
+            Guid fieldId = Guid.NewGuid();
+            await ExecuteAsync(
+                connectionString,
+                """
+                INSERT INTO productive_core.management_units
+                    ("Id", "OrganizationId", "DisplayName", "UnitType", "Status",
+                     "SpatialStatus", "CreatedAtUtc", "Version")
+                VALUES (@field, @organization, 'Legacy writer field', 'field', 'draft',
+                        'not_configured', now(), gen_random_uuid())
+                """,
+                ("field", fieldId),
+                ("organization", organizationId));
+
+            await migrator.MigrateAsync();
+            await using (var latest = new NpgsqlConnection(connectionString))
+            {
+                await latest.OpenAsync();
+                Assert.IsTrue(await ScalarBooleanAsync(
+                    latest,
+                    $"""
+                    SELECT to_regclass('productive_core.management_unit_rename_ledgers')
+                               IS NOT NULL
+                       AND to_regclass('productive_core.management_unit_rename_key_aliases')
+                               IS NOT NULL
+                       AND EXISTS (
+                           SELECT 1
+                           FROM productive_core.management_units
+                           WHERE "Id" = '{fieldId:D}'::uuid
+                             AND "Revision" = 1)
+                    """));
+            }
+
+            await ExecuteAsync(
+                connectionString,
+                """
+                INSERT INTO productive_core.management_units
+                    ("Id", "OrganizationId", "DisplayName", "UnitType", "Status",
+                     "SpatialStatus", "CreatedAtUtc", "Version")
+                VALUES (gen_random_uuid(), @organization, 'N minus one after expand',
+                        'field', 'draft', 'not_configured', now(), gen_random_uuid())
+                """,
+                ("organization", organizationId));
+
+            await migrator.MigrateAsync(ProductiveInitialMigration);
+            await using (var rolledBack = new NpgsqlConnection(connectionString))
+            {
+                await rolledBack.OpenAsync();
+                Assert.IsTrue(await ScalarBooleanAsync(
+                    rolledBack,
+                    """
+                    SELECT to_regclass('productive_core.management_unit_rename_ledgers')
+                               IS NULL
+                       AND NOT EXISTS (
+                           SELECT 1
+                           FROM information_schema.columns
+                           WHERE table_schema = 'productive_core'
+                             AND table_name = 'management_units'
+                             AND column_name = 'Revision')
+                       AND (SELECT count(*) = 2
+                            FROM productive_core.management_units)
+                    """));
+            }
+
+            await migrator.MigrateAsync();
+            Assert.IsEmpty(await productive.Database.GetPendingMigrationsAsync());
+        }
+        finally
+        {
+            await postgresql.DropDatabaseAsync(connectionString, CancellationToken.None);
+        }
+    }
+
+    [TestMethod]
     public async Task RolesGrantsRlsAndLiveAuthorizationIsolateTenantsAndResetPoolContext()
     {
         await using DatabaseScenario scenario = await DatabaseScenario.CreateAsync();
@@ -114,6 +202,8 @@ public sealed class ProductiveCoreDatabaseSecurityTests
               AND c.relname IN ('management_units',
                                 'management_unit_creation_ledgers',
                                 'management_unit_creation_key_aliases',
+                                'management_unit_rename_ledgers',
+                                'management_unit_rename_key_aliases',
                                 'journal_entries', 'outbox_messages')
             """));
         Assert.IsFalse(await ScalarBooleanAsync(
@@ -127,6 +217,28 @@ public sealed class ProductiveCoreDatabaseSecurityTests
                                        'identity.memberships', 'SELECT')
                 OR has_table_privilege('agro_productive_app',
                                        'identity.organizations', 'SELECT')
+                OR has_table_privilege('agro_productive_job',
+                                       'productive_core.management_unit_rename_ledgers', 'SELECT')
+                OR has_table_privilege('agro_productive_job',
+                                       'productive_core.management_unit_rename_key_aliases', 'SELECT')
+                OR has_table_privilege('agro_productive_app',
+                                       'productive_core.management_unit_rename_ledgers', 'UPDATE')
+                OR has_column_privilege('agro_productive_app',
+                                        'productive_core.management_units',
+                                        'CreatedAtUtc', 'UPDATE')
+            """));
+        Assert.IsTrue(await ScalarBooleanAsync(
+            admin,
+            """
+            SELECT has_column_privilege('agro_productive_app',
+                                        'productive_core.management_units',
+                                        'DisplayName', 'UPDATE')
+               AND has_column_privilege('agro_productive_app',
+                                        'productive_core.management_units',
+                                        'Revision', 'UPDATE')
+               AND has_column_privilege('agro_productive_app',
+                                        'productive_core.management_units',
+                                        'Version', 'UPDATE')
             """));
 
         var poolBuilder = new NpgsqlConnectionStringBuilder(scenario.RuntimeConnectionString)
@@ -171,6 +283,10 @@ public sealed class ProductiveCoreDatabaseSecurityTests
                 pooled,
                 noContext,
                 "SELECT count(*) FROM productive_core.management_units"));
+            Assert.AreEqual(0L, await ScalarInt64Async(
+                pooled,
+                noContext,
+                "SELECT count(*) FROM productive_core.management_unit_rename_ledgers"));
             await noContext.RollbackAsync();
         }
 
@@ -236,8 +352,534 @@ public sealed class ProductiveCoreDatabaseSecurityTests
                 pooled,
                 removed,
                 "SELECT count(*) FROM productive_core.management_units"));
+            Assert.AreEqual(0L, await ScalarInt64Async(
+                pooled,
+                removed,
+                "SELECT count(*) FROM productive_core.management_unit_rename_ledgers"));
             await removed.RollbackAsync();
         }
+    }
+
+    [TestMethod]
+    public async Task RenameFieldDraftCommitsOneAtomicSliceAndReplaysTheSameResult()
+    {
+        await using DatabaseScenario scenario = await DatabaseScenario.CreateAsync();
+        Guid fieldId = Guid.NewGuid();
+        Guid expectedVersion = Guid.NewGuid();
+        await InsertFieldWithVersionAsync(
+            scenario,
+            fieldId,
+            expectedVersion,
+            "Original field");
+
+        ProductiveCoreRenameApplicationService service = CreateRenameApplicationService(
+            new PostgresProductiveCoreUnitOfWorkFactory(
+                new TestProductiveDbContextFactory(scenario.RuntimeConnectionString)));
+        var context = new ProductiveRequestContext(
+            "rename-atomic",
+            scenario.FirstActorId,
+            scenario.FirstSessionId,
+            scenario.FirstOrganizationId);
+        var command = new RenameFieldDraftCommand(
+            scenario.FirstOrganizationId,
+            fieldId,
+            "Renamed field",
+            expectedVersion,
+            new string('r', 32));
+
+        RenamedManagementUnitResult renamed = await service.RenameFieldDraftAsync(
+            command,
+            context,
+            CancellationToken.None);
+        RenamedManagementUnitResult replay = await service.RenameFieldDraftAsync(
+            command,
+            context,
+            CancellationToken.None);
+
+        Assert.IsFalse(renamed.IsReplay);
+        Assert.IsTrue(replay.IsReplay);
+        Assert.AreEqual(2L, renamed.Revision);
+        Assert.AreEqual(renamed.Version, replay.Version);
+        Assert.AreEqual(renamed.DisplayName, replay.DisplayName);
+
+        await using var admin = new NpgsqlConnection(scenario.ConnectionString);
+        await admin.OpenAsync();
+        Assert.IsTrue(await ScalarBooleanAsync(
+            admin,
+            """
+            SELECT (SELECT count(*) = 1
+                    FROM productive_core.management_units
+                    WHERE "DisplayName" = 'Renamed field' AND "Revision" = 2)
+               AND (SELECT count(*) = 1
+                    FROM productive_core.management_unit_rename_ledgers)
+               AND (SELECT count(*) = 1
+                    FROM productive_core.management_unit_rename_key_aliases)
+               AND (SELECT count(*) = 1
+                    FROM productive_core.journal_entries
+                    WHERE "Action" = 'management_unit_display_name_changed')
+               AND (SELECT count(*) = 1
+                    FROM productive_core.outbox_messages
+                    WHERE "EventType" = 'ManagementUnitDisplayNameChanged'
+                      AND "AggregateVersion" = 2)
+            """));
+
+        await using (var deniedUpdate = new NpgsqlConnection(scenario.RuntimeConnectionString))
+        {
+            await deniedUpdate.OpenAsync();
+            await using NpgsqlTransaction transaction = await BeginAuthorizedAsync(
+                deniedUpdate,
+                scenario.FirstActorId,
+                scenario.FirstOrganizationId,
+                scenario.FirstSessionId,
+                scenario.FirstAuthorizationVersion);
+            PostgresException denied = await Assert.ThrowsExactlyAsync<PostgresException>(
+                async () =>
+                {
+                    await using var update = new NpgsqlCommand(
+                        """
+                        UPDATE productive_core.management_unit_rename_ledgers
+                        SET "State" = "State"
+                        WHERE "OrganizationId" = @organization
+                        """,
+                        deniedUpdate,
+                        transaction);
+                    update.Parameters.AddWithValue(
+                        "organization",
+                        scenario.FirstOrganizationId);
+                    await update.ExecuteNonQueryAsync();
+                });
+            Assert.AreEqual(PostgresErrorCodes.InsufficientPrivilege, denied.SqlState);
+            await transaction.RollbackAsync();
+        }
+
+        await using (var foreign = new NpgsqlConnection(scenario.RuntimeConnectionString))
+        {
+            await foreign.OpenAsync();
+            await using NpgsqlTransaction transaction = await BeginAuthorizedAsync(
+                foreign,
+                scenario.SecondActorId,
+                scenario.SecondOrganizationId,
+                scenario.SecondSessionId,
+                scenario.SecondAuthorizationVersion);
+            Assert.AreEqual(0L, await ScalarInt64Async(
+                foreign,
+                transaction,
+                "SELECT count(*) FROM productive_core.management_unit_rename_ledgers"));
+            await transaction.RollbackAsync();
+        }
+
+        var poolBuilder = new NpgsqlConnectionStringBuilder(scenario.RuntimeConnectionString)
+        {
+            Pooling = true,
+            MinPoolSize = 1,
+            MaxPoolSize = 1,
+            ApplicationName = $"productive-rename-pool-{Guid.NewGuid():N}",
+        };
+        await using (var authorized = new NpgsqlConnection(poolBuilder.ConnectionString))
+        {
+            await authorized.OpenAsync();
+            await using NpgsqlTransaction transaction = await BeginAuthorizedAsync(
+                authorized,
+                scenario.FirstActorId,
+                scenario.FirstOrganizationId,
+                scenario.FirstSessionId,
+                scenario.FirstAuthorizationVersion);
+            Assert.AreEqual(1L, await ScalarInt64Async(
+                authorized,
+                transaction,
+                "SELECT count(*) FROM productive_core.management_unit_rename_ledgers"));
+            await transaction.CommitAsync();
+        }
+
+        await using (var noContext = new NpgsqlConnection(poolBuilder.ConnectionString))
+        {
+            await noContext.OpenAsync();
+            await using NpgsqlTransaction transaction = await noContext.BeginTransactionAsync();
+            await SetRoleAsync(noContext, transaction, "agro_productive_app");
+            Assert.AreEqual(0L, await ScalarInt64Async(
+                noContext,
+                transaction,
+                "SELECT count(*) FROM productive_core.management_unit_rename_ledgers"));
+            await transaction.RollbackAsync();
+        }
+
+        await ExecuteAsync(
+            scenario.ConnectionString,
+            """
+            UPDATE identity.memberships
+            SET "Status" = 'removed', "RemovedAtUtc" = now(),
+                "RemovedByUserId" = @actor,
+                "SecurityVersion" = "SecurityVersion" + 1,
+                "Version" = gen_random_uuid()
+            WHERE "OrganizationId" = @organization AND "UserId" = @actor
+            """,
+            ("actor", scenario.FirstActorId),
+            ("organization", scenario.FirstOrganizationId));
+        ProductiveCoreOperationException removed =
+            await Assert.ThrowsExactlyAsync<ProductiveCoreOperationException>(() =>
+                service.RenameFieldDraftAsync(command, context, CancellationToken.None));
+        Assert.AreEqual("productive_core.field_not_available", removed.Code);
+    }
+
+    [TestMethod]
+    public async Task ConcurrentRenameWithTheSameExpectedVersionCommitsOnceAndReturns412()
+    {
+        await using DatabaseScenario scenario = await DatabaseScenario.CreateAsync();
+        Guid fieldId = Guid.NewGuid();
+        Guid expectedVersion = Guid.NewGuid();
+        await InsertFieldWithVersionAsync(
+            scenario,
+            fieldId,
+            expectedVersion,
+            "Concurrent field");
+        ProductiveCoreRenameApplicationService service = CreateRenameApplicationService(
+            new PostgresProductiveCoreUnitOfWorkFactory(
+                new TestProductiveDbContextFactory(scenario.RuntimeConnectionString)));
+        var context = new ProductiveRequestContext(
+            "rename-race",
+            scenario.FirstActorId,
+            scenario.FirstSessionId,
+            scenario.FirstOrganizationId);
+
+        RenameAttempt[] attempts = await Task.WhenAll(
+            AttemptRenameAsync(
+                service,
+                new RenameFieldDraftCommand(
+                    scenario.FirstOrganizationId,
+                    fieldId,
+                    "Concurrent winner one",
+                    expectedVersion,
+                    new string('a', 32)),
+                context),
+            AttemptRenameAsync(
+                service,
+                new RenameFieldDraftCommand(
+                    scenario.FirstOrganizationId,
+                    fieldId,
+                    "Concurrent winner two",
+                    expectedVersion,
+                    new string('b', 32)),
+                context));
+
+        Assert.AreEqual(1, attempts.Count(attempt => attempt.Renamed));
+        RenameAttempt stale = attempts.Single(attempt => !attempt.Renamed);
+        Assert.AreEqual("productive_core.field_version_stale", stale.ErrorCode);
+        Assert.AreEqual(412, stale.StatusCode);
+
+        await using var admin = new NpgsqlConnection(scenario.ConnectionString);
+        await admin.OpenAsync();
+        Assert.IsTrue(await ScalarBooleanAsync(
+            admin,
+            """
+            SELECT (SELECT count(*) = 1
+                    FROM productive_core.management_units
+                    WHERE "Revision" = 2)
+               AND (SELECT count(*) = 1
+                    FROM productive_core.management_unit_rename_ledgers)
+               AND (SELECT count(*) = 1
+                    FROM productive_core.journal_entries)
+               AND (SELECT count(*) = 1
+                    FROM productive_core.outbox_messages)
+            """));
+    }
+
+    [TestMethod]
+    public async Task RenameKeyRotationFailsClosedThenLazilyAddsAliasAndSupportsV2OnlyReplay()
+    {
+        await using DatabaseScenario scenario = await DatabaseScenario.CreateAsync();
+        Guid fieldId = Guid.NewGuid();
+        Guid expectedVersion = Guid.NewGuid();
+        await InsertFieldWithVersionAsync(
+            scenario,
+            fieldId,
+            expectedVersion,
+            "Rotation field");
+        var factory = new PostgresProductiveCoreUnitOfWorkFactory(
+            new TestProductiveDbContextFactory(scenario.RuntimeConnectionString));
+        var context = new ProductiveRequestContext(
+            "rename-key-rotation",
+            scenario.FirstActorId,
+            scenario.FirstSessionId,
+            scenario.FirstOrganizationId);
+        var command = new RenameFieldDraftCommand(
+            scenario.FirstOrganizationId,
+            fieldId,
+            "Rotated field",
+            expectedVersion,
+            new string('k', 32));
+        ProductiveCoreRenameApplicationService v1 = CreateRenameApplicationService(
+            factory,
+            "v1");
+        RenamedManagementUnitResult original = await v1.RenameFieldDraftAsync(
+            command,
+            context,
+            CancellationToken.None);
+
+        ProductiveCoreRenameApplicationService v2OnlyBeforeAlias =
+            CreateRenameApplicationService(factory, "v2");
+        ProductiveCoreOperationException retiredEarly =
+            await Assert.ThrowsExactlyAsync<ProductiveCoreOperationException>(() =>
+                v2OnlyBeforeAlias.RenameFieldDraftAsync(
+                    command,
+                    context,
+                    CancellationToken.None));
+        Assert.AreEqual("productive_core.management_unit_unavailable", retiredEarly.Code);
+        Assert.AreEqual(503, retiredEarly.StatusCode);
+
+        ProductiveCoreRenameApplicationService overlap = CreateRenameApplicationService(
+            factory,
+            "v1",
+            "v2");
+        RenamedManagementUnitResult overlapReplay = await overlap.RenameFieldDraftAsync(
+            command,
+            context,
+            CancellationToken.None);
+        ProductiveCoreRenameApplicationService v2Only = CreateRenameApplicationService(
+            factory,
+            "v2");
+        RenamedManagementUnitResult v2Replay = await v2Only.RenameFieldDraftAsync(
+            command,
+            context,
+            CancellationToken.None);
+
+        Assert.IsTrue(overlapReplay.IsReplay);
+        Assert.IsTrue(v2Replay.IsReplay);
+        Assert.AreEqual(original.Version, overlapReplay.Version);
+        Assert.AreEqual(original.Version, v2Replay.Version);
+
+        await using var admin = new NpgsqlConnection(scenario.ConnectionString);
+        await admin.OpenAsync();
+        Assert.IsTrue(await ScalarBooleanAsync(
+            admin,
+            """
+            SELECT (SELECT count(*) = 1
+                    FROM productive_core.management_unit_rename_ledgers)
+               AND (SELECT count(*) = 2
+                    FROM productive_core.management_unit_rename_key_aliases)
+               AND (SELECT count(DISTINCT "KeyVersion") = 2
+                    FROM productive_core.management_unit_rename_key_aliases)
+               AND (SELECT count(DISTINCT "LedgerId") = 1
+                    FROM productive_core.management_unit_rename_key_aliases)
+            """));
+
+        await using NpgsqlTransaction splitAttempt = await admin.BeginTransactionAsync();
+        PostgresException split = await Assert.ThrowsExactlyAsync<PostgresException>(
+            async () =>
+            {
+                await using var splitCommand = new NpgsqlCommand(
+                    """
+                    INSERT INTO productive_core.management_unit_rename_ledgers
+                        ("Id", "OrganizationId", "ScopeKind", "Namespace", "Operation",
+                         "ContractVersion", "CanonicalizationVersion", "ActorUserId",
+                         "SessionId", "AuthorizationVersion", "ManagementUnitId",
+                         "ExpectedVersion", "RequestFingerprint", "State",
+                         "ResultDisplayName", "ResultVersion", "ResultRevision",
+                         "LeaseOwner", "FenceToken", "LeaseUntilUtc", "StartedAtUtc",
+                         "CompletedAtUtc", "Version")
+                    VALUES (@ledger, @organization, 'tenant', 'management_unit',
+                            'rename_field', 1, 1, @actor, @session, @authorization,
+                            @field, @expected, decode(repeat('72', 32), 'hex'),
+                            'succeeded', 'Split attempt', @result, 2, gen_random_uuid(),
+                            1, now() + interval '1 minute', now(), now(), gen_random_uuid());
+                    INSERT INTO productive_core.management_unit_rename_key_aliases
+                        ("Id", "LedgerId", "OrganizationId", "ScopeKind", "Namespace",
+                         "Operation", "KeyVersion", "KeyDigest", "CreatedAtUtc")
+                    SELECT gen_random_uuid(), @ledger, @organization, 'tenant',
+                           'management_unit', 'rename_field', "KeyVersion", "KeyDigest", now()
+                    FROM productive_core.management_unit_rename_key_aliases
+                    WHERE "OrganizationId" = @organization AND "KeyVersion" = 'v2';
+                    """,
+                    admin,
+                    splitAttempt);
+                splitCommand.Parameters.AddWithValue("ledger", Guid.NewGuid());
+                splitCommand.Parameters.AddWithValue("organization", scenario.FirstOrganizationId);
+                splitCommand.Parameters.AddWithValue("actor", scenario.FirstActorId);
+                splitCommand.Parameters.AddWithValue("session", scenario.FirstSessionId);
+                splitCommand.Parameters.AddWithValue(
+                    "authorization",
+                    scenario.FirstAuthorizationVersion);
+                splitCommand.Parameters.AddWithValue("field", fieldId);
+                splitCommand.Parameters.AddWithValue("expected", expectedVersion);
+                splitCommand.Parameters.AddWithValue("result", original.Version);
+                await splitCommand.ExecuteNonQueryAsync();
+            });
+        Assert.AreEqual(PostgresErrorCodes.UniqueViolation, split.SqlState);
+        await splitAttempt.RollbackAsync();
+    }
+
+    [TestMethod]
+    [DataRow("management_units")]
+    [DataRow("management_unit_rename_ledgers")]
+    [DataRow("management_unit_rename_key_aliases")]
+    [DataRow("journal_entries")]
+    [DataRow("outbox_messages")]
+    public async Task RenameFieldDraftRollsBackTheEntireSliceWhenAnyCriticalWriteFails(
+        string failingTable)
+    {
+        if (failingTable is not (
+            "management_units" or
+            "management_unit_rename_ledgers" or
+            "management_unit_rename_key_aliases" or
+            "journal_entries" or
+            "outbox_messages"))
+        {
+            throw new ArgumentOutOfRangeException(nameof(failingTable));
+        }
+
+        await using DatabaseScenario scenario = await DatabaseScenario.CreateAsync();
+        Guid fieldId = Guid.NewGuid();
+        Guid expectedVersion = Guid.NewGuid();
+        await InsertFieldWithVersionAsync(
+            scenario,
+            fieldId,
+            expectedVersion,
+            "Rollback field");
+        string triggerName = $"test_fail_rename_{failingTable}";
+        string triggerEvent = failingTable == "management_units" ? "UPDATE" : "INSERT";
+        await ExecuteAsync(
+            scenario.ConnectionString,
+            $"""
+            CREATE FUNCTION productive_core.{triggerName}()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $function$
+            BEGIN
+                RAISE EXCEPTION 'Productive rename test fault at {failingTable}';
+            END;
+            $function$;
+            CREATE TRIGGER {triggerName}
+            BEFORE {triggerEvent} ON productive_core.{failingTable}
+            FOR EACH ROW EXECUTE FUNCTION productive_core.{triggerName}();
+            """);
+
+        ProductiveCoreRenameApplicationService service = CreateRenameApplicationService(
+            new PostgresProductiveCoreUnitOfWorkFactory(
+                new TestProductiveDbContextFactory(scenario.RuntimeConnectionString)));
+        var context = new ProductiveRequestContext(
+            $"rename-fault-{failingTable}",
+            scenario.FirstActorId,
+            scenario.FirstSessionId,
+            scenario.FirstOrganizationId);
+        ProductiveCoreOperationException failure =
+            await Assert.ThrowsExactlyAsync<ProductiveCoreOperationException>(() =>
+                service.RenameFieldDraftAsync(
+                    new RenameFieldDraftCommand(
+                        scenario.FirstOrganizationId,
+                        fieldId,
+                        "Must roll back",
+                        expectedVersion,
+                        new string(failingTable[0], 32)),
+                    context,
+                    CancellationToken.None));
+        Assert.AreEqual("productive_core.management_unit_unavailable", failure.Code);
+
+        await using var admin = new NpgsqlConnection(scenario.ConnectionString);
+        await admin.OpenAsync();
+        Assert.IsTrue(await ScalarBooleanAsync(
+            admin,
+            $"""
+            SELECT (SELECT count(*) = 1
+                    FROM productive_core.management_units
+                    WHERE "DisplayName" = 'Rollback field'
+                      AND "Revision" = 1
+                      AND "Version" = '{expectedVersion:D}'::uuid)
+               AND (SELECT count(*) = 0
+                    FROM productive_core.management_unit_rename_ledgers)
+               AND (SELECT count(*) = 0
+                    FROM productive_core.management_unit_rename_key_aliases)
+               AND (SELECT count(*) = 0 FROM productive_core.journal_entries)
+               AND (SELECT count(*) = 0 FROM productive_core.outbox_messages)
+            """));
+    }
+
+    [TestMethod]
+    public async Task CancelledRenameRollsBackAndPoolReuseHasNoTenantContext()
+    {
+        await using DatabaseScenario scenario = await DatabaseScenario.CreateAsync();
+        Guid fieldId = Guid.NewGuid();
+        Guid expectedVersion = Guid.NewGuid();
+        await InsertFieldWithVersionAsync(
+            scenario,
+            fieldId,
+            expectedVersion,
+            "Cancellation field");
+        await ExecuteAsync(
+            scenario.ConnectionString,
+            """
+            CREATE FUNCTION productive_core.test_delay_rename_ledger()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $function$
+            BEGIN
+                PERFORM pg_sleep(10);
+                RETURN NEW;
+            END;
+            $function$;
+            CREATE TRIGGER test_delay_rename_ledger
+            BEFORE INSERT ON productive_core.management_unit_rename_ledgers
+            FOR EACH ROW EXECUTE FUNCTION productive_core.test_delay_rename_ledger();
+            """);
+        var poolBuilder = new NpgsqlConnectionStringBuilder(scenario.RuntimeConnectionString)
+        {
+            Pooling = true,
+            MinPoolSize = 1,
+            MaxPoolSize = 1,
+            ApplicationName = $"productive-rename-cancel-{Guid.NewGuid():N}",
+        };
+        ProductiveCoreRenameApplicationService service = CreateRenameApplicationService(
+            new PostgresProductiveCoreUnitOfWorkFactory(
+                new TestProductiveDbContextFactory(poolBuilder.ConnectionString)));
+        var context = new ProductiveRequestContext(
+            "rename-cancel",
+            scenario.FirstActorId,
+            scenario.FirstSessionId,
+            scenario.FirstOrganizationId);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            service.RenameFieldDraftAsync(
+                new RenameFieldDraftCommand(
+                    scenario.FirstOrganizationId,
+                    fieldId,
+                    "Cancelled rename",
+                    expectedVersion,
+                    new string('c', 32)),
+                context,
+                cancellation.Token));
+
+        await using (var reused = new NpgsqlConnection(poolBuilder.ConnectionString))
+        {
+            await reused.OpenAsync();
+            await using NpgsqlTransaction transaction = await reused.BeginTransactionAsync();
+            await SetRoleAsync(reused, transaction, "agro_productive_app");
+            Assert.AreEqual(0L, await ScalarInt64Async(
+                reused,
+                transaction,
+                "SELECT count(*) FROM productive_core.management_units"));
+            Assert.AreEqual(0L, await ScalarInt64Async(
+                reused,
+                transaction,
+                "SELECT count(*) FROM productive_core.management_unit_rename_ledgers"));
+            await transaction.RollbackAsync();
+        }
+
+        await using var admin = new NpgsqlConnection(scenario.ConnectionString);
+        await admin.OpenAsync();
+        Assert.IsTrue(await ScalarBooleanAsync(
+            admin,
+            $"""
+            SELECT (SELECT count(*) = 1
+                    FROM productive_core.management_units
+                    WHERE "DisplayName" = 'Cancellation field'
+                      AND "Revision" = 1
+                      AND "Version" = '{expectedVersion:D}'::uuid)
+               AND (SELECT count(*) = 0
+                    FROM productive_core.management_unit_rename_ledgers)
+               AND (SELECT count(*) = 0
+                    FROM productive_core.management_unit_rename_key_aliases)
+               AND (SELECT count(*) = 0 FROM productive_core.journal_entries)
+               AND (SELECT count(*) = 0 FROM productive_core.outbox_messages)
+            """));
     }
 
     [TestMethod]
@@ -696,6 +1338,92 @@ public sealed class ProductiveCoreDatabaseSecurityTests
                 },
             }));
     }
+
+    private static ProductiveCoreRenameApplicationService CreateRenameApplicationService(
+        IProductiveCoreUnitOfWorkFactory factory,
+        params string[] keyVersions)
+    {
+        if (keyVersions.Length == 0)
+        {
+            keyVersions = ["v1"];
+        }
+
+        ServiceProvider metrics = new ServiceCollection()
+            .AddMetrics()
+            .BuildServiceProvider();
+        return new ProductiveCoreRenameApplicationService(
+            factory,
+            new ProductiveCoreTelemetry(
+                metrics.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()),
+            TimeProvider.System,
+            Options.Create(new ManagementUnitRenameOptions
+            {
+                Enabled = true,
+                CurrentKeyVersion = keyVersions[^1],
+                HmacKeys = keyVersions.ToDictionary(
+                    version => version,
+                    version => Convert.ToBase64String(RenameTestKey(version)),
+                    StringComparer.Ordinal),
+            }));
+    }
+
+    private static byte[] RenameTestKey(string version) =>
+        version switch
+        {
+            "v1" => Enumerable.Range(1, 32).Select(value => (byte)value).ToArray(),
+            "v2" => Enumerable.Range(101, 32).Select(value => (byte)value).ToArray(),
+            _ => throw new ArgumentOutOfRangeException(nameof(version)),
+        };
+
+    private static async Task InsertFieldWithVersionAsync(
+        DatabaseScenario scenario,
+        Guid fieldId,
+        Guid version,
+        string displayName)
+    {
+        await using var connection = new NpgsqlConnection(scenario.RuntimeConnectionString);
+        await connection.OpenAsync();
+        await using NpgsqlTransaction transaction = await BeginAuthorizedAsync(
+            connection,
+            scenario.FirstActorId,
+            scenario.FirstOrganizationId,
+            scenario.FirstSessionId,
+            scenario.FirstAuthorizationVersion);
+        await using var command = new NpgsqlCommand(
+            """
+            INSERT INTO productive_core.management_units
+                ("Id", "OrganizationId", "DisplayName", "UnitType", "Status",
+                 "SpatialStatus", "CreatedAtUtc", "Version")
+            VALUES (@field, @organization, @displayName, 'field', 'draft',
+                    'not_configured', now(), @version)
+            """,
+            connection,
+            transaction);
+        command.Parameters.AddWithValue("field", fieldId);
+        command.Parameters.AddWithValue("organization", scenario.FirstOrganizationId);
+        command.Parameters.AddWithValue("displayName", displayName);
+        command.Parameters.AddWithValue("version", version);
+        Assert.AreEqual(1, await command.ExecuteNonQueryAsync());
+        await transaction.CommitAsync();
+    }
+
+    private static async Task<RenameAttempt> AttemptRenameAsync(
+        ProductiveCoreRenameApplicationService service,
+        RenameFieldDraftCommand command,
+        ProductiveRequestContext requestContext)
+    {
+        try
+        {
+            await service.RenameFieldDraftAsync(command, requestContext, CancellationToken.None);
+            return new RenameAttempt(true, null, null);
+        }
+        catch (ProductiveCoreOperationException exception)
+        {
+            return new RenameAttempt(false, exception.Code, exception.StatusCode);
+        }
+    }
+
+    private sealed record RenameAttempt(bool Renamed, string? ErrorCode, int? StatusCode);
 
     private static async Task<CreateAttempt> AttemptCreateAsync(
         ProductiveCoreApplicationService service,

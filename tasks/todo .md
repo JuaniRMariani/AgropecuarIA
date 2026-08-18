@@ -1696,7 +1696,7 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - [x] Seleccionar por unanimidad `OwnerFieldDeepLinkV1` como único GO frontend-only; Archive, residuos ID-004 y Productive/Catalog permanecen NO-GO.
 - [x] Congelar contrato y aceptación antes de editar runtime; registrar NO-GO de los demás candidatos.
 - [x] Implementar con ownership disjunto, gates completos y revisión independiente.
-- [ ] Publicar con identidad local `JuaniRMariani`, verificar el remoto y no hacer deploy.
+- [x] Publicar con identidad local `JuaniRMariani`, verificar el remoto y no hacer deploy.
 
 ### Micro-DoR y aceptación congelada
 
@@ -1715,4 +1715,4 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - Implementación frontend-only: locator corto canónico, resolución contra la lista autorizada del tenant activo, history/guards/foco y requests detail ligados a organización/campo/generación. No cambió backend, OpenAPI, DB, grants/RLS, eventos, telemetría ni retención.
 - Gates finales: build Release 9 proyectos `0/0`; raíz MTP `381/381`; EF `3/3`; Vitest `252/252`; Playwright oficial `12/12`; FND `45/45`; SEC `56/56`; format/lint/typecheck/Next build/SCA/UTF-8/secrets/diff `PASS`.
 - Revisión independiente final: `PASS`, 0 Critical, 0 High, 0 Medium y 0 Low abiertos. Se cerraron antes de publicar la pérdida de foco por popstate, el reemplazo del éxito de creación, la carrera detail A→B con prefijo compartido y UUID completos en atributos DOM.
-- Publicación funcional: pendiente del commit/push con `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.
+- Publicación funcional: `6956c43` (`feat(frontend): add field detail deep links`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.

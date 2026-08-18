@@ -53,3 +53,4 @@ Estado: `PASS` para `OwnerWorkspaceShellV1` y `OwnerFieldDeepLinkV1` integrado-l
 - Revisión independiente: `PASS`, 0 Critical, 0 High, 0 Medium y 0 Low abiertos.
 - Antes del cierre se corrigieron la pérdida de foco en popstate, el reemplazo prematuro del éxito de creación, una carrera de detail A→B con el mismo prefijo y UUID completos usados en atributos DOM.
 - El cambio es frontend-only: no modifica backend, OpenAPI, DB, grants/RLS, eventos, telemetría ni retención. No hubo deploy.
+- Publicación funcional: `6956c43` (`feat(frontend): add field detail deep links`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`.

@@ -10,4 +10,9 @@ Artefactos:
 - `validation-report.md`: gates reproducidos y revisión independiente.
 - `apps/web/features/workspace/`: resolver y shell owner.
 
-Publicación funcional: `0a170e0` (`feat(frontend): add owner workspace shell`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.
+Publicaciones funcionales en `origin/main`, ambas con author y committer `JuaniRMariani <juanirmariani@gmail.com>`:
+
+- `0a170e0` — `feat(frontend): add owner workspace shell`.
+- `6956c43` — `feat(frontend): add field detail deep links`.
+
+No hubo deploy.

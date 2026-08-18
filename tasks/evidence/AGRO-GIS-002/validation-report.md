@@ -2,6 +2,8 @@
 
 Estado: `PASS` integrado-local. `AGRO-GIS-002` permanece `En curso`.
 
+Publicación funcional: `4d4fe70` en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.
+
 ## Alcance demostrado
 
 - POST/GET list/GET detail tenant-scoped.

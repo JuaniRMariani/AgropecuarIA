@@ -1464,7 +1464,7 @@ Outcome observable: un owner crea `Campo Norte`, recarga, lo ve en una lista y a
 - [x] Frontend/QA: tipos/cliente/UI, Vitest y Playwright bajo ownership exclusivo.
 - [x] Ejecutar restore locked, build Release, MTP raíz/dirigidos, format, EF pending/N-N-1/rollback, pnpm frozen/format/lint/typecheck/Vitest/build, Playwright, FND/SEC/SEC-002, SCA, secrets, UTF-8/JSON y diff-check.
 - [x] Revisión independiente sin hallazgos críticos/altos/medios; mantener `AGRO-GIS-002` `En curso`.
-- [ ] Commit/push con `JuaniRMariani <juanirmariani@gmail.com>`; verificar author/committer y no desplegar.
+- [x] Commit/push con `JuaniRMariani <juanirmariani@gmail.com>`; author y committer verificados, sin deploy (`4d4fe70`).
 
 ### Baseline
 
@@ -1478,3 +1478,4 @@ Outcome observable: un owner crea `Campo Norte`, recarga, lo ve en una lista y a
 - PASS integrado-local: restore locked; build Release 9 proyectos `0/0`; MTP raíz `308/308`; Productive Core/PostgreSQL `30/30`; Architecture Fitness `121/121`; Vitest `130/130`; Playwright oficial `6/6`; FND `45/45`; SEC `53/53`; SEC-002 `25/25`; EF `3/3`, format, SCA, secretos, UTF-8/JSON y diff-check verdes.
 - La revisión independiente cerró cinco hallazgos medios antes de publicar: errores de apertura/commit read tipados como 503, seguridad OpenAPI AND, persistencia idempotente ante respuesta ambigua, capacidad atómica de 100 sin truncamiento y canonicalización Unicode idéntica. Verificó 0 Critical, 0 High y 0 Medium restantes.
 - `AGRO-GIS-002` permanece `En curso`: geometría, área, mapas/tiles, catálogo, edición, delivery y gates de ambiente compartido continúan fuera de este sub-slice.
+- Publicación funcional: `4d4fe70` (`feat(productive-core): create non-spatial field drafts`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`.

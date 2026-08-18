@@ -12,6 +12,9 @@ import type {
   IdentitySession,
   LinkedIdentity,
   OrganizationCreationState,
+  OrganizationOwnerMembershipSummary,
+  OwnerMembershipActionState,
+  OwnerMembershipResourceState,
   OwnerInvitationAcceptanceState,
   OwnerInvitationActionState,
   OwnerInvitationResourceState,
@@ -47,6 +50,15 @@ type IdentityViewProps = Readonly<{
   onResumeOwnerManagement: () => void;
   onAcceptOwnerInvitation: () => void;
   onReauthenticateOwnerInvitation: () => void;
+  ownerMemberships: Readonly<Record<string, OwnerMembershipResourceState>>;
+  ownerMembershipAction: OwnerMembershipActionState;
+  onBeginOwnerRemoval: (membership: OrganizationOwnerMembershipSummary) => void;
+  onCancelOwnerRemoval: () => void;
+  onConfirmOwnerRemoval: () => void;
+  onRefreshOwnerMemberships: (organizationId: string) => void;
+  onRetryOwnerRemoval: () => void;
+  onResumeOwnerRemoval: () => void;
+  onDismissOwnerRemoval: () => void;
 }>;
 
 const CONNECTION_LABELS = {
@@ -545,6 +557,288 @@ function formatInvitationDate(value: string): string {
   }).format(new Date(value));
 }
 
+function OwnerMembershipManagement({
+  session,
+  resources,
+  action,
+  onBeginRemoval,
+  onCancelRemoval,
+  onConfirmRemoval,
+  onRefresh,
+  onRetryRemoval,
+  onResumeRemoval,
+  onDismissRemoval,
+}: Readonly<{
+  session: IdentitySession;
+  resources: IdentityViewProps["ownerMemberships"];
+  action: IdentityViewProps["ownerMembershipAction"];
+  onBeginRemoval: IdentityViewProps["onBeginOwnerRemoval"];
+  onCancelRemoval: IdentityViewProps["onCancelOwnerRemoval"];
+  onConfirmRemoval: IdentityViewProps["onConfirmOwnerRemoval"];
+  onRefresh: IdentityViewProps["onRefreshOwnerMemberships"];
+  onRetryRemoval: IdentityViewProps["onRetryOwnerRemoval"];
+  onResumeRemoval: IdentityViewProps["onResumeOwnerRemoval"];
+  onDismissRemoval: IdentityViewProps["onDismissOwnerRemoval"];
+}>) {
+  const titleId = useId();
+  const confirmationTitleId = useId();
+  const confirmationDescriptionId = useId();
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const previousAction = useRef(action.kind);
+  const ownerOrganizations = session.memberships.filter(
+    (membership) => membership.role.toLowerCase() === "owner",
+  );
+
+  useEffect(() => {
+    const previous = previousAction.current;
+    previousAction.current = action.kind;
+    if (action.kind === "confirming") {
+      cancelRef.current?.focus();
+    } else if (action.kind === "removed") {
+      titleRef.current?.focus();
+    } else if (action.kind === "idle" && previous === "confirming") {
+      triggerRef.current?.focus();
+    }
+  }, [action.kind]);
+
+  if (ownerOrganizations.length === 0) {
+    return null;
+  }
+
+  const retryable =
+    action.kind === "offline" ||
+    action.kind === "service-unavailable" ||
+    action.kind === "rate-limited" ||
+    action.kind === "error";
+  const dismissible =
+    action.kind === "last-owner" ||
+    action.kind === "stale" ||
+    action.kind === "unavailable" ||
+    action.kind === "conflict" ||
+    action.kind === "removed";
+
+  return (
+    <section
+      aria-labelledby={titleId}
+      className="owner-membership-management identity-card"
+    >
+      <div className="section-heading">
+        <div>
+          <p className="section-kicker">Acceso a organizaciones</p>
+          <h2 id={titleId} ref={titleRef} tabIndex={-1}>
+            Co-owners
+          </h2>
+          <p>
+            Revisá quién puede administrar cada organización. Los cambios de
+            acceso requieren una verificación reforzada.
+          </p>
+        </div>
+      </div>
+
+      <div aria-live="polite" className="owner-membership-action">
+        {action.kind === "removing" ? (
+          <div className="inline-notice" role="status">
+            <Spinner />
+            <p>Quitando acceso de forma segura…</p>
+          </div>
+        ) : null}
+        {action.kind === "reauthentication-required" ? (
+          <div className="inline-notice inline-notice--warning" role="status">
+            <p>{action.message}</p>
+            <button
+              className="button button--secondary"
+              onClick={onResumeRemoval}
+              type="button"
+            >
+              Verificar con MFA y continuar
+            </button>
+          </div>
+        ) : null}
+        {retryable ? (
+          <div className="inline-notice inline-notice--warning" role="alert">
+            <p>{action.message}</p>
+            <button
+              className="button button--secondary"
+              onClick={onRetryRemoval}
+              type="button"
+            >
+              Reintentar
+            </button>
+          </div>
+        ) : null}
+        {dismissible ? (
+          <div
+            className={`inline-notice ${action.kind === "removed" ? "inline-notice--success" : "inline-notice--warning"}`}
+            role={action.kind === "removed" ? "status" : "alert"}
+          >
+            <p>{action.message}</p>
+            <button
+              className="button button--quiet"
+              onClick={onDismissRemoval}
+              type="button"
+            >
+              Cerrar aviso
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="owner-membership-organizations">
+        {ownerOrganizations.map((organization) => {
+          const state = resources[organization.organizationId] ?? {
+            kind: "idle",
+          };
+          const busy =
+            state.kind === "loading" ||
+            (action.kind === "removing" &&
+              action.organizationId === organization.organizationId);
+          return (
+            <article
+              aria-busy={busy}
+              className="owner-membership-organization"
+              key={organization.organizationId}
+            >
+              <div className="owner-membership-organization__heading">
+                <div>
+                  <h3>{organization.organizationName}</h3>
+                  <p>Owners activos con acceso a esta organización.</p>
+                </div>
+                <button
+                  aria-label={`Actualizar co-owners de ${organization.organizationName}`}
+                  className="button button--quiet"
+                  disabled={busy}
+                  onClick={() => onRefresh(organization.organizationId)}
+                  type="button"
+                >
+                  Actualizar
+                </button>
+              </div>
+
+              {state.kind === "idle" || state.kind === "loading" ? (
+                <div className="owner-membership-state" role="status">
+                  <Spinner /> Cargando co-owners
+                </div>
+              ) : null}
+              {state.kind !== "idle" &&
+              state.kind !== "loading" &&
+              state.kind !== "ready" ? (
+                <div className="owner-membership-state" role="alert">
+                  <p>
+                    {state.kind === "offline"
+                      ? "Estás sin conexión. No pudimos cargar los co-owners."
+                      : state.kind === "unavailable"
+                        ? "La organización o tu acceso ya no están disponibles."
+                        : state.kind === "service-unavailable"
+                          ? "El servicio de co-owners no está disponible temporalmente."
+                          : "No pudimos cargar los co-owners."}
+                  </p>
+                  <button
+                    className="button button--secondary"
+                    onClick={() => onRefresh(organization.organizationId)}
+                    type="button"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              ) : null}
+              {state.kind === "ready" ? (
+                <>
+                  <ul className="owner-membership-list">
+                    {state.items.map((membership) => (
+                      <li
+                        className="owner-membership-row"
+                        key={membership.membershipId}
+                      >
+                        <div className="owner-membership-meta">
+                          <strong>{membership.displayName}</strong>
+                          <span>
+                            Membresía {formatShortId(membership.membershipId)}
+                          </span>
+                          <div className="owner-membership-chips">
+                            <span className="role-chip">Owner</span>
+                            {membership.isCurrentUser ? (
+                              <span className="current-user-chip">Vos</span>
+                            ) : null}
+                          </div>
+                        </div>
+                        {!membership.isCurrentUser ? (
+                          <button
+                            aria-label={`Quitar acceso a ${membership.displayName}`}
+                            className="button button--danger-quiet"
+                            disabled={busy}
+                            onClick={(event) => {
+                              triggerRef.current = event.currentTarget;
+                              onBeginRemoval(membership);
+                            }}
+                            type="button"
+                          >
+                            Quitar acceso
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                  {state.items.length === 1 ? (
+                    <p className="owner-membership-guidance">
+                      Sos el único owner activo. Invitá a otra persona antes de
+                      modificar el acceso de owners.
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+
+              {action.kind === "confirming" &&
+              action.membership.organizationId ===
+                organization.organizationId ? (
+                <div
+                  aria-describedby={confirmationDescriptionId}
+                  aria-labelledby={confirmationTitleId}
+                  className="owner-removal-confirmation"
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      onCancelRemoval();
+                    }
+                  }}
+                  role="alertdialog"
+                >
+                  <h4 id={confirmationTitleId}>
+                    ¿Quitar acceso a {action.membership.displayName}?
+                  </h4>
+                  <p id={confirmationDescriptionId}>
+                    Perderá el acceso a {organization.organizationName} y sus
+                    invitaciones pendientes se revocarán. Esta acción no se
+                    puede deshacer desde esta pantalla.
+                  </p>
+                  <div className="owner-membership-actions">
+                    <button
+                      className="button button--secondary"
+                      onClick={onCancelRemoval}
+                      ref={cancelRef}
+                      type="button"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      className="button button--danger-quiet"
+                      onClick={onConfirmRemoval}
+                      type="button"
+                    >
+                      Quitar acceso a {action.membership.displayName}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function OwnerInvitationManagement({
   session,
   resources,
@@ -853,6 +1147,15 @@ function CurrentSession({
   onRefreshOwnerInvitations,
   onCopyOwnerInvitation,
   onResumeOwnerManagement,
+  ownerMemberships,
+  ownerMembershipAction,
+  onBeginOwnerRemoval,
+  onCancelOwnerRemoval,
+  onConfirmOwnerRemoval,
+  onRefreshOwnerMemberships,
+  onRetryOwnerRemoval,
+  onResumeOwnerRemoval,
+  onDismissOwnerRemoval,
 }: Readonly<{
   capabilities: IdentityCapabilities;
   session: IdentitySession;
@@ -876,6 +1179,15 @@ function CurrentSession({
   onRefreshOwnerInvitations: IdentityViewProps["onRefreshOwnerInvitations"];
   onCopyOwnerInvitation: IdentityViewProps["onCopyOwnerInvitation"];
   onResumeOwnerManagement: IdentityViewProps["onResumeOwnerManagement"];
+  ownerMemberships: IdentityViewProps["ownerMemberships"];
+  ownerMembershipAction: IdentityViewProps["ownerMembershipAction"];
+  onBeginOwnerRemoval: IdentityViewProps["onBeginOwnerRemoval"];
+  onCancelOwnerRemoval: IdentityViewProps["onCancelOwnerRemoval"];
+  onConfirmOwnerRemoval: IdentityViewProps["onConfirmOwnerRemoval"];
+  onRefreshOwnerMemberships: IdentityViewProps["onRefreshOwnerMemberships"];
+  onRetryOwnerRemoval: IdentityViewProps["onRetryOwnerRemoval"];
+  onResumeOwnerRemoval: IdentityViewProps["onResumeOwnerRemoval"];
+  onDismissOwnerRemoval: IdentityViewProps["onDismissOwnerRemoval"];
 }>) {
   const connections = new Set(
     session.identities.map((identity) => identity.connection),
@@ -998,6 +1310,19 @@ function CurrentSession({
         session={session}
       />
 
+      <OwnerMembershipManagement
+        action={ownerMembershipAction}
+        onBeginRemoval={onBeginOwnerRemoval}
+        onCancelRemoval={onCancelOwnerRemoval}
+        onConfirmRemoval={onConfirmOwnerRemoval}
+        onDismissRemoval={onDismissOwnerRemoval}
+        onRefresh={onRefreshOwnerMemberships}
+        onResumeRemoval={onResumeOwnerRemoval}
+        onRetryRemoval={onRetryOwnerRemoval}
+        resources={ownerMemberships}
+        session={session}
+      />
+
       {capabilities.ownerInvitationsAvailable ? (
         <OwnerInvitationManagement
           action={ownerInvitationAction}
@@ -1109,6 +1434,15 @@ export function IdentityView({
   onResumeOwnerManagement,
   onAcceptOwnerInvitation,
   onReauthenticateOwnerInvitation,
+  ownerMemberships,
+  ownerMembershipAction,
+  onBeginOwnerRemoval,
+  onCancelOwnerRemoval,
+  onConfirmOwnerRemoval,
+  onRefreshOwnerMemberships,
+  onRetryOwnerRemoval,
+  onResumeOwnerRemoval,
+  onDismissOwnerRemoval,
 }: IdentityViewProps) {
   return (
     <main className="identity-page">
@@ -1193,6 +1527,9 @@ export function IdentityView({
                 onRevoke={onRevoke}
                 onUnlink={onUnlink}
                 onCancelOrganization={onCancelOrganization}
+                onBeginOwnerRemoval={onBeginOwnerRemoval}
+                onCancelOwnerRemoval={onCancelOwnerRemoval}
+                onConfirmOwnerRemoval={onConfirmOwnerRemoval}
                 onCreateOrganization={onCreateOrganization}
                 onOrganizationDraftChange={onOrganizationDraftChange}
                 onReauthenticateOrganization={onReauthenticateOrganization}
@@ -1200,6 +1537,10 @@ export function IdentityView({
                 onCopyOwnerInvitation={onCopyOwnerInvitation}
                 onCreateOwnerInvitation={onCreateOwnerInvitation}
                 onRefreshOwnerInvitations={onRefreshOwnerInvitations}
+                onRefreshOwnerMemberships={onRefreshOwnerMemberships}
+                onRetryOwnerRemoval={onRetryOwnerRemoval}
+                onResumeOwnerRemoval={onResumeOwnerRemoval}
+                onDismissOwnerRemoval={onDismissOwnerRemoval}
                 onResumeOwnerManagement={onResumeOwnerManagement}
                 onRevokeOwnerInvitation={onRevokeOwnerInvitation}
                 organizationCreation={organizationCreation}
@@ -1207,6 +1548,8 @@ export function IdentityView({
                 organizationFormOpen={organizationFormOpen}
                 ownerInvitationAction={ownerInvitationAction}
                 ownerInvitations={ownerInvitations}
+                ownerMembershipAction={ownerMembershipAction}
+                ownerMemberships={ownerMemberships}
                 pendingAction={pendingAction}
                 session={resource.session}
               />

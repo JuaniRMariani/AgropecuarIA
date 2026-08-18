@@ -9,6 +9,8 @@ import type {
   LinkStart,
   LinkedIdentity,
   MembershipSummary,
+  OrganizationOwnerMembershipSummary,
+  RemovedOrganizationOwnerMembership,
   OwnerInvitationStatus,
   OwnerInvitationSummary,
   StepUpAttempt,
@@ -384,6 +386,71 @@ export function parseCreatedOwnerInvitation(
   return { invitation, token, isReplay };
 }
 
+function parseOwnerMembershipBase(value: unknown): {
+  membershipId: string;
+  organizationId: string;
+  displayName: string;
+  isCurrentUser: boolean;
+  role: "owner";
+  authorizationVersion: number;
+  createdAtUtc: string;
+  version: string;
+} & Readonly<Record<"removedAtUtc" | "status", unknown>> {
+  if (!isRecord(value) || value.role !== "owner") {
+    throw new IdentityApiError("error", 502);
+  }
+  return {
+    membershipId: requiredUuid(value, "membershipId"),
+    organizationId: requiredUuid(value, "organizationId"),
+    displayName: requiredString(value, "displayName"),
+    isCurrentUser: requiredBoolean(value, "isCurrentUser"),
+    role: "owner",
+    authorizationVersion: requiredPositiveInteger(
+      value,
+      "authorizationVersion",
+    ),
+    createdAtUtc: requiredDateTime(value, "createdAtUtc"),
+    version: requiredUuid(value, "version"),
+    removedAtUtc: value.removedAtUtc,
+    status: value.status,
+  };
+}
+
+export function parseOrganizationOwnerMembershipSummary(
+  value: unknown,
+): OrganizationOwnerMembershipSummary {
+  const membership = parseOwnerMembershipBase(value);
+  if (membership.status !== "active" || membership.removedAtUtc !== null) {
+    throw new IdentityApiError("error", 502);
+  }
+  return { ...membership, status: "active", removedAtUtc: null };
+}
+
+export function parseOrganizationOwnerMembershipList(
+  value: unknown,
+): readonly OrganizationOwnerMembershipSummary[] {
+  if (!Array.isArray(value)) {
+    throw new IdentityApiError("error", 502);
+  }
+  return value.map(parseOrganizationOwnerMembershipSummary);
+}
+
+export function parseRemovedOrganizationOwnerMembership(
+  value: unknown,
+): RemovedOrganizationOwnerMembership {
+  const membership = parseOwnerMembershipBase(value);
+  if (!isRecord(value) || membership.status !== "removed") {
+    throw new IdentityApiError("error", 502);
+  }
+  const removedAtUtc = requiredDateTime(value, "removedAtUtc");
+  return {
+    ...membership,
+    status: "removed",
+    removedAtUtc,
+    isReplay: requiredBoolean(value, "isReplay"),
+  };
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const text = await response.text();
   if (text.length === 0) {
@@ -688,6 +755,37 @@ export async function listOwnerInvitations(
       signal,
     ),
   );
+}
+
+export async function listOrganizationOwnerMemberships(
+  organizationId: string,
+  signal?: AbortSignal,
+): Promise<readonly OrganizationOwnerMembershipSummary[]> {
+  return parseOrganizationOwnerMembershipList(
+    await getJson(
+      `/api/identity/organizations/${encodeURIComponent(organizationId)}/owner-memberships`,
+      signal,
+    ),
+  );
+}
+
+export async function removeOrganizationOwnerMembership(
+  organizationId: string,
+  membershipId: string,
+  version: string,
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<RemovedOrganizationOwnerMembership> {
+  const response = await mutate(
+    `/api/identity/organizations/${encodeURIComponent(organizationId)}/owner-memberships/${encodeURIComponent(membershipId)}`,
+    "DELETE",
+    undefined,
+    signal,
+    true,
+    idempotencyKey,
+    version,
+  );
+  return parseRemovedOrganizationOwnerMembership(await readJson(response));
 }
 
 export async function createOwnerInvitation(

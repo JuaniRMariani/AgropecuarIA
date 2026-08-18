@@ -82,6 +82,37 @@ public sealed record AcceptedOrganizationOwnerInvitationResult(
     long AuthorizationVersion,
     bool IsReplay);
 
+public sealed record OrganizationOwnerMembershipSummaryResult(
+    Guid MembershipId,
+    Guid OrganizationId,
+    string DisplayName,
+    bool IsCurrentUser,
+    string Role,
+    string Status,
+    long AuthorizationVersion,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset? RemovedAtUtc,
+    Guid Version);
+
+public sealed record RemoveOrganizationOwnerMembershipCommand(
+    Guid OrganizationId,
+    Guid MembershipId,
+    Guid ExpectedVersion,
+    string IdempotencyKey);
+
+public sealed record RemovedOrganizationOwnerMembershipResult(
+    Guid MembershipId,
+    Guid OrganizationId,
+    string DisplayName,
+    bool IsCurrentUser,
+    string Role,
+    string Status,
+    long AuthorizationVersion,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset RemovedAtUtc,
+    Guid Version,
+    bool IsReplay);
+
 public sealed record IssuedSession(Guid SessionId, Guid UserId, string Token, DateTimeOffset ExpiresAtUtc);
 
 public sealed record AuthenticatedSession(
@@ -315,4 +346,42 @@ public static class IdentityErrors
             "identity.invalid_owner_invitation_version",
             400,
             "A valid organization owner invitation version is required.");
+
+    public static IdentityOperationException OrganizationOwnerMembershipNotAvailable() =>
+        new(
+            "identity.organization_owner_membership_not_available",
+            404,
+            "The organization owner membership is not available.");
+
+    public static IdentityOperationException OrganizationOwnerMembershipUnavailable() =>
+        new(
+            "identity.organization_owner_membership_unavailable",
+            503,
+            "Organization owner membership management is unavailable.",
+            retryable: true,
+            retryAfterSeconds: 1);
+
+    public static IdentityOperationException OrganizationOwnerMembershipConflict() =>
+        new(
+            "identity.organization_owner_membership_conflict",
+            409,
+            "The organization owner membership could not be changed safely.");
+
+    public static IdentityOperationException OrganizationLastOwnerRequired() =>
+        new(
+            "identity.organization_last_owner_required",
+            409,
+            "The organization must retain at least one active owner.");
+
+    public static IdentityOperationException OrganizationOwnerMembershipVersionMismatch() =>
+        new(
+            "identity.organization_owner_membership_version_mismatch",
+            412,
+            "The organization owner membership has changed.");
+
+    public static IdentityOperationException InvalidOwnerMembershipVersion() =>
+        new(
+            "identity.invalid_owner_membership_version",
+            400,
+            "A valid organization owner membership version is required.");
 }

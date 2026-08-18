@@ -16,6 +16,7 @@ public static class PublishedSchemaValidator
         "organization-owner-invited.v1.schema.json",
         "organization-owner-invitation-accepted.v1.schema.json",
         "organization-owner-invitation-revoked.v1.schema.json",
+        "organization-owner-membership-removed.v1.schema.json",
         "problem-details.v1.schema.json",
         "request-scope.v1.schema.json",
     };
@@ -159,6 +160,23 @@ public static class PublishedSchemaValidator
                 ValidateStringProperty(root, fileName, "invitationId", "uuid", issues);
                 ValidateStringProperty(root, fileName, "revokedAtUtc", "date-time", issues);
                 break;
+            case "organization-owner-membership-removed.v1.schema.json":
+                ValidateClosedObject(
+                    root,
+                    fileName,
+                    ["organizationId", "membershipId", "authorizationVersion", "revokedInvitationCount", "removedAtUtc"],
+                    issues);
+                ValidateExactProperties(
+                    root,
+                    fileName,
+                    ["organizationId", "membershipId", "authorizationVersion", "revokedInvitationCount", "removedAtUtc"],
+                    issues);
+                ValidateStringProperty(root, fileName, "organizationId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "membershipId", "uuid", issues);
+                ValidateIntegerProperty(root, fileName, "authorizationVersion", 2, issues);
+                ValidateIntegerProperty(root, fileName, "revokedInvitationCount", 0, issues);
+                ValidateStringProperty(root, fileName, "removedAtUtc", "date-time", issues);
+                break;
             default:
                 Add(issues, "schema.unregistered", $"Schema '{fileName}' is not registered.");
                 break;
@@ -287,6 +305,27 @@ public static class PublishedSchemaValidator
                 issues,
                 "schema.property-shape.invalid",
                 $"Schema '{fileName}' property '{propertyName}' must be a string{(expectedFormat is null ? string.Empty : $" with format '{expectedFormat}'")}.");
+        }
+    }
+
+    private static void ValidateIntegerProperty(
+        JsonElement root,
+        string fileName,
+        string propertyName,
+        int expectedMinimum,
+        ICollection<ValidationIssue> issues)
+    {
+        if (!TryProperty(root, "properties", propertyName, out var property)
+            || !property.TryGetProperty("type", out var type)
+            || !string.Equals(type.GetString(), "integer", StringComparison.Ordinal)
+            || !property.TryGetProperty("minimum", out var minimum)
+            || !minimum.TryGetInt32(out int actualMinimum)
+            || actualMinimum != expectedMinimum)
+        {
+            Add(
+                issues,
+                "schema.property-shape.invalid",
+                $"Schema '{fileName}' property '{propertyName}' must be an integer with minimum {expectedMinimum}.");
         }
     }
 

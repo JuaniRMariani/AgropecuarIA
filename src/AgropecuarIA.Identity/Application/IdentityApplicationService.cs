@@ -1003,6 +1003,7 @@ public sealed class IdentityApplicationService(
                 now,
                 requireStrongAuthentication: true,
                 cancellationToken);
+            await LockOwnerManagementOrganizationAsync(cancellationToken);
             EnsureOwnerInvitationsEnabled(
                 keyRing,
                 "organization_owner_invitation_create");
@@ -1248,6 +1249,315 @@ public sealed class IdentityApplicationService(
         }
     }
 
+    public async Task<IReadOnlyList<OrganizationOwnerMembershipSummaryResult>>
+        ListOrganizationOwnerMembershipsAsync(
+            Guid organizationId,
+            AuthenticatedSession currentSession,
+            IdentityRequestContext requestContext,
+            CancellationToken cancellationToken)
+    {
+        requestContext.RequireTenantActor(currentSession.UserId, organizationId);
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        using Activity? activity = IdentityTelemetry.Start("identity.organization_owner_membership_list");
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted,
+            cancellationToken);
+        try
+        {
+            await SetOwnerInvitationDatabaseContextAsync(
+                currentSession.UserId,
+                organizationId,
+                cancellationToken);
+            await RequireOrganizationOwnerMembershipAuthorizationAsync(
+                organizationId,
+                currentSession,
+                now,
+                requireStrongAuthentication: false,
+                cancellationToken);
+            OwnerMembershipDatabaseResult[] memberships =
+                await LoadActiveOwnerMembershipsAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            telemetry.RecordOrganizationOwnerMembership(
+                "organization_owner_membership_list",
+                "succeeded");
+            return memberships
+                .Select(item => ToOwnerMembershipSummary(
+                    item,
+                    organizationId))
+                .ToArray();
+        }
+        catch (IdentityOperationException)
+        {
+            telemetry.RecordOrganizationOwnerMembership(
+                "organization_owner_membership_list",
+                "rejected");
+            throw;
+        }
+        catch (PostgresException exception) when (IsOrganizationBootstrapRoleUnavailable(exception))
+        {
+            telemetry.RecordOrganizationOwnerMembership(
+                "organization_owner_membership_list",
+                "unavailable");
+            throw IdentityErrors.OrganizationOwnerMembershipUnavailable();
+        }
+    }
+
+    public async Task<RemovedOrganizationOwnerMembershipResult>
+        RemoveOrganizationOwnerMembershipAsync(
+            RemoveOrganizationOwnerMembershipCommand command,
+            AuthenticatedSession currentSession,
+            IdentityRequestContext requestContext,
+            CancellationToken cancellationToken) =>
+        await RemoveOrganizationOwnerMembershipAsync(
+            command,
+            currentSession,
+            requestContext,
+            retryAfterSerialization: true,
+            cancellationToken);
+
+    private async Task<RemovedOrganizationOwnerMembershipResult>
+        RemoveOrganizationOwnerMembershipAsync(
+            RemoveOrganizationOwnerMembershipCommand command,
+            AuthenticatedSession currentSession,
+            IdentityRequestContext requestContext,
+            bool retryAfterSerialization,
+            CancellationToken cancellationToken)
+    {
+        requestContext.RequireTenantActor(currentSession.UserId, command.OrganizationId);
+        ValidateIdempotencyKey(command.IdempotencyKey);
+        using Activity? activity = IdentityTelemetry.Start("identity.organization_owner_membership_remove");
+        DateTimeOffset now = TruncateToPostgreSqlPrecision(timeProvider.GetUtcNow());
+        Dictionary<string, byte[]> keyRing = GetOwnerRemovalIdempotencyKeyRing();
+        Dictionary<string, byte[]> aliases = CreateIdempotencyAliases(
+            command.IdempotencyKey,
+            keyRing);
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        try
+        {
+            await SetOwnerInvitationDatabaseContextAsync(
+                currentSession.UserId,
+                command.OrganizationId,
+                cancellationToken);
+            OwnerInvitationSessionAuthorization authorization =
+                await RequireOrganizationOwnerMembershipAuthorizationAsync(
+                    command.OrganizationId,
+                    currentSession,
+                    now,
+                    requireStrongAuthentication: true,
+                    cancellationToken);
+            await SetOwnerRemovalAuthorizationContextAsync(
+                currentSession.SessionId,
+                authorization.Version,
+                cancellationToken);
+            await RequireRetainedOwnerRemovalKeyCoverageAsync(
+                keyRing.Keys,
+                cancellationToken);
+            byte[] fingerprint = CreateOwnerRemovalRequestFingerprint(command);
+            Guid? existingLedgerId = await FindOwnerRemovalLedgerIdAsync(
+                command.OrganizationId,
+                aliases,
+                cancellationToken);
+            if (existingLedgerId is not null)
+            {
+                RemovedOrganizationOwnerMembershipResult replay =
+                    await ResolveOwnerRemovalReplayAsync(
+                        existingLedgerId.Value,
+                        authorization,
+                        fingerprint,
+                        currentSession.UserId,
+                        currentSession.SessionId,
+                        cancellationToken);
+                await AddMissingOwnerRemovalAliasesAsync(
+                    existingLedgerId.Value,
+                    command.OrganizationId,
+                    aliases,
+                    now,
+                    cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                telemetry.RecordOrganizationOwnerMembership(
+                    "organization_owner_membership_remove",
+                    "replayed");
+                return replay;
+            }
+
+            OwnerMembershipDatabaseResult? target = (await LoadActiveOwnerMembershipsAsync(
+                cancellationToken)).SingleOrDefault(item => item.MembershipId == command.MembershipId);
+            if (target is null || target.IsCurrentUser)
+            {
+                throw IdentityErrors.OrganizationOwnerMembershipNotAvailable();
+            }
+
+            Guid ledgerId = Guid.NewGuid();
+            Guid leaseOwner = Guid.NewGuid();
+            Guid newMembershipVersion = Guid.NewGuid();
+            OrganizationOwnerRemovalLedger ledger = new(
+                ledgerId,
+                command.OrganizationId,
+                currentSession.UserId,
+                currentSession.SessionId,
+                authorization.Version,
+                command.MembershipId,
+                command.ExpectedVersion,
+                fingerprint,
+                leaseOwner,
+                now,
+                now.AddMinutes(1));
+            dbContext.OrganizationOwnerRemovalLedgers.Add(ledger);
+            foreach ((string keyVersion, byte[] keyDigest) in aliases)
+            {
+                dbContext.OrganizationOwnerRemovalKeyAliases.Add(
+                    new OrganizationOwnerRemovalKeyAlias(
+                        Guid.NewGuid(),
+                        ledgerId,
+                        command.OrganizationId,
+                        keyVersion,
+                        keyDigest,
+                        now));
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            OwnerRemovalDatabaseResult databaseResult = await RemoveActiveOwnerAsync(
+                command.MembershipId,
+                command.ExpectedVersion,
+                now,
+                newMembershipVersion,
+                cancellationToken);
+            ThrowForOwnerRemovalOutcome(databaseResult.Outcome);
+            ValidateRemovedOwnerDatabaseResult(databaseResult, command, newMembershipVersion);
+
+            ledger.Complete(
+                leaseOwner,
+                ledger.FenceToken,
+                databaseResult.Version!.Value,
+                databaseResult.SecurityVersion!.Value,
+                databaseResult.RemovedAtUtc!.Value,
+                now);
+            dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
+                currentSession.UserId,
+                currentSession.SessionId,
+                "organization_owner_membership_removed",
+                "succeeded",
+                null,
+                requestContext));
+            dbContext.OutboxMessages.Add(IdentityOutboxMessage.CreateOrganizationOwnerMembershipRemoved(
+                new IdentityIntegrationEventEnvelope(
+                    Guid.NewGuid(),
+                    requestContext.Scope,
+                    now,
+                    now,
+                    now,
+                    currentSession.UserId,
+                    requestContext.CorrelationId,
+                    ledgerId,
+                    command.MembershipId,
+                    databaseResult.SecurityVersion.Value),
+                new OrganizationOwnerMembershipRemovedIntegrationEventPayload(
+                    command.OrganizationId,
+                    command.MembershipId,
+                    databaseResult.SecurityVersion.Value,
+                    databaseResult.RevokedInvitationIds.Length,
+                    databaseResult.RemovedAtUtc.Value)));
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await commitBoundary.CommitAsync(
+                transaction.CommitAsync,
+                transaction.RollbackAsync,
+                cancellationToken);
+            telemetry.RecordOrganizationOwnerMembership(
+                "organization_owner_membership_remove",
+                "succeeded");
+            return ToRemovedOwnerMembershipResult(
+                databaseResult,
+                command.OrganizationId,
+                isReplay: false);
+        }
+        catch (DbUpdateException exception) when (IsOwnerRemovalIdempotencyRace(exception))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await transaction.DisposeAsync();
+            dbContext.ChangeTracker.Clear();
+            RemovedOrganizationOwnerMembershipResult replay =
+                await ResolveOwnerRemovalRaceAsync(
+                    command,
+                    currentSession,
+                    aliases,
+                    missingIsConflict: true,
+                    cancellationToken);
+            telemetry.RecordOrganizationOwnerMembership(
+                "organization_owner_membership_remove",
+                "replayed");
+            return replay;
+        }
+        catch (Exception exception) when (IsOrganizationSerializationRace(exception))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await transaction.DisposeAsync();
+            dbContext.ChangeTracker.Clear();
+            RemovedOrganizationOwnerMembershipResult? replay =
+                await TryResolveOwnerRemovalRaceAsync(
+                    command,
+                    currentSession,
+                    aliases,
+                    cancellationToken);
+            if (replay is not null)
+            {
+                telemetry.RecordOrganizationOwnerMembership(
+                    "organization_owner_membership_remove",
+                    "replayed");
+                return replay;
+            }
+
+            if (retryAfterSerialization)
+            {
+                return await RemoveOrganizationOwnerMembershipAsync(
+                    command,
+                    currentSession,
+                    requestContext,
+                    retryAfterSerialization: false,
+                    cancellationToken);
+            }
+
+            telemetry.RecordOrganizationOwnerMembership(
+                "organization_owner_membership_remove",
+                "conflict");
+            throw IdentityErrors.OrganizationOwnerMembershipConflict();
+        }
+        catch (Exception exception) when (IsIndeterminateCommit(exception))
+        {
+            dbContext.ChangeTracker.Clear();
+            return await RecoverUnknownOwnerRemovalCommitAsync(
+                command,
+                currentSession,
+                aliases,
+                cancellationToken);
+        }
+        catch (IdentityOperationException exception) when (
+            IsOrganizationIdempotencyRejection(exception.Code))
+        {
+            telemetry.RecordOrganizationOwnerMembership(
+                "organization_owner_membership_remove",
+                OwnerRemovalIdempotencyOutcome(exception.Code));
+            throw;
+        }
+        catch (PostgresException exception) when (IsOrganizationBootstrapRoleUnavailable(exception))
+        {
+            telemetry.RecordOrganizationOwnerMembership(
+                "organization_owner_membership_remove",
+                "unavailable");
+            throw IdentityErrors.OrganizationOwnerMembershipUnavailable();
+        }
+        catch (IdentityOperationException)
+        {
+            telemetry.RecordOrganizationOwnerMembership(
+                "organization_owner_membership_remove",
+                "rejected");
+            throw;
+        }
+    }
+
     public async Task<AcceptedOrganizationOwnerInvitationResult>
         AcceptOrganizationOwnerInvitationAsync(
             AcceptOrganizationOwnerInvitationCommand command,
@@ -1296,6 +1606,15 @@ public sealed class IdentityApplicationService(
                 await FindInvitationByTokenAsync(command.Token, keyRing, cancellationToken)
                 ?? throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
             await SetOwnerInvitationTenantContextAsync(invitation.OrganizationId, cancellationToken);
+            bool acceptanceLockAcquired = await dbContext.Database
+                .SqlQueryRaw<bool>(
+                    "SELECT identity.lock_owner_invitation_acceptance_organization({0}) AS \"Value\"",
+                    invitation.Id)
+                .SingleAsync(cancellationToken);
+            if (!acceptanceLockAcquired)
+            {
+                throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
+            }
 
             if (invitation.Status == OrganizationOwnerInvitationStatuses.Accepted)
             {
@@ -1343,10 +1662,10 @@ public sealed class IdentityApplicationService(
                     organization.DisplayName,
                     OrganizationMembershipRoles.Owner));
             }
-            else if (membership.Status != OrganizationStatuses.Active ||
+            else if (membership.Status != OrganizationMembershipStatuses.Active ||
                 membership.Role != OrganizationMembershipRoles.Owner)
             {
-                throw IdentityErrors.OrganizationOwnerInvitationConflict();
+                throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
             }
 
             invitation.Accept(currentSession.UserId, membership.Id, now);
@@ -1596,6 +1915,18 @@ public sealed class IdentityApplicationService(
         }
     }
 
+    private async Task LockOwnerManagementOrganizationAsync(CancellationToken cancellationToken)
+    {
+        bool lockAcquired = await dbContext.Database
+            .SqlQueryRaw<bool>(
+                "SELECT identity.lock_owner_management_organization() AS \"Value\"")
+            .SingleAsync(cancellationToken);
+        if (!lockAcquired)
+        {
+            throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
+        }
+    }
+
     private async Task SetOwnerInvitationTenantContextAsync(
         Guid organizationId,
         CancellationToken cancellationToken)
@@ -1605,6 +1936,19 @@ public sealed class IdentityApplicationService(
             cancellationToken);
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT set_config('app.current_organization_id', {organizationId.ToString("D")}, true)",
+            cancellationToken);
+    }
+
+    private async Task SetOwnerRemovalAuthorizationContextAsync(
+        Guid sessionId,
+        Guid authorizationVersion,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_session_id', {sessionId.ToString("D")}, true)",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_authorization_version', {authorizationVersion.ToString("D")}, true)",
             cancellationToken);
     }
 
@@ -1626,7 +1970,8 @@ public sealed class IdentityApplicationService(
                 session.IsAuthenticationAssuranceVerified,
                 session.AuthenticatedAtUtc,
                 session.StrongAuthenticatedAtUtc,
-                session.StrongAuthenticationPurpose))
+                session.StrongAuthenticationPurpose,
+                session.Version))
             .SingleOrDefaultAsync(cancellationToken);
         if (authorization is null)
         {
@@ -1657,6 +2002,59 @@ public sealed class IdentityApplicationService(
         }
     }
 
+    private async Task<OwnerInvitationSessionAuthorization>
+        RequireOrganizationOwnerMembershipAuthorizationAsync(
+            Guid organizationId,
+            AuthenticatedSession currentSession,
+            DateTimeOffset now,
+            bool requireStrongAuthentication,
+            CancellationToken cancellationToken)
+    {
+        OwnerInvitationSessionAuthorization? authorization = await dbContext.Sessions
+            .AsNoTracking()
+            .Where(session =>
+                session.Id == currentSession.SessionId &&
+                session.UserId == currentSession.UserId &&
+                session.RevokedAtUtc == null &&
+                session.ExpiresAtUtc > now)
+            .Select(session => new OwnerInvitationSessionAuthorization(
+                session.IsAuthenticationAssuranceVerified,
+                session.AuthenticatedAtUtc,
+                session.StrongAuthenticatedAtUtc,
+                session.StrongAuthenticationPurpose,
+                session.Version))
+            .SingleOrDefaultAsync(cancellationToken);
+        if (authorization is null)
+        {
+            throw IdentityErrors.SessionRequired();
+        }
+
+        if (requireStrongAuthentication &&
+            (!authorization.IsAuthenticationAssuranceVerified ||
+                authorization.StrongAuthenticatedAtUtc is null ||
+                authorization.StrongAuthenticationPurpose != StepUpPurposes.ManageOrganizationOwners ||
+                now - authorization.StrongAuthenticatedAtUtc.Value < TimeSpan.Zero ||
+                now - authorization.StrongAuthenticatedAtUtc.Value >= runtimeOptions.StrongAuthenticationWindow))
+        {
+            throw IdentityErrors.StrongAuthenticationRequired();
+        }
+
+        bool isOwner = await dbContext.AuthoritativeMemberships
+            .AsNoTracking()
+            .AnyAsync(
+                membership => membership.OrganizationId == organizationId &&
+                    membership.UserId == currentSession.UserId &&
+                    membership.Role == OrganizationMembershipRoles.Owner &&
+                    membership.Status == OrganizationMembershipStatuses.Active,
+                cancellationToken);
+        if (!isOwner)
+        {
+            throw IdentityErrors.OrganizationOwnerMembershipNotAvailable();
+        }
+
+        return authorization;
+    }
+
     private async Task RequireRecentVerifiedSessionAsync(
         AuthenticatedSession currentSession,
         DateTimeOffset now,
@@ -1673,7 +2071,8 @@ public sealed class IdentityApplicationService(
                 session.IsAuthenticationAssuranceVerified,
                 session.AuthenticatedAtUtc,
                 session.StrongAuthenticatedAtUtc,
-                session.StrongAuthenticationPurpose))
+                session.StrongAuthenticationPurpose,
+                session.Version))
             .SingleOrDefaultAsync(cancellationToken);
         if (authorization is null)
         {
@@ -1792,9 +2191,9 @@ public sealed class IdentityApplicationService(
                     item.OrganizationId == invitation.OrganizationId &&
                     item.UserId == currentUserId &&
                     item.Role == OrganizationMembershipRoles.Owner &&
-                    item.Status == OrganizationStatuses.Active,
+                    item.Status == OrganizationMembershipStatuses.Active,
                 cancellationToken)
-            ?? throw IdentityErrors.OrganizationOwnerInvitationConflict();
+            ?? throw IdentityErrors.OrganizationOwnerInvitationNotAvailable();
         OrganizationDirectoryEntry organization = await dbContext.Organizations
             .AsNoTracking()
             .SingleOrDefaultAsync(
@@ -2014,6 +2413,477 @@ public sealed class IdentityApplicationService(
             throw IdentityErrors.InvalidIdempotencyKey();
         }
     }
+
+    private Dictionary<string, byte[]> GetOwnerRemovalIdempotencyKeyRing()
+    {
+        try
+        {
+            return GetOrganizationIdempotencyKeyRing();
+        }
+        catch (IdentityOperationException exception) when (
+            exception.Code == "identity.organization_creation_unavailable")
+        {
+            throw IdentityErrors.OrganizationOwnerMembershipUnavailable();
+        }
+    }
+
+    private static byte[] CreateOwnerRemovalRequestFingerprint(
+        RemoveOrganizationOwnerMembershipCommand command)
+    {
+        string canonicalRequest = string.Join(
+            '|',
+            "remove-owner-membership-v1",
+            command.OrganizationId.ToString("D"),
+            command.MembershipId.ToString("D"),
+            command.ExpectedVersion.ToString("D"));
+        return SHA256.HashData(Encoding.UTF8.GetBytes(canonicalRequest));
+    }
+
+    private static DateTimeOffset TruncateToPostgreSqlPrecision(DateTimeOffset value) =>
+        value.AddTicks(-(value.Ticks % TimeSpan.TicksPerMicrosecond));
+
+    private async Task<Guid?> FindOwnerRemovalLedgerIdAsync(
+        Guid organizationId,
+        IReadOnlyDictionary<string, byte[]> aliases,
+        CancellationToken cancellationToken)
+    {
+        HashSet<Guid> ledgerIds = [];
+        foreach ((string keyVersion, byte[] keyDigest) in aliases)
+        {
+            Guid[] matches = await dbContext.OrganizationOwnerRemovalKeyAliases
+                .AsNoTracking()
+                .Where(alias =>
+                    alias.OrganizationId == organizationId &&
+                    alias.ScopeKind == OrganizationOwnerRemovalProtocol.ScopeKind &&
+                    alias.Namespace == OrganizationOwnerRemovalProtocol.Namespace &&
+                    alias.Operation == OrganizationOwnerRemovalProtocol.Operation &&
+                    alias.KeyVersion == keyVersion &&
+                    alias.KeyDigest == keyDigest)
+                .OrderBy(alias => alias.LedgerId)
+                .Select(alias => alias.LedgerId)
+                .Take(2)
+                .ToArrayAsync(cancellationToken);
+            foreach (Guid ledgerId in matches)
+            {
+                ledgerIds.Add(ledgerId);
+            }
+        }
+
+        return ledgerIds.Count switch
+        {
+            0 => null,
+            1 => ledgerIds.Single(),
+            _ => throw IdentityErrors.ReconciliationRequired(),
+        };
+    }
+
+    private async Task RequireRetainedOwnerRemovalKeyCoverageAsync(
+        IEnumerable<string> retainedKeyVersions,
+        CancellationToken cancellationToken)
+    {
+        string[] versions = retainedKeyVersions
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        bool covered = await dbContext.Database
+            .SqlQueryRaw<bool>(
+                "SELECT identity.owner_removal_retained_key_covered({0}) AS \"Value\"",
+                (object)versions)
+            .SingleAsync(cancellationToken);
+        if (!covered)
+        {
+            telemetry.RecordOrganizationOwnerMembership(
+                "organization_owner_membership_remove",
+                "unavailable");
+            throw IdentityErrors.OrganizationOwnerMembershipUnavailable();
+        }
+    }
+
+    private async Task AddMissingOwnerRemovalAliasesAsync(
+        Guid ledgerId,
+        Guid organizationId,
+        IReadOnlyDictionary<string, byte[]> aliases,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        OrganizationOwnerRemovalKeyAlias[] existingAliases = await dbContext
+            .OrganizationOwnerRemovalKeyAliases
+            .Where(alias => alias.LedgerId == ledgerId)
+            .OrderBy(alias => alias.KeyVersion)
+            .ToArrayAsync(cancellationToken);
+        Dictionary<string, OrganizationOwnerRemovalKeyAlias> existingByVersion = existingAliases
+            .ToDictionary(alias => alias.KeyVersion, StringComparer.Ordinal);
+
+        foreach ((string keyVersion, byte[] keyDigest) in aliases.OrderBy(
+            item => item.Key,
+            StringComparer.Ordinal))
+        {
+            if (existingByVersion.TryGetValue(
+                keyVersion,
+                out OrganizationOwnerRemovalKeyAlias? existingAlias))
+            {
+                if (!CryptographicOperations.FixedTimeEquals(existingAlias.KeyDigest, keyDigest))
+                {
+                    throw IdentityErrors.IdempotencyKeyReused();
+                }
+
+                continue;
+            }
+
+            dbContext.OrganizationOwnerRemovalKeyAliases.Add(
+                new OrganizationOwnerRemovalKeyAlias(
+                    Guid.NewGuid(),
+                    ledgerId,
+                    organizationId,
+                    keyVersion,
+                    keyDigest,
+                    now));
+        }
+    }
+
+    private async Task<OwnerRemovalDatabaseResult> RemoveActiveOwnerAsync(
+        Guid membershipId,
+        Guid expectedVersion,
+        DateTimeOffset removedAtUtc,
+        Guid newVersion,
+        CancellationToken cancellationToken) =>
+        await dbContext.Database
+            .SqlQueryRaw<OwnerRemovalDatabaseResult>(
+                """
+                SELECT
+                    outcome AS "Outcome",
+                    membership_id AS "MembershipId",
+                    display_name AS "DisplayName",
+                    role AS "Role",
+                    status AS "Status",
+                    security_version AS "SecurityVersion",
+                    created_at_utc AS "CreatedAtUtc",
+                    removed_at_utc AS "RemovedAtUtc",
+                    version AS "Version",
+                    is_current_user AS "IsCurrentUser",
+                    revoked_invitation_ids AS "RevokedInvitationIds"
+                FROM identity.remove_active_owner({0}, {1}, {2}, {3})
+                """,
+                membershipId,
+                expectedVersion,
+                removedAtUtc,
+                newVersion)
+            .SingleAsync(cancellationToken);
+
+    private static void ThrowForOwnerRemovalOutcome(string? outcome)
+    {
+        switch (outcome)
+        {
+            case "removed":
+                return;
+            case "not_available":
+                throw IdentityErrors.OrganizationOwnerMembershipNotAvailable();
+            case "version_mismatch":
+                throw IdentityErrors.OrganizationOwnerMembershipVersionMismatch();
+            case "last_owner":
+                throw IdentityErrors.OrganizationLastOwnerRequired();
+            default:
+                throw IdentityErrors.OrganizationOwnerMembershipUnavailable();
+        }
+    }
+
+    private static void ValidateRemovedOwnerDatabaseResult(
+        OwnerRemovalDatabaseResult result,
+        RemoveOrganizationOwnerMembershipCommand command,
+        Guid expectedNewVersion)
+    {
+        if (result.MembershipId != command.MembershipId ||
+            string.IsNullOrWhiteSpace(result.DisplayName) ||
+            result.Role != OrganizationMembershipRoles.Owner ||
+            result.Status != OrganizationMembershipStatuses.Removed ||
+            result.SecurityVersion is null or < 2 ||
+            result.CreatedAtUtc is null ||
+            result.RemovedAtUtc is null ||
+            result.RemovedAtUtc < result.CreatedAtUtc ||
+            result.Version != expectedNewVersion ||
+            result.IsCurrentUser is not false ||
+            result.RevokedInvitationIds.Any(id => id == Guid.Empty) ||
+            result.RevokedInvitationIds.Distinct().Count() != result.RevokedInvitationIds.Length)
+        {
+            throw IdentityErrors.OrganizationOwnerMembershipUnavailable();
+        }
+    }
+
+    private async Task<RemovedOrganizationOwnerMembershipResult> ResolveOwnerRemovalReplayAsync(
+        Guid ledgerId,
+        OwnerInvitationSessionAuthorization authorization,
+        byte[] fingerprint,
+        Guid currentUserId,
+        Guid currentSessionId,
+        CancellationToken cancellationToken)
+    {
+        OrganizationOwnerRemovalLedger ledger = await dbContext.OrganizationOwnerRemovalLedgers
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == ledgerId, cancellationToken)
+            ?? throw IdentityErrors.ReconciliationRequired();
+        if (ledger.ActorUserId != currentUserId ||
+            ledger.SessionId != currentSessionId ||
+            ledger.AuthorizationVersion != authorization.Version ||
+            !CryptographicOperations.FixedTimeEquals(ledger.RequestFingerprint, fingerprint))
+        {
+            throw IdentityErrors.IdempotencyKeyReused();
+        }
+
+        if (ledger.State == OrganizationOwnerRemovalProtocol.States.InProgress)
+        {
+            throw IdentityErrors.IdempotencyInProgress();
+        }
+
+        if (ledger.State == OrganizationOwnerRemovalProtocol.States.FailedTerminal)
+        {
+            throw IdentityErrors.IdempotencyFailedTerminal();
+        }
+
+        if (ledger.State == OrganizationOwnerRemovalProtocol.States.ResponseExpired ||
+            ledger.State != OrganizationOwnerRemovalProtocol.States.Succeeded ||
+            ledger.ResultMembershipVersion is null ||
+            ledger.ResultAuthorizationVersion is null ||
+            ledger.RemovedAtUtc is null)
+        {
+            throw IdentityErrors.ReconciliationRequired();
+        }
+
+        OwnerRemovalDatabaseResult? databaseResult = await dbContext.Database
+            .SqlQueryRaw<OwnerRemovalDatabaseResult>(
+                """
+                SELECT
+                    'removed'::text AS "Outcome",
+                    membership_id AS "MembershipId",
+                    display_name AS "DisplayName",
+                    role AS "Role",
+                    status AS "Status",
+                    security_version AS "SecurityVersion",
+                    created_at_utc AS "CreatedAtUtc",
+                    removed_at_utc AS "RemovedAtUtc",
+                    version AS "Version",
+                    is_current_user AS "IsCurrentUser",
+                    ARRAY[]::uuid[] AS "RevokedInvitationIds"
+                FROM identity.resolve_owner_removal_result({0})
+                """,
+                ledgerId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (databaseResult is null ||
+            databaseResult.MembershipId != ledger.MembershipId ||
+            databaseResult.Version != ledger.ResultMembershipVersion ||
+            databaseResult.SecurityVersion != ledger.ResultAuthorizationVersion ||
+            databaseResult.RemovedAtUtc != ledger.RemovedAtUtc)
+        {
+            throw IdentityErrors.ReconciliationRequired();
+        }
+
+        ValidateRemovedOwnerReplayDatabaseResult(databaseResult);
+        return ToRemovedOwnerMembershipResult(
+            databaseResult,
+            ledger.OrganizationId,
+            isReplay: true);
+    }
+
+    private static void ValidateRemovedOwnerReplayDatabaseResult(OwnerRemovalDatabaseResult result)
+    {
+        if (result.MembershipId is null ||
+            string.IsNullOrWhiteSpace(result.DisplayName) ||
+            result.Role != OrganizationMembershipRoles.Owner ||
+            result.Status != OrganizationMembershipStatuses.Removed ||
+            result.SecurityVersion is null or < 2 ||
+            result.CreatedAtUtc is null ||
+            result.RemovedAtUtc is null ||
+            result.RemovedAtUtc < result.CreatedAtUtc ||
+            result.Version is null ||
+            result.IsCurrentUser is not false)
+        {
+            throw IdentityErrors.ReconciliationRequired();
+        }
+    }
+
+    private static OrganizationOwnerMembershipSummaryResult ToOwnerMembershipSummary(
+        OwnerMembershipDatabaseResult membership,
+        Guid organizationId) =>
+        new(
+            membership.MembershipId,
+            organizationId,
+            membership.DisplayName,
+            membership.IsCurrentUser,
+            membership.Role,
+            membership.Status,
+            membership.SecurityVersion,
+            membership.CreatedAtUtc,
+            membership.RemovedAtUtc,
+            membership.Version);
+
+    private async Task<OwnerMembershipDatabaseResult[]> LoadActiveOwnerMembershipsAsync(
+        CancellationToken cancellationToken) =>
+        await dbContext.Database
+            .SqlQueryRaw<OwnerMembershipDatabaseResult>(
+                """
+                SELECT
+                    membership_id AS "MembershipId",
+                    display_name AS "DisplayName",
+                    role AS "Role",
+                    status AS "Status",
+                    security_version AS "SecurityVersion",
+                    created_at_utc AS "CreatedAtUtc",
+                    NULL::timestamptz AS "RemovedAtUtc",
+                    version AS "Version",
+                    is_current_user AS "IsCurrentUser"
+                FROM identity.list_active_owner_memberships()
+                """)
+            .ToArrayAsync(cancellationToken);
+
+    private static RemovedOrganizationOwnerMembershipResult ToRemovedOwnerMembershipResult(
+        OwnerRemovalDatabaseResult membership,
+        Guid organizationId,
+        bool isReplay) =>
+        new(
+            membership.MembershipId!.Value,
+            organizationId,
+            membership.DisplayName!,
+            false,
+            membership.Role!,
+            membership.Status!,
+            membership.SecurityVersion!.Value,
+            membership.CreatedAtUtc!.Value,
+            membership.RemovedAtUtc!.Value,
+            membership.Version!.Value,
+            isReplay);
+
+    private async Task<RemovedOrganizationOwnerMembershipResult?> TryResolveOwnerRemovalRaceAsync(
+        RemoveOrganizationOwnerMembershipCommand command,
+        AuthenticatedSession currentSession,
+        IReadOnlyDictionary<string, byte[]> aliases,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted,
+            cancellationToken);
+        await SetOwnerInvitationDatabaseContextAsync(
+            currentSession.UserId,
+            command.OrganizationId,
+            cancellationToken);
+        OwnerInvitationSessionAuthorization authorization =
+            await RequireOrganizationOwnerMembershipAuthorizationAsync(
+                command.OrganizationId,
+                currentSession,
+                timeProvider.GetUtcNow(),
+                requireStrongAuthentication: true,
+                cancellationToken);
+        await SetOwnerRemovalAuthorizationContextAsync(
+            currentSession.SessionId,
+            authorization.Version,
+            cancellationToken);
+        Guid? ledgerId = await FindOwnerRemovalLedgerIdAsync(
+            command.OrganizationId,
+            aliases,
+            cancellationToken);
+        if (ledgerId is null)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return null;
+        }
+
+        RemovedOrganizationOwnerMembershipResult replay =
+            await ResolveOwnerRemovalReplayAsync(
+                ledgerId.Value,
+                authorization,
+                CreateOwnerRemovalRequestFingerprint(command),
+                currentSession.UserId,
+                currentSession.SessionId,
+                cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return replay;
+    }
+
+    private async Task<RemovedOrganizationOwnerMembershipResult> ResolveOwnerRemovalRaceAsync(
+        RemoveOrganizationOwnerMembershipCommand command,
+        AuthenticatedSession currentSession,
+        IReadOnlyDictionary<string, byte[]> aliases,
+        bool missingIsConflict,
+        CancellationToken cancellationToken)
+    {
+        RemovedOrganizationOwnerMembershipResult? replay =
+            await TryResolveOwnerRemovalRaceAsync(
+                command,
+                currentSession,
+                aliases,
+                cancellationToken);
+        if (replay is not null)
+        {
+            return replay;
+        }
+
+        throw missingIsConflict
+            ? IdentityErrors.IdempotencyKeyReused()
+            : IdentityErrors.ReconciliationRequired();
+    }
+
+    private async Task<RemovedOrganizationOwnerMembershipResult> RecoverUnknownOwnerRemovalCommitAsync(
+        RemoveOrganizationOwnerMembershipCommand command,
+        AuthenticatedSession currentSession,
+        IReadOnlyDictionary<string, byte[]> aliases,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using IdentityDbContext recoveryDbContext =
+                await recoveryContextFactory.CreateDbContextAsync(cancellationToken);
+            IdentityApplicationService recoveryService = new(
+                recoveryDbContext,
+                tokenService,
+                telemetry,
+                timeProvider,
+                Options.Create(runtimeOptions),
+                Options.Create(bootstrapOptions),
+                commitBoundary,
+                recoveryContextFactory,
+                Options.Create(ownerInvitationOptions));
+            RemovedOrganizationOwnerMembershipResult? replay =
+                await recoveryService.TryResolveOwnerRemovalRaceAsync(
+                    command,
+                    currentSession,
+                    aliases,
+                    cancellationToken);
+            if (replay is not null)
+            {
+                telemetry.RecordOrganizationOwnerMembership(
+                    "organization_owner_membership_remove",
+                    "replayed");
+                return replay;
+            }
+        }
+        catch (IdentityOperationException exception) when (
+            IsOrganizationIdempotencyRejection(exception.Code))
+        {
+            throw;
+        }
+        catch (Exception exception) when (IsIndeterminateCommit(exception))
+        {
+            // The recovery connection also failed ambiguously. Fall through to a typed retry.
+        }
+
+        telemetry.RecordOrganizationOwnerMembership(
+            "organization_owner_membership_remove",
+            "reconciliation_required");
+        throw IdentityErrors.ReconciliationRequired();
+    }
+
+    private static bool IsOwnerRemovalIdempotencyRace(DbUpdateException exception) =>
+        exception.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: string constraintName,
+        } && constraintName.Contains("organization_owner_removal_key_aliases", StringComparison.Ordinal);
+
+    private static string OwnerRemovalIdempotencyOutcome(string code) => code switch
+    {
+        "idempotency.key_reused" => "conflict",
+        "idempotency.in_progress" => "in_progress",
+        "idempotency.failed_terminal" => "failed_terminal",
+        "idempotency.reconciliation_required" => "reconciliation_required",
+        _ => throw new ArgumentOutOfRangeException(nameof(code), code, "Unknown idempotency code."),
+    };
 
     private Dictionary<string, byte[]> GetOrganizationIdempotencyKeyRing()
     {
@@ -2536,10 +3406,57 @@ public sealed class IdentityApplicationService(
         DateTimeOffset AuthenticatedAtUtc,
         bool IsAuthenticationAssuranceVerified);
 
+    private sealed class OwnerMembershipDatabaseResult
+    {
+        public Guid MembershipId { get; init; }
+
+        public string DisplayName { get; init; } = string.Empty;
+
+        public string Role { get; init; } = string.Empty;
+
+        public string Status { get; init; } = string.Empty;
+
+        public long SecurityVersion { get; init; }
+
+        public DateTimeOffset CreatedAtUtc { get; init; }
+
+        public DateTimeOffset? RemovedAtUtc { get; init; }
+
+        public Guid Version { get; init; }
+
+        public bool IsCurrentUser { get; init; }
+    }
+
+    private sealed class OwnerRemovalDatabaseResult
+    {
+        public string? Outcome { get; init; }
+
+        public Guid? MembershipId { get; init; }
+
+        public string? DisplayName { get; init; }
+
+        public string? Role { get; init; }
+
+        public string? Status { get; init; }
+
+        public long? SecurityVersion { get; init; }
+
+        public DateTimeOffset? CreatedAtUtc { get; init; }
+
+        public DateTimeOffset? RemovedAtUtc { get; init; }
+
+        public Guid? Version { get; init; }
+
+        public bool? IsCurrentUser { get; init; }
+
+        public Guid[] RevokedInvitationIds { get; init; } = [];
+    }
+
     private sealed record OwnerInvitationSessionAuthorization(
         bool IsAuthenticationAssuranceVerified,
         DateTimeOffset AuthenticatedAtUtc,
         DateTimeOffset? StrongAuthenticatedAtUtc,
-        string? StrongAuthenticationPurpose);
+        string? StrongAuthenticationPurpose,
+        Guid Version);
 
 }

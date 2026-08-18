@@ -103,6 +103,31 @@ public sealed class IdentityTelemetryTests
             '|',
             recorded.SelectMany(tags => tags.Values)).Contains(
                 bearer,
+            StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void OwnerMembershipTelemetryCannotExposeTenantOrMembershipData()
+    {
+        const string untrusted = "tenant-membership-d2719f32-42fc-4a73-8267-a8b8400eb31a";
+        IReadOnlyDictionary<string, object?>[] recorded = CaptureMeasurements(telemetry =>
+        {
+            telemetry.RecordOrganizationOwnerMembership(
+                "organization_owner_membership_remove",
+                "replayed");
+            telemetry.RecordOrganizationOwnerMembership(untrusted, untrusted);
+        });
+
+        Assert.AreEqual(
+            "organization_owner_membership_remove",
+            recorded[0]["identity.operation"]);
+        Assert.AreEqual("replayed", recorded[0]["identity.outcome"]);
+        Assert.AreEqual("other", recorded[1]["identity.operation"]);
+        Assert.AreEqual("other", recorded[1]["identity.outcome"]);
+        Assert.IsFalse(string.Join(
+            '|',
+            recorded.SelectMany(tags => tags.Values)).Contains(
+                untrusted,
                 StringComparison.Ordinal));
     }
 

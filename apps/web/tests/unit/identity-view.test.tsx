@@ -10,6 +10,7 @@ import type {
   OrganizationCreationState,
   OwnerInvitationAcceptanceState,
   OwnerInvitationActionState,
+  OwnerMembershipActionState,
 } from "../../features/identity/identity-types";
 
 const productionCapabilities: IdentityCapabilities = {
@@ -62,6 +63,18 @@ const invitationProps = {
   onReauthenticateOwnerInvitation: vi.fn(),
 };
 
+const ownerMembershipProps = {
+  ownerMemberships: {},
+  ownerMembershipAction: { kind: "idle" } as OwnerMembershipActionState,
+  onBeginOwnerRemoval: vi.fn(),
+  onCancelOwnerRemoval: vi.fn(),
+  onConfirmOwnerRemoval: vi.fn(),
+  onRefreshOwnerMemberships: vi.fn(),
+  onRetryOwnerRemoval: vi.fn(),
+  onResumeOwnerRemoval: vi.fn(),
+  onDismissOwnerRemoval: vi.fn(),
+};
+
 function renderView(
   resource: IdentityResourceState,
   notice: IdentityNotice = { kind: "none" },
@@ -71,6 +84,7 @@ function renderView(
     creation?: OrganizationCreationState;
   }> = {},
   invitationOptions: Partial<typeof invitationProps> = {},
+  ownerMembershipOptions: Partial<typeof ownerMembershipProps> = {},
 ) {
   const handlers = {
     onRetry: vi.fn(),
@@ -89,6 +103,8 @@ function renderView(
   const result = render(
     <IdentityView
       {...invitationProps}
+      {...ownerMembershipProps}
+      {...ownerMembershipOptions}
       {...invitationOptions}
       notice={notice}
       organizationCreation={organizationOptions.creation ?? { kind: "idle" }}
@@ -197,6 +213,7 @@ describe("IdentityView", () => {
     rerender(
       <IdentityView
         {...invitationProps}
+        {...ownerMembershipProps}
         notice={{ kind: "replay", message: "Ese intento ya fue utilizado." }}
         onCancelOrganization={vi.fn()}
         onCreateOrganization={vi.fn()}
@@ -225,6 +242,7 @@ describe("IdentityView", () => {
     const { container } = render(
       <IdentityView
         {...invitationProps}
+        {...ownerMembershipProps}
         notice={{ kind: "none" }}
         onCancelOrganization={vi.fn()}
         onCreateOrganization={vi.fn()}
@@ -528,5 +546,158 @@ describe("IdentityView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ingresar y aceptar" }));
     expect(onReauthenticateOwnerInvitation).toHaveBeenCalledOnce();
     expect(document.body).not.toHaveTextContent("a".repeat(43));
+  });
+
+  it("renders co-owners with short membership IDs and never offers self-removal", () => {
+    const organizationId = "1266395e-ec88-481e-9a72-81fa2cc2904a";
+    const currentMembershipId = "2634c6ee-8d8a-49e7-95b7-84fa0660236a";
+    const otherMembershipId = "3766395e-ec88-481e-9a72-81fa2cc2904a";
+    const ownerSession: IdentitySession = {
+      ...session,
+      memberships: [
+        { organizationId, organizationName: "La Esperanza", role: "owner" },
+      ],
+    };
+    const onBeginOwnerRemoval = vi.fn();
+    renderView(
+      {
+        kind: "authenticated",
+        capabilities: productionCapabilities,
+        session: ownerSession,
+      },
+      { kind: "none" },
+      {},
+      {},
+      {
+        ownerMemberships: {
+          [organizationId]: {
+            kind: "ready",
+            items: [
+              {
+                membershipId: currentMembershipId,
+                organizationId,
+                displayName: "Ana Productora",
+                isCurrentUser: true,
+                role: "owner",
+                status: "active",
+                authorizationVersion: 1,
+                createdAtUtc: "2026-08-10T10:00:00Z",
+                removedAtUtc: null,
+                version: "4766395e-ec88-481e-9a72-81fa2cc2904a",
+              },
+              {
+                membershipId: otherMembershipId,
+                organizationId,
+                displayName: "Bruno Productor",
+                isCurrentUser: false,
+                role: "owner",
+                status: "active",
+                authorizationVersion: 2,
+                createdAtUtc: "2026-08-11T10:00:00Z",
+                removedAtUtc: null,
+                version: "5766395e-ec88-481e-9a72-81fa2cc2904a",
+              },
+            ],
+          },
+        },
+        onBeginOwnerRemoval,
+      },
+    );
+
+    expect(screen.getByRole("heading", { name: "Co-owners" })).toBeVisible();
+    expect(screen.getByText("Vos")).toBeVisible();
+    expect(screen.getByText("Membresía 2634C6")).toBeVisible();
+    expect(screen.getByText("Membresía 376639")).toBeVisible();
+    expect(document.body).not.toHaveTextContent(currentMembershipId);
+    expect(document.body).not.toHaveTextContent(otherMembershipId);
+    expect(
+      screen.queryByRole("button", { name: "Quitar acceso a Ana Productora" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Quitar acceso a Bruno Productor" }),
+    );
+    expect(onBeginOwnerRemoval).toHaveBeenCalledOnce();
+  });
+
+  it("focuses the accessible removal confirmation and cancels it with Escape", () => {
+    const organizationId = "1266395e-ec88-481e-9a72-81fa2cc2904a";
+    const membership = {
+      membershipId: "3766395e-ec88-481e-9a72-81fa2cc2904a",
+      organizationId,
+      displayName: "Bruno Productor",
+      isCurrentUser: false,
+      role: "owner" as const,
+      status: "active" as const,
+      authorizationVersion: 2,
+      createdAtUtc: "2026-08-11T10:00:00Z",
+      removedAtUtc: null,
+      version: "5766395e-ec88-481e-9a72-81fa2cc2904a",
+    };
+    const onCancelOwnerRemoval = vi.fn();
+    renderView(
+      {
+        kind: "authenticated",
+        capabilities: productionCapabilities,
+        session: {
+          ...session,
+          memberships: [
+            {
+              organizationId,
+              organizationName: "La Esperanza",
+              role: "owner",
+            },
+          ],
+        },
+      },
+      { kind: "none" },
+      {},
+      {},
+      {
+        ownerMemberships: {
+          [organizationId]: { kind: "ready", items: [membership] },
+        },
+        ownerMembershipAction: { kind: "confirming", membership },
+        onCancelOwnerRemoval,
+      },
+    );
+
+    const dialog = screen.getByRole("alertdialog", {
+      name: "¿Quitar acceso a Bruno Productor?",
+    });
+    expect(screen.getByRole("button", { name: "Cancelar" })).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onCancelOwnerRemoval).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["loading", "Cargando co-owners"],
+    ["offline", "Estás sin conexión"],
+    ["unavailable", "ya no están disponibles"],
+    ["service-unavailable", "no está disponible temporalmente"],
+    ["error", "No pudimos cargar los co-owners"],
+  ] as const)("renders the %s co-owner resource state", (kind, copy) => {
+    const organizationId = "1266395e-ec88-481e-9a72-81fa2cc2904a";
+    renderView(
+      {
+        kind: "authenticated",
+        capabilities: productionCapabilities,
+        session: {
+          ...session,
+          memberships: [
+            {
+              organizationId,
+              organizationName: "La Esperanza",
+              role: "owner",
+            },
+          ],
+        },
+      },
+      { kind: "none" },
+      {},
+      {},
+      { ownerMemberships: { [organizationId]: { kind } } },
+    );
+
+    expect(screen.getByText(new RegExp(copy, "i"))).toBeVisible();
   });
 });

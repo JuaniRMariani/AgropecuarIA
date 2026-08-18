@@ -77,6 +77,72 @@ export type CreatedOwnerInvitation = Readonly<{
   isReplay: boolean;
 }>;
 
+export type OrganizationOwnerMembershipSummary = Readonly<{
+  membershipId: string;
+  organizationId: string;
+  displayName: string;
+  isCurrentUser: boolean;
+  role: "owner";
+  status: "active";
+  authorizationVersion: number;
+  createdAtUtc: string;
+  removedAtUtc: null;
+  version: string;
+}>;
+
+export type RemovedOrganizationOwnerMembership = Readonly<{
+  membershipId: string;
+  organizationId: string;
+  displayName: string;
+  isCurrentUser: boolean;
+  role: "owner";
+  status: "removed";
+  authorizationVersion: number;
+  createdAtUtc: string;
+  removedAtUtc: string;
+  version: string;
+  isReplay: boolean;
+}>;
+
+export type OwnerMembershipResourceState =
+  | Readonly<{ kind: "idle" }>
+  | Readonly<{ kind: "loading" }>
+  | Readonly<{
+      kind: "ready";
+      items: readonly OrganizationOwnerMembershipSummary[];
+    }>
+  | Readonly<{ kind: "offline" }>
+  | Readonly<{ kind: "unavailable" }>
+  | Readonly<{ kind: "service-unavailable" }>
+  | Readonly<{ kind: "error" }>;
+
+export type OwnerMembershipActionState =
+  | Readonly<{ kind: "idle" }>
+  | Readonly<{
+      kind: "confirming";
+      membership: OrganizationOwnerMembershipSummary;
+    }>
+  | Readonly<{
+      kind: "removing";
+      organizationId: string;
+      membershipId: string;
+    }>
+  | Readonly<{ kind: "reauthentication-required"; message: string }>
+  | Readonly<{ kind: "last-owner"; message: string }>
+  | Readonly<{ kind: "stale"; message: string }>
+  | Readonly<{ kind: "unavailable"; message: string }>
+  | Readonly<{ kind: "service-unavailable"; message: string }>
+  | Readonly<{ kind: "rate-limited"; message: string }>
+  | Readonly<{ kind: "conflict"; message: string }>
+  | Readonly<{ kind: "offline"; message: string }>
+  | Readonly<{ kind: "error"; message: string }>
+  | Readonly<{
+      kind: "removed";
+      organizationId: string;
+      membershipId: string;
+      message: string;
+    }>;
+
 export type OwnerInvitationResourceState =
   | Readonly<{ kind: "idle" }>
   | Readonly<{ kind: "loading" }>

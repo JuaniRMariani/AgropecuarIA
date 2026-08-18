@@ -555,7 +555,8 @@ function Test-R1Evidence {
             'owner-only ACLs',
             'discovery fails fast',
             'CreateOrganization implements forward-safe product migrations',
-            'One-shot co-owner invitations derive actor and tenant server-side')) {
+            'One-shot co-owner invitations derive actor and tenant server-side',
+            'removal of another co-owner repeats those boundaries')) {
             if (-not $tm001Controls.Contains($requiredRlsEvidence)) {
                 $errors.Add("TM-001 must keep accepted disposable RLS evidence explicit: $requiredRlsEvidence.")
             }
@@ -708,6 +709,7 @@ function Invoke-MutationTests {
         'principal-fail-fast' = 'discovery fails fast'
         'organization-runtime' = 'CreateOrganization implements forward-safe product migrations'
         'owner-invitation-runtime' = 'One-shot co-owner invitations derive actor and tenant server-side'
+        'owner-removal-runtime' = 'removal of another co-owner repeats those boundaries'
     }
     foreach ($mutationName in $rlsEvidenceMutations.Keys) {
         $missingRlsEvidence = Copy-Register $Register

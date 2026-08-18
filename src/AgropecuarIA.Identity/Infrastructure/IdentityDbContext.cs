@@ -22,6 +22,12 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     public DbSet<OrganizationCreationKeyAlias> OrganizationCreationKeyAliases =>
         Set<OrganizationCreationKeyAlias>();
 
+    public DbSet<OrganizationOwnerRemovalLedger> OrganizationOwnerRemovalLedgers =>
+        Set<OrganizationOwnerRemovalLedger>();
+
+    public DbSet<OrganizationOwnerRemovalKeyAlias> OrganizationOwnerRemovalKeyAliases =>
+        Set<OrganizationOwnerRemovalKeyAlias>();
+
     public DbSet<OrganizationOwnerInvitation> OrganizationOwnerInvitations =>
         Set<OrganizationOwnerInvitation>();
 
@@ -108,7 +114,10 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
                         $"\"Role\" = '{OrganizationMembershipRoles.Owner}'");
                     table.HasCheckConstraint(
                         "CK_memberships_Status",
-                        $"\"Status\" = '{OrganizationStatuses.Active}'");
+                        $"(\"Status\" = '{OrganizationMembershipStatuses.Active}' AND " +
+                        "\"RemovedAtUtc\" IS NULL AND \"RemovedByUserId\" IS NULL) OR " +
+                        $"(\"Status\" = '{OrganizationMembershipStatuses.Removed}' AND " +
+                        "\"RemovedAtUtc\" >= \"CreatedAtUtc\" AND \"RemovedByUserId\" IS NOT NULL)");
                     table.HasCheckConstraint(
                         "CK_memberships_SecurityVersion",
                         "\"SecurityVersion\" > 0");
@@ -118,6 +127,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.Property(item => item.Status).HasMaxLength(16).IsRequired();
             entity.Property(item => item.SecurityVersion).IsRequired();
             entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => new { item.OrganizationId, item.UserId }).IsUnique();
             entity.HasIndex(item => new { item.UserId, item.Status });
             entity.HasIndex(item => new { item.OrganizationId, item.Status });
@@ -128,6 +138,114 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.HasOne<PlatformUser>()
                 .WithMany()
                 .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.RemovedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<OrganizationOwnerRemovalLedger>(entity =>
+        {
+            entity.ToTable(
+                "organization_owner_removal_ledgers",
+                table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_organization_owner_removal_ledgers_Protocol",
+                        $"\"ScopeKind\" = '{OrganizationOwnerRemovalProtocol.ScopeKind}' AND " +
+                        $"\"Namespace\" = '{OrganizationOwnerRemovalProtocol.Namespace}' AND " +
+                        $"\"Operation\" = '{OrganizationOwnerRemovalProtocol.Operation}' AND " +
+                        "\"ContractVersion\" > 0 AND \"CanonicalizationVersion\" > 0");
+                    table.HasCheckConstraint(
+                        "CK_organization_owner_removal_ledgers_State",
+                        $"(\"State\" = '{OrganizationOwnerRemovalProtocol.States.InProgress}' AND " +
+                        "\"ResultMembershipVersion\" IS NULL AND \"ResultAuthorizationVersion\" IS NULL AND " +
+                        "\"RemovedAtUtc\" IS NULL AND " +
+                        "\"CompletedAtUtc\" IS NULL) OR " +
+                        $"(\"State\" = '{OrganizationOwnerRemovalProtocol.States.Succeeded}' AND " +
+                        "\"ResultMembershipVersion\" IS NOT NULL AND \"ResultAuthorizationVersion\" IS NOT NULL AND " +
+                        "\"RemovedAtUtc\" IS NOT NULL AND " +
+                        "\"CompletedAtUtc\" IS NOT NULL) OR " +
+                        $"(\"State\" = '{OrganizationOwnerRemovalProtocol.States.FailedTerminal}' AND " +
+                        "\"ResultMembershipVersion\" IS NULL AND \"ResultAuthorizationVersion\" IS NULL AND " +
+                        "\"RemovedAtUtc\" IS NULL AND " +
+                        "\"CompletedAtUtc\" IS NOT NULL) OR " +
+                        $"(\"State\" = '{OrganizationOwnerRemovalProtocol.States.ResponseExpired}' AND " +
+                        "\"ResultMembershipVersion\" IS NOT NULL AND \"ResultAuthorizationVersion\" IS NOT NULL AND " +
+                        "\"RemovedAtUtc\" IS NOT NULL AND " +
+                        "\"CompletedAtUtc\" IS NOT NULL)");
+                    table.HasCheckConstraint(
+                        "CK_organization_owner_removal_ledgers_Fence",
+                        "\"FenceToken\" > 0 AND \"LeaseUntilUtc\" > \"StartedAtUtc\"");
+                    table.HasCheckConstraint(
+                        "CK_organization_owner_removal_ledgers_Result",
+                        "(\"ResultAuthorizationVersion\" IS NULL OR \"ResultAuthorizationVersion\" > 1) AND " +
+                        "(\"RemovedAtUtc\" IS NULL OR \"RemovedAtUtc\" >= \"StartedAtUtc\") AND " +
+                        "(\"CompletedAtUtc\" IS NULL OR \"CompletedAtUtc\" >= \"StartedAtUtc\") AND " +
+                        "(\"RemovedAtUtc\" IS NULL OR \"CompletedAtUtc\" IS NULL OR " +
+                        "\"CompletedAtUtc\" >= \"RemovedAtUtc\")");
+                });
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.ScopeKind).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.Namespace).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Operation).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.RequestFingerprint).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.State).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.HasIndex(item => new { item.OrganizationId, item.ActorUserId, item.StartedAtUtc });
+            entity.HasIndex(item => new { item.OrganizationId, item.State, item.LeaseUntilUtc });
+            entity.HasOne<OrganizationDirectoryEntry>()
+                .WithMany()
+                .HasForeignKey(item => item.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<PlatformUser>()
+                .WithMany()
+                .HasForeignKey(item => item.ActorUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<UserSession>()
+                .WithMany()
+                .HasForeignKey(item => item.SessionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<OrganizationMembershipAssignment>()
+                .WithMany()
+                .HasForeignKey(item => item.MembershipId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<OrganizationOwnerRemovalKeyAlias>(entity =>
+        {
+            entity.ToTable(
+                "organization_owner_removal_key_aliases",
+                table => table.HasCheckConstraint(
+                    "CK_organization_owner_removal_key_aliases_Protocol",
+                    $"\"ScopeKind\" = '{OrganizationOwnerRemovalProtocol.ScopeKind}' AND " +
+                    $"\"Namespace\" = '{OrganizationOwnerRemovalProtocol.Namespace}' AND " +
+                    $"\"Operation\" = '{OrganizationOwnerRemovalProtocol.Operation}'"));
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.ScopeKind).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.Namespace).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Operation).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.KeyVersion).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.KeyDigest).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.HasIndex(item => new
+            {
+                item.OrganizationId,
+                item.ScopeKind,
+                item.Namespace,
+                item.Operation,
+                item.KeyVersion,
+                item.KeyDigest,
+            }).IsUnique();
+            entity.HasIndex(item => new { item.LedgerId, item.KeyVersion }).IsUnique();
+            entity.HasOne<OrganizationOwnerRemovalLedger>()
+                .WithMany()
+                .HasForeignKey(item => item.LedgerId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<OrganizationDirectoryEntry>()
+                .WithMany()
+                .HasForeignKey(item => item.OrganizationId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

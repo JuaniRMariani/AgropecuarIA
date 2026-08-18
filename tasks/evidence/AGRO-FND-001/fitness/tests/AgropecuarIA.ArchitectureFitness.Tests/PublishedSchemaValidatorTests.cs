@@ -66,6 +66,9 @@ public sealed class PublishedSchemaValidatorTests
     [DataRow("organization-owner-invitation-accepted.v1.schema.json", "membershipId")]
     [DataRow("organization-owner-invitation-accepted.v1.schema.json", "acceptedAtUtc")]
     [DataRow("organization-owner-invitation-revoked.v1.schema.json", "revokedAtUtc")]
+    [DataRow("organization-owner-membership-removed.v1.schema.json", "organizationId")]
+    [DataRow("organization-owner-membership-removed.v1.schema.json", "membershipId")]
+    [DataRow("organization-owner-membership-removed.v1.schema.json", "removedAtUtc")]
     public void IdentityEventPayloadSchemasRejectMissingExtraAndWronglyTypedFields(
         string fileName,
         string requiredProperty)
@@ -80,6 +83,21 @@ public sealed class PublishedSchemaValidatorTests
 
         Assert.IsTrue(issues.Any(issue => issue.Code == "schema.required.missing"));
         Assert.IsTrue(issues.Any(issue => issue.Code == "schema.properties.invalid"));
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-shape.invalid"));
+    }
+
+    [TestMethod]
+    [DataRow("authorizationVersion")]
+    [DataRow("revokedInvitationCount")]
+    public void OwnerMembershipRemovalSchemaRequiresBoundedIntegers(string propertyName)
+    {
+        const string FileName = "organization-owner-membership-removed.v1.schema.json";
+        var schema = Schema(FileName);
+        schema["properties"]![propertyName]!["type"] = "string";
+        schema["properties"]![propertyName]!["minimum"] = -1;
+
+        var issues = PublishedSchemaValidator.Validate(FileName, schema.ToJsonString());
+
         Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-shape.invalid"));
     }
 

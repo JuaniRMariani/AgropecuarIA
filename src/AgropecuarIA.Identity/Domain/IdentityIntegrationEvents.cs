@@ -8,6 +8,7 @@ public enum IdentityIntegrationEventKind
     OrganizationOwnerInvited = 4,
     OrganizationOwnerInvitationAccepted = 5,
     OrganizationOwnerInvitationRevoked = 6,
+    OrganizationOwnerMembershipRemoved = 7,
 }
 
 public sealed record IdentityIntegrationEventEnvelope(
@@ -56,6 +57,13 @@ public sealed record OrganizationOwnerInvitationRevokedIntegrationEventPayload(
     Guid OrganizationId,
     Guid InvitationId,
     DateTimeOffset RevokedAtUtc);
+
+public sealed record OrganizationOwnerMembershipRemovedIntegrationEventPayload(
+    Guid OrganizationId,
+    Guid MembershipId,
+    long AuthorizationVersion,
+    int RevokedInvitationCount,
+    DateTimeOffset RemovedAtUtc);
 
 public sealed class IdentityIntegrationEventDefinition
 {
@@ -186,6 +194,15 @@ public static class IdentityIntegrationEvents
         "OrganizationOwnerInvitation",
         "tasks/evidence/AGRO-FND-001/contracts/organization-owner-invitation-revoked.v1.schema.json");
 
+    public static IdentityIntegrationEventDefinition OrganizationOwnerMembershipRemoved { get; } = new(
+        "OrganizationOwnerMembershipRemoved",
+        1,
+        SchemaVersion,
+        Source,
+        "tenant",
+        "Membership",
+        "tasks/evidence/AGRO-FND-001/contracts/organization-owner-membership-removed.v1.schema.json");
+
     public static IReadOnlyList<IdentityIntegrationEventDefinition> All { get; } =
         Array.AsReadOnly(
             Enum.GetValues<IdentityIntegrationEventKind>()
@@ -201,6 +218,7 @@ public static class IdentityIntegrationEvents
             IdentityIntegrationEventKind.OrganizationOwnerInvited => OrganizationOwnerInvited,
             IdentityIntegrationEventKind.OrganizationOwnerInvitationAccepted => OrganizationOwnerInvitationAccepted,
             IdentityIntegrationEventKind.OrganizationOwnerInvitationRevoked => OrganizationOwnerInvitationRevoked,
+            IdentityIntegrationEventKind.OrganizationOwnerMembershipRemoved => OrganizationOwnerMembershipRemoved,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(kind),
                 kind,

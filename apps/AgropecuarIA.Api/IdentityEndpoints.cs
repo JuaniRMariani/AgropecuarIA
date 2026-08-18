@@ -358,6 +358,64 @@ public static class IdentityEndpoints
                 return Results.Ok(ToOwnerInvitationResponse(revoked));
             }).RequireAuthorization();
 
+        identity.MapGet("/organizations/{organizationId:guid}/owner-memberships", async (
+            Guid organizationId,
+            HttpContext context,
+            IdentityApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
+            IReadOnlyList<OrganizationOwnerMembershipSummaryResult> memberships =
+                await service.ListOrganizationOwnerMembershipsAsync(
+                    organizationId,
+                    current,
+                    TenantRequestContext(context, current, organizationId),
+                    cancellationToken);
+            return Results.Ok(memberships.Select(ToOwnerMembershipResponse).ToArray());
+        }).RequireAuthorization();
+
+        identity.MapDelete(
+            "/organizations/{organizationId:guid}/owner-memberships/{membershipId:guid}",
+            async (
+                Guid organizationId,
+                Guid membershipId,
+                HttpContext context,
+                IAntiforgery antiforgery,
+                IdentityApplicationService service,
+                CancellationToken cancellationToken) =>
+            {
+                await antiforgery.ValidateRequestAsync(context);
+                Guid expectedVersion = ReadOwnerMembershipVersion(context);
+                string idempotencyKey = ReadSingleHeader(
+                    context,
+                    "Idempotency-Key",
+                    IdentityErrors.InvalidIdempotencyKey);
+                AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
+                RemovedOrganizationOwnerMembershipResult removed =
+                    await service.RemoveOrganizationOwnerMembershipAsync(
+                        new RemoveOrganizationOwnerMembershipCommand(
+                            organizationId,
+                            membershipId,
+                            expectedVersion,
+                            idempotencyKey),
+                        current,
+                        TenantRequestContext(context, current, organizationId),
+                        cancellationToken);
+                context.Response.Headers.ETag = $"\"{removed.Version:D}\"";
+                return Results.Ok(new RemovedOwnerMembershipResponse(
+                    removed.MembershipId,
+                    removed.OrganizationId,
+                    removed.DisplayName,
+                    removed.IsCurrentUser,
+                    removed.Role,
+                    removed.Status,
+                    removed.AuthorizationVersion,
+                    removed.CreatedAtUtc,
+                    removed.RemovedAtUtc,
+                    removed.Version,
+                    removed.IsReplay));
+            }).RequireAuthorization();
+
         identity.MapPost("/owner-invitations/accept", async (
             AcceptOwnerInvitationRequest request,
             HttpContext context,
@@ -754,6 +812,21 @@ public static class IdentityEndpoints
         return version;
     }
 
+    private static Guid ReadOwnerMembershipVersion(HttpContext context)
+    {
+        string value = ReadSingleHeader(
+            context,
+            "If-Match",
+            IdentityErrors.InvalidOwnerMembershipVersion);
+        if (value.Length != 38 || value[0] != '"' || value[^1] != '"' ||
+            !Guid.TryParseExact(value[1..^1], "D", out Guid version))
+        {
+            throw IdentityErrors.InvalidOwnerMembershipVersion();
+        }
+
+        return version;
+    }
+
     private static OwnerInvitationResponse ToOwnerInvitationResponse(
         CreatedOrganizationOwnerInvitationResult invitation) =>
         new(
@@ -765,6 +838,20 @@ public static class IdentityEndpoints
             invitation.AcceptedAtUtc,
             invitation.RevokedAtUtc,
             invitation.Version);
+
+    private static OwnerMembershipResponse ToOwnerMembershipResponse(
+        OrganizationOwnerMembershipSummaryResult membership) =>
+        new(
+            membership.MembershipId,
+            membership.OrganizationId,
+            membership.DisplayName,
+            membership.IsCurrentUser,
+            membership.Role,
+            membership.Status,
+            membership.AuthorizationVersion,
+            membership.CreatedAtUtc,
+            membership.RemovedAtUtc,
+            membership.Version);
 
     private static OwnerInvitationResponse ToOwnerInvitationResponse(
         OrganizationOwnerInvitationSummaryResult invitation) =>
@@ -890,4 +977,29 @@ public static class IdentityEndpoints
 
     private sealed record OwnerInvitationListResponse(
         IReadOnlyList<OwnerInvitationResponse> Items);
+
+    private sealed record OwnerMembershipResponse(
+        Guid MembershipId,
+        Guid OrganizationId,
+        string DisplayName,
+        bool IsCurrentUser,
+        string Role,
+        string Status,
+        long AuthorizationVersion,
+        DateTimeOffset CreatedAtUtc,
+        DateTimeOffset? RemovedAtUtc,
+        Guid Version);
+
+    private sealed record RemovedOwnerMembershipResponse(
+        Guid MembershipId,
+        Guid OrganizationId,
+        string DisplayName,
+        bool IsCurrentUser,
+        string Role,
+        string Status,
+        long AuthorizationVersion,
+        DateTimeOffset CreatedAtUtc,
+        DateTimeOffset RemovedAtUtc,
+        Guid Version,
+        bool IsReplay);
 }

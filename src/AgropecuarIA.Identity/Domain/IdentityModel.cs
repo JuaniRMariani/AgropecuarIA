@@ -554,6 +554,33 @@ public sealed class IdentityOutboxMessage
             JsonSerializer.Serialize(payload, PayloadSerializerOptions));
     }
 
+    public static IdentityOutboxMessage CreateOrganizationOwnerMembershipRemoved(
+        IdentityIntegrationEventEnvelope envelope,
+        OrganizationOwnerMembershipRemovedIntegrationEventPayload payload)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+        ArgumentNullException.ThrowIfNull(payload);
+        if (payload.OrganizationId == Guid.Empty ||
+            payload.MembershipId == Guid.Empty ||
+            payload.AuthorizationVersion < 2 ||
+            payload.RevokedInvitationCount < 0 ||
+            envelope.Scope is not RequestScope.TenantRequestScope tenantScope ||
+            tenantScope.TenantId != payload.OrganizationId ||
+            envelope.AggregateId != payload.MembershipId ||
+            envelope.OccurredAtUtc != payload.RemovedAtUtc ||
+            envelope.AggregateVersion != payload.AuthorizationVersion)
+        {
+            throw new ArgumentException(
+                "The removed owner membership payload must match its tenant event envelope.",
+                nameof(payload));
+        }
+
+        return new IdentityOutboxMessage(
+            IdentityIntegrationEventKind.OrganizationOwnerMembershipRemoved,
+            envelope,
+            JsonSerializer.Serialize(payload, PayloadSerializerOptions));
+    }
+
     private static void ValidateOwnerInvitationEnvelope(
         IdentityIntegrationEventEnvelope envelope,
         Guid organizationId,

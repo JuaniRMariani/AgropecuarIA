@@ -6,14 +6,18 @@ import {
   createOrganization,
   IdentityApiError,
   invalidateAntiforgeryToken,
+  listOrganizationOwnerMemberships,
   parseCreatedOrganization,
   parseIdentityCapabilities,
   parseIdentitySession,
   parseLinkStart,
   parseCreatedOwnerInvitation,
   parseOwnerInvitationList,
+  parseOrganizationOwnerMembershipList,
+  parseRemovedOrganizationOwnerMembership,
   parseStepUpAttempt,
   revokeOwnerInvitation,
+  removeOrganizationOwnerMembership,
   resolveAuthorizationUrl,
   startLink,
 } from "../../features/identity/identity-api";
@@ -51,6 +55,18 @@ const invitation = {
   version: "4766395e-ec88-481e-9a72-81fa2cc2904a",
 };
 const invitationToken = "a".repeat(43);
+const ownerMembership = {
+  membershipId: "2634c6ee-8d8a-49e7-95b7-84fa0660236a",
+  organizationId: "1266395e-ec88-481e-9a72-81fa2cc2904a",
+  displayName: "Ana Productora",
+  isCurrentUser: true,
+  role: "owner",
+  status: "active",
+  authorizationVersion: 1,
+  createdAtUtc: "2026-08-10T10:00:00Z",
+  removedAtUtc: null,
+  version: "5766395e-ec88-481e-9a72-81fa2cc2904a",
+} as const;
 
 afterEach(() => {
   invalidateAntiforgeryToken();
@@ -214,6 +230,42 @@ describe("identity contract parsing", () => {
     expect(
       parseOwnerInvitationList({ items: [{ ...invitation, token: "secret" }] }),
     ).toEqual([invitation]);
+  });
+
+  it("parses the flat active owner-membership array and rejects removed rows", () => {
+    expect(
+      parseOrganizationOwnerMembershipList([
+        { ...ownerMembership, futureField: "compatible" },
+      ]),
+    ).toEqual([ownerMembership]);
+    expect(() =>
+      parseOrganizationOwnerMembershipList({ items: [ownerMembership] }),
+    ).toThrow(IdentityApiError);
+    expect(() =>
+      parseOrganizationOwnerMembershipList([
+        {
+          ...ownerMembership,
+          status: "removed",
+          removedAtUtc: "2026-08-12T10:00:00Z",
+        },
+      ]),
+    ).toThrow(IdentityApiError);
+  });
+
+  it("parses the flat removed owner-membership result with replay metadata", () => {
+    expect(
+      parseRemovedOrganizationOwnerMembership({
+        ...ownerMembership,
+        status: "removed",
+        removedAtUtc: "2026-08-12T10:00:00Z",
+        isReplay: false,
+      }),
+    ).toEqual({
+      ...ownerMembership,
+      status: "removed",
+      removedAtUtc: "2026-08-12T10:00:00Z",
+      isReplay: false,
+    });
   });
 
   it("accepts a raw invitation token only on the first create response", () => {
@@ -599,6 +651,66 @@ describe("identity mutations", () => {
       invalidateAntiforgeryToken();
     },
   );
+});
+
+describe("owner-membership requests", () => {
+  it("loads the flat directory without mutation headers", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify([ownerMembership]), {
+        status: 200,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      listOrganizationOwnerMemberships(ownerMembership.organizationId),
+    ).resolves.toEqual([ownerMembership]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/identity/organizations/${ownerMembership.organizationId}/owner-memberships`,
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
+
+  it("removes with CSRF, If-Match, and a stable idempotency key", async () => {
+    const removed = {
+      ...ownerMembership,
+      status: "removed",
+      removedAtUtc: "2026-08-12T10:00:00Z",
+      isReplay: false,
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "safe-token" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(removed), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      removeOrganizationOwnerMembership(
+        ownerMembership.organizationId,
+        ownerMembership.membershipId,
+        ownerMembership.version,
+        "attempt-key-123456",
+      ),
+    ).resolves.toEqual(removed);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `/api/identity/organizations/${ownerMembership.organizationId}/owner-memberships/${ownerMembership.membershipId}`,
+      expect.objectContaining({
+        method: "DELETE",
+        body: undefined,
+        credentials: "include",
+        headers: expect.objectContaining({
+          "X-CSRF-TOKEN": "safe-token",
+          "If-Match": `"${ownerMembership.version}"`,
+          "Idempotency-Key": "attempt-key-123456",
+        }),
+      }),
+    );
+  });
 });
 
 describe("authorization redirect allowlist", () => {

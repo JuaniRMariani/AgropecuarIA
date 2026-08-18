@@ -12,9 +12,11 @@ import {
   identityLoginUrl,
   IdentityApiError,
   loadCapabilities,
+  listOrganizationOwnerMemberships,
   listOwnerInvitations,
   loadSession,
   resolveAuthorizationUrl,
+  removeOrganizationOwnerMembership,
   revokeSession,
   revokeOwnerInvitation,
   startLink,
@@ -29,6 +31,9 @@ import type {
   IdentityResourceState,
   IdentitySession,
   OrganizationCreationState,
+  OrganizationOwnerMembershipSummary,
+  OwnerMembershipActionState,
+  OwnerMembershipResourceState,
   OwnerInvitationAcceptanceState,
   OwnerInvitationActionState,
   OwnerInvitationResourceState,
@@ -44,6 +49,8 @@ const OWNER_INVITATION_TOKEN_KEY =
   "agropecuaria.identity.owner-invitation-token.v1";
 const OWNER_INVITATION_ACTION_KEY =
   "agropecuaria.identity.owner-invitation-action.v1";
+const OWNER_REMOVAL_ACTION_KEY =
+  "agropecuaria.identity.owner-removal-action.v1";
 const OWNER_INVITATION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -63,6 +70,14 @@ type StoredOwnerInvitationAction =
 
 type StoredOrganizationAttempt = Readonly<{
   draft: string;
+  idempotencyKey: string;
+}>;
+
+type StoredOwnerRemovalAction = Readonly<{
+  organizationId: string;
+  membershipId: string;
+  displayName: string;
+  version: string;
   idempotencyKey: string;
 }>;
 
@@ -181,6 +196,66 @@ function takeOwnerInvitationAction(): StoredOwnerInvitationAction | null {
     return isStoredOwnerInvitationAction(value) ? value : null;
   } catch {
     return null;
+  }
+}
+
+function isStoredOwnerRemovalAction(
+  value: unknown,
+): value is StoredOwnerRemovalAction {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "organizationId" in value &&
+    typeof value.organizationId === "string" &&
+    UUID_PATTERN.test(value.organizationId) &&
+    "membershipId" in value &&
+    typeof value.membershipId === "string" &&
+    UUID_PATTERN.test(value.membershipId) &&
+    "displayName" in value &&
+    typeof value.displayName === "string" &&
+    value.displayName.trim().length > 0 &&
+    value.displayName.length <= 160 &&
+    "version" in value &&
+    typeof value.version === "string" &&
+    UUID_PATTERN.test(value.version) &&
+    "idempotencyKey" in value &&
+    typeof value.idempotencyKey === "string" &&
+    ORGANIZATION_ATTEMPT_KEY_PATTERN.test(value.idempotencyKey)
+  );
+}
+
+function storeOwnerRemovalAction(action: StoredOwnerRemovalAction): void {
+  try {
+    globalThis.sessionStorage.setItem(
+      OWNER_REMOVAL_ACTION_KEY,
+      JSON.stringify(action),
+    );
+  } catch {
+    // The action remains in memory when browser storage is unavailable.
+  }
+}
+
+function takeOwnerRemovalAction(): StoredOwnerRemovalAction | null {
+  try {
+    const serialized = globalThis.sessionStorage.getItem(
+      OWNER_REMOVAL_ACTION_KEY,
+    );
+    globalThis.sessionStorage.removeItem(OWNER_REMOVAL_ACTION_KEY);
+    if (serialized === null) {
+      return null;
+    }
+    const value: unknown = JSON.parse(serialized);
+    return isStoredOwnerRemovalAction(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearOwnerRemovalAction(): void {
+  try {
+    globalThis.sessionStorage.removeItem(OWNER_REMOVAL_ACTION_KEY);
+  } catch {
+    // Browser storage is optional; the in-memory action is authoritative.
   }
 }
 
@@ -399,6 +474,75 @@ function invitationActionFailure(error: unknown): OwnerInvitationActionState {
   };
 }
 
+function ownerMembershipActionFailure(
+  error: unknown,
+): OwnerMembershipActionState {
+  if (error instanceof IdentityApiError) {
+    if (
+      error.kind === "signed-out" ||
+      error.kind === "revoked" ||
+      error.kind === "reauthentication-required"
+    ) {
+      return {
+        kind: "reauthentication-required",
+        message: "Verificá tu identidad con MFA para quitar un co-owner.",
+      };
+    }
+    if (error.status === 404) {
+      return {
+        kind: "unavailable",
+        message:
+          "La membresía ya no está disponible. Actualizá la lista antes de continuar.",
+      };
+    }
+    if (error.status === 409 && /last[_-]?owner/.test(error.code)) {
+      return {
+        kind: "last-owner",
+        message:
+          "No se puede quitar al último owner activo de la organización.",
+      };
+    }
+    if (error.status === 412) {
+      return {
+        kind: "stale",
+        message:
+          "La membresía cambió en paralelo. Actualizamos la lista para que revises su estado.",
+      };
+    }
+    if (error.status === 503) {
+      return {
+        kind: "service-unavailable",
+        message:
+          "El servicio no está disponible temporalmente. Conservamos el intento para reintentarlo.",
+      };
+    }
+    if (error.status === 429) {
+      return {
+        kind: "rate-limited",
+        message:
+          "Hay demasiados intentos. Esperá un momento antes de reintentar.",
+      };
+    }
+    if (error.status === 409 || error.kind === "conflict") {
+      return {
+        kind: "conflict",
+        message:
+          "No se pudo confirmar el cambio porque la membresía cambió en paralelo.",
+      };
+    }
+  }
+  if (error instanceof TypeError && !window.navigator.onLine) {
+    return {
+      kind: "offline",
+      message: "Estás sin conexión. No confirmamos ningún cambio.",
+    };
+  }
+  return {
+    kind: "error",
+    message: "No pudimos quitar al co-owner. Ningún permiso se confirmó.",
+  };
+}
+
 function invitationAcceptanceFailure(
   error: unknown,
 ): OwnerInvitationAcceptanceState {
@@ -506,11 +650,25 @@ export function IdentityHub() {
     useState<OwnerInvitationActionState>({ kind: "idle" });
   const [ownerInvitationAcceptance, setOwnerInvitationAcceptance] =
     useState<OwnerInvitationAcceptanceState>({ kind: "idle" });
+  const [ownerMemberships, setOwnerMemberships] = useState<
+    Readonly<Record<string, OwnerMembershipResourceState>>
+  >({});
+  const [ownerMembershipAction, setOwnerMembershipAction] =
+    useState<OwnerMembershipActionState>({ kind: "idle" });
   const organizationAttemptKey = useRef<string | null>(null);
   const invitationToken = useRef<string | null>(null);
   const invitationAction = useRef<StoredOwnerInvitationAction | null>(null);
+  const ownerRemovalAction = useRef<StoredOwnerRemovalAction | null>(null);
   const invitationCreateKeys = useRef<Record<string, string>>({});
+  const ownerInvitationsAvailable = useRef(false);
+  const ownerMembershipRequestVersions = useRef<Record<string, number>>({});
   const mounted = useRef(true);
+
+  useEffect(() => {
+    ownerInvitationsAvailable.current =
+      resource.kind === "authenticated" &&
+      resource.capabilities.ownerInvitationsAvailable;
+  }, [resource]);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -923,6 +1081,231 @@ export function IdentityHub() {
     [],
   );
 
+  const refreshOwnerMemberships = useCallback(
+    async (organizationId: string, signal?: AbortSignal) => {
+      const requestVersion =
+        (ownerMembershipRequestVersions.current[organizationId] ?? 0) + 1;
+      ownerMembershipRequestVersions.current[organizationId] = requestVersion;
+      await Promise.resolve();
+      if (signal?.aborted === true) {
+        return;
+      }
+      setOwnerMemberships((current) => ({
+        ...current,
+        [organizationId]: { kind: "loading" },
+      }));
+      try {
+        const items = await listOrganizationOwnerMemberships(
+          organizationId,
+          signal,
+        );
+        if (
+          mounted.current &&
+          ownerMembershipRequestVersions.current[organizationId] ===
+            requestVersion
+        ) {
+          setOwnerMemberships((current) => ({
+            ...current,
+            [organizationId]: { kind: "ready", items },
+          }));
+        }
+      } catch (error) {
+        if (
+          !isAbort(error) &&
+          mounted.current &&
+          ownerMembershipRequestVersions.current[organizationId] ===
+            requestVersion
+        ) {
+          let kind: OwnerMembershipResourceState["kind"] = "error";
+          if (error instanceof TypeError && !window.navigator.onLine) {
+            kind = "offline";
+          } else if (error instanceof IdentityApiError) {
+            if (error.status === 404) {
+              kind = "unavailable";
+            } else if (error.status === 503) {
+              kind = "service-unavailable";
+            }
+          }
+          setOwnerMemberships((current) => ({
+            ...current,
+            [organizationId]: { kind },
+          }));
+        }
+      }
+    },
+    [],
+  );
+
+  const executeOwnerRemoval = useCallback(
+    async (action: StoredOwnerRemovalAction) => {
+      ownerRemovalAction.current = action;
+      storeOwnerRemovalAction(action);
+      setOwnerMembershipAction({
+        kind: "removing",
+        organizationId: action.organizationId,
+        membershipId: action.membershipId,
+      });
+      try {
+        await removeOrganizationOwnerMembership(
+          action.organizationId,
+          action.membershipId,
+          action.version,
+          action.idempotencyKey,
+        );
+        if (!mounted.current) {
+          return;
+        }
+        setOwnerMemberships((current) => {
+          const previous = current[action.organizationId];
+          if (previous?.kind !== "ready") {
+            return current;
+          }
+          return {
+            ...current,
+            [action.organizationId]: {
+              kind: "ready",
+              items: previous.items.filter(
+                (item) => item.membershipId !== action.membershipId,
+              ),
+            },
+          };
+        });
+        ownerRemovalAction.current = null;
+        clearOwnerRemovalAction();
+        await refreshOwnerMemberships(action.organizationId);
+        setOwnerMembershipAction({
+          kind: "removed",
+          organizationId: action.organizationId,
+          membershipId: action.membershipId,
+          message: `${action.displayName} ya no tiene acceso a la organización.`,
+        });
+        if (ownerInvitationsAvailable.current) {
+          void refreshOwnerInvitations(action.organizationId);
+        }
+      } catch (error) {
+        if (isAbort(error) || !mounted.current) {
+          return;
+        }
+        const failure = ownerMembershipActionFailure(error);
+        if (failure.kind === "reauthentication-required") {
+          storeOwnerRemovalAction(action);
+        }
+        if (
+          failure.kind === "last-owner" ||
+          failure.kind === "stale" ||
+          failure.kind === "unavailable" ||
+          failure.kind === "conflict"
+        ) {
+          ownerRemovalAction.current = null;
+          clearOwnerRemovalAction();
+          void refreshOwnerMemberships(action.organizationId);
+        }
+        setOwnerMembershipAction(failure);
+      }
+    },
+    [refreshOwnerInvitations, refreshOwnerMemberships],
+  );
+
+  const requestOwnerRemovalStepUp = useCallback(
+    async (action: StoredOwnerRemovalAction) => {
+      if (resource.kind !== "authenticated") {
+        return;
+      }
+      ownerRemovalAction.current = action;
+      storeOwnerRemovalAction(action);
+      setOwnerMembershipAction({
+        kind: "reauthentication-required",
+        message: "Verificá tu identidad con MFA para quitar un co-owner.",
+      });
+      try {
+        const attempt = await startStepUp("manage_organization_owners");
+        if (developmentProviderAvailable(resource.capabilities)) {
+          const session = await completeDevelopmentStepUp(attempt);
+          if (mounted.current) {
+            setResource({
+              kind: "authenticated",
+              capabilities: resource.capabilities,
+              session,
+            });
+            takeOwnerRemovalAction();
+            await executeOwnerRemoval(action);
+          }
+          return;
+        }
+        const authorizationUrl = resolveAuthorizationUrl(
+          attempt.authorizationUrl,
+        );
+        if (authorizationUrl === null) {
+          throw new IdentityApiError("error", 502);
+        }
+        window.location.assign(authorizationUrl);
+      } catch (error) {
+        if (!isAbort(error) && mounted.current) {
+          setOwnerMembershipAction(ownerMembershipActionFailure(error));
+        }
+      }
+    },
+    [executeOwnerRemoval, resource],
+  );
+
+  const handleBeginOwnerRemoval = useCallback(
+    (membership: OrganizationOwnerMembershipSummary) => {
+      if (membership.isCurrentUser) {
+        return;
+      }
+      setOwnerMembershipAction({ kind: "confirming", membership });
+    },
+    [],
+  );
+
+  const handleConfirmOwnerRemoval = useCallback(() => {
+    if (
+      resource.kind !== "authenticated" ||
+      ownerMembershipAction.kind !== "confirming"
+    ) {
+      return;
+    }
+    const { membership } = ownerMembershipAction;
+    const action: StoredOwnerRemovalAction = {
+      organizationId: membership.organizationId,
+      membershipId: membership.membershipId,
+      displayName: membership.displayName,
+      version: membership.version,
+      idempotencyKey: createOrganizationIdempotencyKey(),
+    };
+    if (hasOwnerManagementAssurance(resource.session)) {
+      void executeOwnerRemoval(action);
+    } else {
+      void requestOwnerRemovalStepUp(action);
+    }
+  }, [
+    executeOwnerRemoval,
+    ownerMembershipAction,
+    requestOwnerRemovalStepUp,
+    resource,
+  ]);
+
+  const handleRetryOwnerRemoval = useCallback(() => {
+    const action = ownerRemovalAction.current;
+    if (action !== null) {
+      if (
+        resource.kind === "authenticated" &&
+        hasOwnerManagementAssurance(resource.session)
+      ) {
+        void executeOwnerRemoval(action);
+      } else {
+        void requestOwnerRemovalStepUp(action);
+      }
+    }
+  }, [executeOwnerRemoval, requestOwnerRemovalStepUp, resource]);
+
+  const handleResumeOwnerRemoval = useCallback(() => {
+    const action = ownerRemovalAction.current;
+    if (action !== null) {
+      void requestOwnerRemovalStepUp(action);
+    }
+  }, [requestOwnerRemovalStepUp]);
+
   const executeOwnerInvitationAction = useCallback(
     async (action: StoredOwnerInvitationAction) => {
       invitationAction.current = action;
@@ -1195,15 +1578,15 @@ export function IdentityHub() {
       }
       return;
     }
-    if (!resource.capabilities.ownerInvitationsAvailable) {
-      if (invitationToken.current !== null) {
-        setOwnerInvitationAcceptance({
-          kind: "unavailable",
-          message:
-            "Las invitaciones de co-owner no están disponibles en este entorno.",
-        });
-      }
-      return;
+    if (
+      !resource.capabilities.ownerInvitationsAvailable &&
+      invitationToken.current !== null
+    ) {
+      setOwnerInvitationAcceptance({
+        kind: "unavailable",
+        message:
+          "Las invitaciones de co-owner no están disponibles en este entorno.",
+      });
     }
     const controller = new AbortController();
     queueMicrotask(() => {
@@ -1212,26 +1595,41 @@ export function IdentityHub() {
       }
       for (const membership of resource.session.memberships) {
         if (membership.role.toLowerCase() === "owner") {
-          void refreshOwnerInvitations(
+          void refreshOwnerMemberships(
             membership.organizationId,
             controller.signal,
           );
+          if (resource.capabilities.ownerInvitationsAvailable) {
+            void refreshOwnerInvitations(
+              membership.organizationId,
+              controller.signal,
+            );
+          }
         }
       }
-      const storedAction = takeOwnerInvitationAction();
-      if (storedAction !== null) {
-        invitationAction.current = storedAction;
-        void executeOwnerInvitationAction(storedAction);
+      if (resource.capabilities.ownerInvitationsAvailable) {
+        const storedAction = takeOwnerInvitationAction();
+        if (storedAction !== null) {
+          invitationAction.current = storedAction;
+          void executeOwnerInvitationAction(storedAction);
+        }
+        if (invitationToken.current !== null) {
+          void handleAcceptOwnerInvitation();
+        }
       }
-      if (invitationToken.current !== null) {
-        void handleAcceptOwnerInvitation();
+      const storedRemoval = takeOwnerRemovalAction();
+      if (storedRemoval !== null) {
+        ownerRemovalAction.current = storedRemoval;
+        void executeOwnerRemoval(storedRemoval);
       }
     });
     return () => controller.abort();
   }, [
     executeOwnerInvitationAction,
+    executeOwnerRemoval,
     handleAcceptOwnerInvitation,
     refreshOwnerInvitations,
+    refreshOwnerMemberships,
     resource,
   ]);
 
@@ -1254,12 +1652,25 @@ export function IdentityHub() {
       onSyntheticSignIn={() => void handleSyntheticSignIn()}
       onUnlink={(identityId) => void handleUnlink(identityId)}
       onOrganizationDraftChange={handleOrganizationDraftChange}
+      onBeginOwnerRemoval={handleBeginOwnerRemoval}
+      onCancelOwnerRemoval={() => setOwnerMembershipAction({ kind: "idle" })}
+      onConfirmOwnerRemoval={handleConfirmOwnerRemoval}
       onCopyOwnerInvitation={() => void handleCopyOwnerInvitation()}
       onCreateOwnerInvitation={handleCreateOwnerInvitation}
       onReauthenticateOwnerInvitation={handleReauthenticateOwnerInvitation}
       onRefreshOwnerInvitations={(organizationId) =>
         void refreshOwnerInvitations(organizationId)
       }
+      onRefreshOwnerMemberships={(organizationId) =>
+        void refreshOwnerMemberships(organizationId)
+      }
+      onRetryOwnerRemoval={handleRetryOwnerRemoval}
+      onResumeOwnerRemoval={handleResumeOwnerRemoval}
+      onDismissOwnerRemoval={() => {
+        ownerRemovalAction.current = null;
+        clearOwnerRemovalAction();
+        setOwnerMembershipAction({ kind: "idle" });
+      }}
       onResumeOwnerManagement={handleResumeOwnerManagement}
       onRevokeOwnerInvitation={handleRevokeOwnerInvitation}
       onReauthenticateOrganization={handleReauthenticateOrganization}
@@ -1269,6 +1680,8 @@ export function IdentityHub() {
       ownerInvitationAcceptance={ownerInvitationAcceptance}
       ownerInvitationAction={ownerInvitationAction}
       ownerInvitations={ownerInvitations}
+      ownerMembershipAction={ownerMembershipAction}
+      ownerMemberships={ownerMemberships}
       pendingAction={pendingAction}
       resource={resource}
     />

@@ -105,3 +105,30 @@ La implementación demuestra creación concurrente con una sola divulgación del
 La revisión independiente concluyó 0 hallazgos críticos, altos o medios abiertos. Se corrigieron durante los gates: deriva OpenAPI/ownership de agregado, constraint SQL que aceptaba NULL por semántica UNKNOWN, cobertura/grants de funciones estrechas, aislamiento de identidades E2E, rate limit del harness, journey SPA del atacante y confirmación de revocación.
 
 Permanecen fuera: invitación dirigida por email/delivery, roles distintos de owner, scopes por campo, democión/remoción/último-owner runtime, superadmin/JIT y deploy. Auth0 real, secretos administrados, edge, limiter distribuido, Audit central y retención legal continúan como gates de ambiente compartido.
+
+## Refresh: remoción segura de otro co-owner — 2026-08-18
+
+Resultado del sub-slice: **PASS local integrado**. Estado de `AGRO-ID-003`: **En curso**.
+
+Un owner activo puede listar los owners activos de su organización y remover a otro owner tras step-up `manage_organization_owners`. El creador no tiene privilegios especiales, self-remove queda fuera y PostgreSQL serializa create/accept/remove para conservar siempre al menos un owner activo. La membership queda `removed`, se elimina la proyección legacy y se revocan atómicamente las invitaciones pendientes creadas por el owner removido; la cuenta de plataforma permanece vigente.
+
+El directorio sólo expone display name, metadata de membership e `isCurrentUser`; no devuelve userId, email ni identidad externa. DELETE deriva actor y tenant en servidor, exige CSRF, `If-Match` e `Idempotency-Key`, reautoriza antes de lookup/ledger y neutraliza targets ausentes, ajenos, removidos y self. Replay conserva el resultado; mismatch, in-progress, stale, last-owner y commit incierto tienen estados tipados.
+
+### Evidencia final
+
+| Gate | Resultado |
+|---|---|
+| Restore locked + build Release | PASS; 0 warnings, 0 errores. |
+| Suite raíz MTP | PASS; `256/256`, 0 failed, 0 skipped. |
+| Architecture Fitness | PASS; `101/101`. |
+| Identity removal/API/PostgreSQL | PASS; directory, A/B, roles/RLS, last-owner concurrente, replay, mismatch, in-flight, commit incierto y rollback journal/outbox. |
+| Format .NET + EF Identity/Territory | PASS; sin drift de modelo. |
+| pnpm frozen/format/lint/typecheck/build | PASS. |
+| Vitest | PASS; `95/95`. |
+| Playwright desktop + móvil | PASS; `6/6`, journey A invita B, B acepta, A remueve y B pierde Org A, con Axe, teclado y 390 px. |
+| FND / SEC / SEC-002 | PASS; `45/45`, `42/42` y `22/22` operaciones. |
+| SCA NuGet + pnpm | PASS; `SSH.NET 2026.0.0` y `nanoid 3.3.18` fijan los advisories transitivos detectados; 0 vulnerabilidades conocidas al cierre. |
+
+La revisión independiente detectó y permitió corregir: 500 por FK al remover target inexistente, cobertura incompleta de errores neutrales/idempotencia, rollback no demostrado en todas las tablas, persistencia UI insuficiente del intento ante 503, respuesta visual stale concurrente y descripción de orden divergente. Resultado final: cero hallazgos críticos, altos o medios abiertos.
+
+Permanecen fuera: self-remove/leave, transferencia, democión, roles no-owner, scopes por campo, invitación email/delivery, superadmin/JIT y deploy. El padre continúa `En curso`.

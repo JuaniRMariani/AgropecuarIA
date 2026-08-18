@@ -1372,3 +1372,58 @@ Outcome observable: un gate reproducible cubre exactamente todas las operaciones
 - Validadores y supply chain: FND `45/45`, SEC `41/41`, findings schema, JSON/UTF-8, NuGet/pnpm SCA, secrets y diff-check `PASS`.
 - Revisión independiente: autorización tenant/RLS `23/23` dirigida y auth/browser `79/79`; se corrigieron extracción de PUT/PATCH/grupos nuevos, invariantes shared-reference y el claim imposible de membership revocada.
 - Publicación: un único commit/push autorizado, sin deploy y sin iniciar revocación de co-owner.
+
+## Iteración 28 — AGRO-ID-003 remoción segura de co-owner (2026-08-18)
+
+Estado inicial: `Ready` para un sub-slice estrecho. `AGRO-ID-003` permanece `En curso`; esta iteración no implementa salida voluntaria, transferencia, democión, roles adicionales, scopes por campo, email ni superadmin.
+
+### DoR, alcance y decisiones
+
+- [x] Fijar que cualquier owner activo puede remover a otro owner activo; todos los owners son simétricos y el creador no tiene privilegio especial.
+- [x] Excluir `actor == target`; self-remove/leave requiere un slice posterior.
+- [x] Exigir sesión vigente y step-up purpose-bound `manage_organization_owners` para remover; el listado requiere owner activo.
+- [x] Modelar remoción autoritativa como estado terminal `removed`, conservar historial y eliminar la proyección legacy en la misma transacción.
+- [x] Proteger `>= 1` owner activo con serialización/lock por organización y una primitiva PostgreSQL estrecha; no conceder UPDATE/DELETE amplios al rol app.
+- [x] Revocar atómicamente invitaciones pendientes creadas por el owner removido y serializar create-invitation contra la misma organización.
+- [x] Mantener fail-closed la reactivación de una membership removida; reinvite/reactivación queda fuera de esta iteración.
+
+Outcome observable: el owner A lista los co-owners activos de Org A y remueve a B con CSRF, `If-Match` e idempotencia. B conserva su cuenta de plataforma, pero pierde inmediatamente Org A y todas sus rutas tenant; carreras nunca dejan la organización sin owner.
+
+### Aceptación verificable
+
+- [x] `GET /api/identity/organizations/{organizationId}/owner-memberships` devuelve sólo owners activos con display name, membership UUID, versión y marca `isCurrentUser`; nunca expone userId, email ni identidad externa.
+- [x] `DELETE /api/identity/organizations/{organizationId}/owner-memberships/{membershipId}` deriva actor/tenant server-side, exige CSRF, `If-Match`, `Idempotency-Key` y assurance vigente.
+- [x] Org ajena, actor no-owner, target ausente/ajeno/removido y self-target responden neutralmente sin oracle; ETag stale, last-owner, replay, mismatch e in-flight tienen errores tipados.
+- [x] Membership autoritativa queda `removed`, incrementa security/concurrency version, conserva historial y desaparece de `organization_memberships` legacy y de `/session`.
+- [x] Membership, proyección legacy, invitaciones pendientes, ledger, journal y outbox cambian en una transacción; fault injection demuestra rollback total.
+- [x] Dos remociones concurrentes dejan exactamente un owner activo; retry/replay produce un solo efecto, journal y evento.
+- [x] RLS/roles/grants prueban A/B/sin contexto/pool/job, actor removido y ausencia de UPDATE/DELETE amplio; la función privilegiada no queda expuesta a PUBLIC/job/discovery.
+- [x] OpenAPI, evento tipado, schema/runtime/consumer maps y SEC-002 registran las dos rutas y fallan ante drift.
+- [x] UI muestra `Co-owners`, UUID corto, confirmación accesible, reauth, loading/offline/error/stale/last-owner, foco/teclado/Axe y viewport 390 px.
+- [x] E2E demuestra A invita B, B acepta, A remueve B y B pierde Org A tras refrescar, en desktop y mobile.
+
+### Ownership y gates
+
+- [x] Principal: decisiones, plan, contratos compartidos, eventos/maps, integración, documentación, gates y Git.
+- [x] Backend: dominio/aplicación/API/telemetría y pruebas funcionales bajo ownership exclusivo.
+- [x] Database/Security: DbContext, migración, función/roles/RLS y pruebas PostgreSQL bajo ownership exclusivo.
+- [x] Frontend/QA: tipos/cliente/UI, Vitest y E2E bajo ownership exclusivo.
+- [x] Ejecutar restore locked, build Release, MTP raíz/dirigidos, format, EF pending/migración N/N-1/rollback, pnpm frozen/format/lint/typecheck/Vitest/build, Playwright, FND/SEC/SEC-002, SCA, secrets, UTF-8/JSON y diff-check.
+- [x] Revisión independiente sin hallazgos críticos/altos/medios; mantener `AGRO-ID-003` `En curso`.
+- [ ] Publicar sólo con autor local `JuaniRMariani <juanirmariani@gmail.com>`, verificar `git show --format=fuller -1` y no desplegar.
+
+### Baseline
+
+- Git `main`/`origin/main` en `6ac8d74`; worktree limpio salvo la lección solicitada para fijar identidad Git personal.
+- Backend: restore/build/format/EF PASS; MTP raíz `240/240`; fitness `96/96`.
+- Frontend: pnpm frozen/format/lint/typecheck/build PASS; Vitest `79/79`; Playwright `6/6`.
+- Validadores: FND `45/45`; SEC `41/41`; SEC-002 `20/20` operaciones; SCA y secrets sin hallazgos.
+
+### Review final
+
+- Resultado técnico: `PASS` local del sub-slice; `AGRO-ID-003` permanece `En curso`.
+- Backend: restore locked, build Release 0 warnings/errores, suite raíz MTP `256/256`, fitness `101/101`, format y EF Identity/Territory `PASS`.
+- Seguridad/DB: target ausente/ajeno/removido/self neutral, last-owner concurrente, replay/mismatch/in-flight/commit incierto y rollback journal/outbox `PASS`; FND `45/45`, SEC `42/42`, SEC-002 `22/22`.
+- Frontend: pnpm frozen/format/lint/typecheck/build `PASS`, Vitest `95/95`; Playwright PostgreSQL real `6/6` desktop/mobile con journey A→B→remoción, Axe, teclado y 390 px.
+- Supply chain: advisories transitivos detectados durante el gate corregidos mediante pins compatibles `SSH.NET 2026.0.0` y `nanoid 3.3.18`; NuGet/pnpm audit final sin vulnerabilidades conocidas.
+- Sin deploy. Self-remove/transfer/democión, roles no-owner, scopes campo, email/delivery y superadmin siguen fuera.

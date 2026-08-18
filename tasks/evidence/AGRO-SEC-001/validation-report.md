@@ -228,6 +228,12 @@ El registro pasa de ocho a diez superficies y agrega `RS-009` como `integrated-l
 validate-threat-model.ps1 -SelfTest
 PASS — 41/41 mutations; 14 threats; 7 critical; 7 high; 0 critical without owner/test/gate.
 
+## Refresh: remoción segura de co-owner — 2026-08-18
+
+TM-001 y TM-009 incorporan la remoción de otro co-owner como tercera frontera tenant integrada junto con bootstrap e invitaciones. El control exige actor/tenant server-derived, step-up purpose-bound, `FORCE RLS`, último-owner serializado, journal/outbox atómicos y negativos A/B/sin contexto/pool/job. Self-remove, transferencia, democión, roles no-owner y ambiente compartido continúan NO-GO.
+
+Validator PASS `42/42` mutations; 14 threats, 7 critical y 7 high; cero críticas sin owner/test/gate. El nuevo mutation test elimina la evidencia de remoción y demuestra que el gate falla ante drift.
+
 Threat/runtime JSON parse
 PASS — threat-register.json and runtime-surface-register.json.
 ```

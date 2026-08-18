@@ -15,8 +15,7 @@ public sealed class OrganizationOwnerInvitationApplicationTests
 {
     private static readonly string[] AcceptanceFaultTargets = ["journal", "outbox"];
 
-    private static readonly DateTimeOffset Now =
-        new(2026, 8, 11, 15, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Now = CurrentTestTime();
 
     [TestMethod]
     public async Task CreateAndAcceptAreReplaySafeAndDualWriteMemberships()
@@ -631,6 +630,12 @@ public sealed class OrganizationOwnerInvitationApplicationTests
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private static DateTimeOffset CurrentTestTime()
+    {
+        DateTimeOffset value = DateTimeOffset.UtcNow;
+        return value.AddTicks(-(value.Ticks % TimeSpan.TicksPerSecond));
     }
 
     private static async Task<(bool Succeeded, Exception? Error)> CaptureAsync(Func<Task> action)

@@ -1,4 +1,5 @@
 using AgropecuarIA.ArchitectureFitness;
+using System.Text.RegularExpressions;
 
 namespace AgropecuarIA.ArchitectureFitness.Tests;
 
@@ -20,7 +21,14 @@ public sealed class IdentityOpenApiContractTests
         string path = Path.Combine(Path.GetTempPath(), $"agro-identity-openapi-{Guid.NewGuid():N}.yaml");
         try
         {
-            File.WriteAllText(path, original.Replace("  version: 1.2.0", "  version: 2.0.0", StringComparison.Ordinal));
+            File.WriteAllText(
+                path,
+                Regex.Replace(
+                    original,
+                    "(?m)^  version: [0-9]+\\.[0-9]+\\.[0-9]+$",
+                    "  version: 2.0.0",
+                    RegexOptions.CultureInvariant,
+                    TimeSpan.FromSeconds(1)));
 
             var issues = IdentityOpenApiContractGuard.Validate(path);
 

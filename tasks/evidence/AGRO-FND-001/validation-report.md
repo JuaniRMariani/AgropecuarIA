@@ -110,3 +110,9 @@ Gates finales: restore locked PASS; build Release 0 warnings/0 errors; fitness c
 Principal QA y AppSec/Arquitectura reprodujeron el estado combinado y aprobaron con cero hallazgos críticos, altos o medios. Durante revisión se corrigieron tres bloqueos: payload v1 breaking, ruta de creación con JSON contractual libre y fixture N/N-1 con payload vacío. El gate final preserva la forma v1 histórica, restringe la creación a factories tipadas y demuestra igualdad jsonb antes/después del upgrade y con writer N-1 coexistente.
 
 Los riesgos de backfill/ETag, staging/restore y outbox delivery/idempotencia continúan asignados respectivamente a `AGRO-FND-003`, `AGRO-PLT-004` y `AGRO-FND-002`; no son trabajo residual de FND-001.
+
+## Extensión compatible: OrganizationOwnerMembershipRemoved v1 — 2026-08-18
+
+El catálogo contractual incorpora `OrganizationOwnerMembershipRemoved` con scope tenant y agregado canónico `Membership`. El payload v1 cerrado contiene únicamente organizationId, membershipId, authorizationVersion, revokedInvitationCount y removedAtUtc; no incluye userId, display name, email, bearer ni digest. Factory tipada, schema JSON, runtime map, consumer map y outbox quedan alineados; `consumers: []` conserva explícito que delivery/dispatcher continúa pendiente de `AGRO-FND-002`.
+
+Architecture Fitness PASS `101/101` y suite raíz MTP PASS `256/256`. La extensión no reabre `AGRO-FND-001`, ya completada; demuestra que el nuevo productor respeta el catálogo y la compatibilidad vigente.

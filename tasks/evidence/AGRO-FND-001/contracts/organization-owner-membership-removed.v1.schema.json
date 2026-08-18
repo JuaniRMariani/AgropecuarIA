@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.invalid/contracts/organization-owner-membership-removed.v1.schema.json",
+  "title": "OrganizationOwnerMembershipRemoved v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["organizationId", "membershipId", "authorizationVersion", "revokedInvitationCount", "removedAtUtc"],
+  "properties": {
+    "organizationId": { "type": "string", "format": "uuid" },
+    "membershipId": { "type": "string", "format": "uuid" },
+    "authorizationVersion": { "type": "integer", "minimum": 2 },
+    "revokedInvitationCount": { "type": "integer", "minimum": 0 },
+    "removedAtUtc": { "type": "string", "format": "date-time" }
+  }
+}

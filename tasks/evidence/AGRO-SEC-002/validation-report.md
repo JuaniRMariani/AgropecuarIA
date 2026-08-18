@@ -29,3 +29,14 @@ Tres revisiones read-only no confirmaron BOLA, bypass de sesión/OIDC/CSRF/step-
 El cache singleton de resolución Territory puede revelar por `capturedAtUtc` que otro usuario consultó una coordenada exacta si Georef se habilita. Georef está default-off y no hay deploy compartido, por lo que se registra como condición previa a habilitar egress, no como finding activo.
 
 El modelo actual sólo admite memberships `active`; por eso la evidencia no afirma una revocación de membership inexistente. El negativo vigente es sesión revocada; remove/demote/last-owner pertenece al siguiente slice AGRO-ID-003.
+
+## Refresh: remoción segura de co-owner — 2026-08-18
+
+El baseline anterior se conserva como evidencia histórica. El registro vigente cubre exactamente `22/22` operaciones HTTP e incorpora el listado privacy-safe de owners activos y la remoción de otro co-owner. La membership autoritativa admite ahora `active|removed`; self-remove, transferencia, democión y roles no-owner siguen fuera.
+
+- Actor, tenant y membership se revalidan antes de ledger/lookup; la remoción exige sesión, CSRF, `If-Match`, `Idempotency-Key` y step-up `manage_organization_owners`.
+- PostgreSQL serializa por organización, preserva al menos un owner activo, aplica `FORCE RLS`, evita grants UPDATE/DELETE amplios y revoca en la misma transacción las invitaciones pendientes creadas por el owner removido.
+- Suite raíz MTP: PASS `256/256`; Architecture Fitness: PASS `101/101`; frontend Vitest `95/95`; Playwright `6/6`; FND `45/45`; SEC `42/42`.
+- Restore locked, build Release 0/0, format, EF Identity/Territory, SCA NuGet/pnpm, JSON y diff-check: PASS.
+
+Resultado vigente: PASS integrado-local, sin vulnerabilidades críticas, altas o medias confirmadas. `AGRO-SEC-002` permanece `En curso` y no demuestra deploy compartido.

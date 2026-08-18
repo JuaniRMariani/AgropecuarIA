@@ -79,3 +79,9 @@ Este archivo se actualizará después de cada corrección del sponsor o de un ha
 - Disparador: el sponsor aclaró que cualquier persona puede registrarse y crear una o más organizaciones, mientras un superadmin futuro serviría para auditoría y diagnóstico global.
 - Regla: registro público significa alta de cuenta, no datos públicos. El creador obtiene `owner` únicamente dentro de su organización; ese rol nunca concede privilegios de plataforma ni acceso cross-tenant. Un superadmin futuro es una identidad/capacidad separada, aprovisionada y auditada, no una membership tenant.
 - Prevención: derivar actor y tenant en servidor, mantener organizaciones privadas, proteger el último owner y no mezclar soporte/observabilidad global con onboarding tenant. El acceso excepcional a datos privados requiere un flujo JIT posterior, explícito y trazable; crear campos pertenece al slice GIS correspondiente.
+
+## Regla: fijar la identidad Git del repositorio antes de publicar
+
+- Disparador: el sponsor trabaja temporalmente con una cuenta laboral y pidió que los commits del proyecto sigan atribuidos a `JuaniRMariani`, no a la identidad global activa de la máquina.
+- Regla: antes de cada commit, verificar la configuración local del repositorio y usar `user.name=JuaniRMariani` y `user.email=juanirmariani@gmail.com`; no depender de la configuración Git global.
+- Prevención: validar el autor del commit creado con `git show --format=fuller -1` antes del push y corregirlo localmente si no coincide, sin reescribir commits ya publicados salvo instrucción explícita.

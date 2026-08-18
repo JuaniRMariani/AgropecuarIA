@@ -57,6 +57,21 @@ public sealed class IdentityTelemetry
                 _ => "other",
             });
 
+    public void RecordOrganizationOwnerMembership(string operation, string outcome) =>
+        Record(
+            operation,
+            outcome switch
+            {
+                "succeeded" or
+                    "replayed" or
+                    "rejected" or
+                    "conflict" or
+                    "unavailable" or
+                    "reauthentication_required" or
+                    "reconciliation_required" => outcome,
+                _ => "other",
+            });
+
     public void Record(
         string operation,
         string outcome,
@@ -103,6 +118,8 @@ public sealed class IdentityTelemetry
         "organization_owner_invitation_list" or
         "organization_owner_invitation_accept" or
         "organization_owner_invitation_revoke" or
+        "organization_owner_membership_list" or
+        "organization_owner_membership_remove" or
         "session_revoked" => operation,
         _ => "other",
     };

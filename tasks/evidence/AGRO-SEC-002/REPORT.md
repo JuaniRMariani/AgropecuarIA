@@ -4,7 +4,7 @@ Fecha: 2026-08-11. Alcance: commit base `15ead58`, runtime integrado-local Ident
 
 ## Resultado ejecutivo
 
-No se confirmaron vulnerabilidades de severidad crítica, alta o media explotables dentro del runtime local y configuración por defecto auditados. El registro cubre 20/20 operaciones HTTP, un callback OIDC framework-owned y cinco superficies futuras explícitamente ausentes.
+No se confirmaron vulnerabilidades de severidad crítica, alta o media explotables dentro del runtime local y configuración por defecto auditados. El registro cubre 22/22 operaciones HTTP, un callback OIDC framework-owned y cinco superficies futuras explícitamente ausentes.
 
 La autorización tenant vigente tiene tres capas: autenticación HTTP, revalidación application de sesión/actor/scope/membership/assurance y rol PostgreSQL transaction-local con `FORCE RLS`. Territory es una capacidad platform-shared autenticada, no una frontera tenant.
 
@@ -31,4 +31,3 @@ Ninguno. `findings.json` es un array vacío validado contra el schema de la skil
 ## Estado
 
 PASS para este incremento Identity tenant v1. AGRO-SEC-002 permanece `En curso`: cada módulo/recurso nuevo debe sumar su fila, pruebas negativas y storage boundary; storage/export/jobs/retrieval/AI y deploy externo no están cubiertos.
-

@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,6 +14,8 @@ import type {
   IdentityCapabilities,
   IdentityConnection,
   IdentitySession,
+  OrganizationOwnerMembershipSummary,
+  RemovedOrganizationOwnerMembership,
   StepUpAttempt,
 } from "../../features/identity/identity-types";
 
@@ -41,6 +44,22 @@ const apiMocks = vi.hoisted(() => ({
   loadSession: vi.fn<(signal?: AbortSignal) => Promise<IdentitySession>>(),
   identityLoginUrl: vi.fn<(connection: IdentityConnection) => string>(),
   listOwnerInvitations: vi.fn().mockResolvedValue([]),
+  listOrganizationOwnerMemberships:
+    vi.fn<
+      (
+        organizationId: string,
+        signal?: AbortSignal,
+      ) => Promise<readonly OrganizationOwnerMembershipSummary[]>
+    >(),
+  removeOrganizationOwnerMembership:
+    vi.fn<
+      (
+        organizationId: string,
+        membershipId: string,
+        version: string,
+        idempotencyKey: string,
+      ) => Promise<RemovedOrganizationOwnerMembership>
+    >(),
   startStepUp:
     vi.fn<(purpose: StepUpAttempt["purpose"]) => Promise<StepUpAttempt>>(),
 }));
@@ -108,6 +127,7 @@ beforeEach(() => {
   globalThis.sessionStorage.clear();
   apiMocks.loadCapabilities.mockResolvedValue(capabilities);
   apiMocks.loadSession.mockResolvedValue(session);
+  apiMocks.listOrganizationOwnerMemberships.mockResolvedValue([]);
   apiMocks.identityLoginUrl.mockReturnValue("#reauthenticate");
 });
 
@@ -174,9 +194,11 @@ describe("IdentityHub organization attempts", () => {
 
     expect(apiMocks.createOrganization.mock.calls[1]?.[1]).toBe(firstKey);
     expect(await screen.findByText("Organización 126639")).toBeVisible();
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "La Esperanza ya está lista y sos owner.",
-    );
+    expect(
+      screen
+        .getByText("La Esperanza ya está lista y sos owner.")
+        .closest('[role="status"]'),
+    ).toBeVisible();
   });
 
   it("regenerates the key after a fingerprint conflict", async () => {
@@ -248,6 +270,206 @@ describe("IdentityHub organization attempts", () => {
 
     expect(apiMocks.createOrganization.mock.calls[1]?.[1]).toBe(firstKey);
   });
+});
+
+describe("IdentityHub owner removal", () => {
+  it("requires purpose-bound step-up and removes another owner with the frozen concurrency contract", async () => {
+    const organizationId = "1266395e-ec88-481e-9a72-81fa2cc2904a";
+    const currentMembership: OrganizationOwnerMembershipSummary = {
+      membershipId: "2634c6ee-8d8a-49e7-95b7-84fa0660236a",
+      organizationId,
+      displayName: "Ana Productora",
+      isCurrentUser: true,
+      role: "owner",
+      status: "active",
+      authorizationVersion: 1,
+      createdAtUtc: "2026-08-10T10:00:00Z",
+      removedAtUtc: null,
+      version: "4766395e-ec88-481e-9a72-81fa2cc2904a",
+    };
+    const otherMembership: OrganizationOwnerMembershipSummary = {
+      ...currentMembership,
+      membershipId: "3766395e-ec88-481e-9a72-81fa2cc2904a",
+      displayName: "Bruno Productor",
+      isCurrentUser: false,
+      authorizationVersion: 2,
+      version: "5766395e-ec88-481e-9a72-81fa2cc2904a",
+    };
+    const ownerSession: IdentitySession = {
+      ...session,
+      memberships: [
+        { organizationId, organizationName: "La Esperanza", role: "owner" },
+      ],
+    };
+    const strongSession: IdentitySession = {
+      ...ownerSession,
+      authentication: {
+        level: "strong",
+        authenticatedAtUtc: "2026-08-11T20:00:00Z",
+        purpose: "manage_organization_owners",
+        strongAuthenticatedAtUtc: "2026-08-11T20:01:00Z",
+        expiresAtUtc: "2099-08-11T20:06:00Z",
+      },
+    };
+    const stepUp: StepUpAttempt = {
+      attemptId: "d68a20db-bae4-4822-99bd-e016517bd0ee",
+      purpose: "manage_organization_owners",
+      expiresAtUtc: "2099-08-11T20:06:00Z",
+      authorizationUrl: "/provider",
+    };
+    apiMocks.loadSession.mockResolvedValueOnce(ownerSession);
+    apiMocks.listOrganizationOwnerMemberships
+      .mockResolvedValueOnce([currentMembership, otherMembership])
+      .mockResolvedValueOnce([currentMembership, otherMembership])
+      .mockResolvedValueOnce([currentMembership]);
+    apiMocks.startStepUp.mockResolvedValueOnce(stepUp);
+    apiMocks.completeDevelopmentStepUp.mockResolvedValueOnce(strongSession);
+    apiMocks.removeOrganizationOwnerMembership.mockResolvedValueOnce({
+      ...otherMembership,
+      status: "removed",
+      removedAtUtc: "2026-08-12T10:00:00Z",
+      isReplay: false,
+    });
+
+    render(<IdentityHub />);
+    const removeButton = await screen.findByRole("button", {
+      name: "Quitar acceso a Bruno Productor",
+    });
+    expect(screen.getByText("Membresía 376639")).toBeVisible();
+    fireEvent.click(removeButton);
+
+    let dialog = screen.getByRole("alertdialog");
+    expect(
+      within(dialog).getByRole("button", { name: "Cancelar" }),
+    ).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(apiMocks.removeOrganizationOwnerMembership).not.toHaveBeenCalled();
+
+    fireEvent.click(removeButton);
+    dialog = screen.getByRole("alertdialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "Quitar acceso a Bruno Productor",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(apiMocks.startStepUp).toHaveBeenCalledWith(
+        "manage_organization_owners",
+      ),
+    );
+    await waitFor(() =>
+      expect(apiMocks.removeOrganizationOwnerMembership).toHaveBeenCalledWith(
+        organizationId,
+        otherMembership.membershipId,
+        otherMembership.version,
+        expect.stringMatching(/^[0-9a-f]{32}$/),
+      ),
+    );
+    expect(
+      await screen.findByText(
+        "Bruno Productor ya no tiene acceso a la organización.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", {
+        name: "Quitar acceso a Bruno Productor",
+      }),
+    ).not.toBeInTheDocument();
+    expect(apiMocks.listOrganizationOwnerMemberships).toHaveBeenCalledTimes(3);
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.identity.owner-removal-action.v1",
+      ),
+    ).toBeNull();
+  });
+
+  it.each([
+    [
+      "404",
+      new IdentityApiError("unavailable", 404, "membership.not_found"),
+      "La membresía ya no está disponible",
+    ],
+    [
+      "409 last-owner",
+      new IdentityApiError("conflict", 409, "organization.last_owner"),
+      "No se puede quitar al último owner activo",
+    ],
+    [
+      "412",
+      new IdentityApiError("conflict", 412, "membership.version_mismatch"),
+      "La membresía cambió en paralelo",
+    ],
+    [
+      "503",
+      new IdentityApiError("provider-down", 503, "service.unavailable"),
+      "El servicio no está disponible temporalmente",
+    ],
+  ])(
+    "maps a %s removal response to an actionable UI state",
+    async (_, error, copy) => {
+      const organizationId = "1266395e-ec88-481e-9a72-81fa2cc2904a";
+      const currentMembership: OrganizationOwnerMembershipSummary = {
+        membershipId: "2634c6ee-8d8a-49e7-95b7-84fa0660236a",
+        organizationId,
+        displayName: "Ana Productora",
+        isCurrentUser: true,
+        role: "owner",
+        status: "active",
+        authorizationVersion: 1,
+        createdAtUtc: "2026-08-10T10:00:00Z",
+        removedAtUtc: null,
+        version: "4766395e-ec88-481e-9a72-81fa2cc2904a",
+      };
+      const otherMembership: OrganizationOwnerMembershipSummary = {
+        ...currentMembership,
+        membershipId: "3766395e-ec88-481e-9a72-81fa2cc2904a",
+        displayName: "Bruno Productor",
+        isCurrentUser: false,
+        version: "5766395e-ec88-481e-9a72-81fa2cc2904a",
+      };
+      apiMocks.loadSession.mockResolvedValueOnce({
+        ...session,
+        authentication: {
+          level: "strong",
+          authenticatedAtUtc: "2026-08-11T20:00:00Z",
+          purpose: "manage_organization_owners",
+          strongAuthenticatedAtUtc: "2026-08-11T20:01:00Z",
+          expiresAtUtc: "2099-08-11T20:06:00Z",
+        },
+        memberships: [
+          { organizationId, organizationName: "La Esperanza", role: "owner" },
+        ],
+      });
+      apiMocks.listOrganizationOwnerMemberships.mockResolvedValueOnce([
+        currentMembership,
+        otherMembership,
+      ]);
+      apiMocks.removeOrganizationOwnerMembership.mockRejectedValueOnce(error);
+
+      render(<IdentityHub />);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Quitar acceso a Bruno Productor",
+        }),
+      );
+      fireEvent.click(
+        within(screen.getByRole("alertdialog")).getByRole("button", {
+          name: "Quitar acceso a Bruno Productor",
+        }),
+      );
+
+      expect(await screen.findByText(new RegExp(copy, "i"))).toBeVisible();
+      const persistedAction = globalThis.sessionStorage.getItem(
+        "agropecuaria.identity.owner-removal-action.v1",
+      );
+      if (error.status === 503) {
+        expect(persistedAction).toContain(otherMembership.membershipId);
+      } else {
+        expect(persistedAction).toBeNull();
+      }
+    },
+  );
 });
 
 describe("IdentityHub owner invitation bearer handling", () => {

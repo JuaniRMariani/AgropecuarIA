@@ -69,7 +69,10 @@ public sealed class PublishedSchemaValidatorTests
     [DataRow("organization-owner-membership-removed.v1.schema.json", "organizationId")]
     [DataRow("organization-owner-membership-removed.v1.schema.json", "membershipId")]
     [DataRow("organization-owner-membership-removed.v1.schema.json", "removedAtUtc")]
-    public void IdentityEventPayloadSchemasRejectMissingExtraAndWronglyTypedFields(
+    [DataRow("management-unit-created.v1.schema.json", "organizationId")]
+    [DataRow("management-unit-created.v1.schema.json", "managementUnitId")]
+    [DataRow("management-unit-created.v1.schema.json", "createdAtUtc")]
+    public void PublishedEventPayloadSchemasRejectMissingExtraAndWronglyTypedFields(
         string fileName,
         string requiredProperty)
     {
@@ -99,6 +102,22 @@ public sealed class PublishedSchemaValidatorTests
         var issues = PublishedSchemaValidator.Validate(FileName, schema.ToJsonString());
 
         Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-shape.invalid"));
+    }
+
+    [TestMethod]
+    [DataRow("unitType", "field")]
+    [DataRow("status", "draft")]
+    public void ManagementUnitCreatedKeepsServerOwnedLiterals(
+        string propertyName,
+        string expectedValue)
+    {
+        const string FileName = "management-unit-created.v1.schema.json";
+        var schema = Schema(FileName);
+        schema["properties"]![propertyName]!["const"] = $"not-{expectedValue}";
+
+        var issues = PublishedSchemaValidator.Validate(FileName, schema.ToJsonString());
+
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-const.invalid"));
     }
 
     private static JsonObject Schema(string fileName) =>

@@ -12,6 +12,7 @@ public static class PublishedSchemaValidator
         "event-envelope.v1.schema.json",
         "identity-linked.v1.schema.json",
         "identity-step-up-completed.v1.schema.json",
+        "management-unit-created.v1.schema.json",
         "organization-created.v1.schema.json",
         "organization-owner-invited.v1.schema.json",
         "organization-owner-invitation-accepted.v1.schema.json",
@@ -177,6 +178,25 @@ public static class PublishedSchemaValidator
                 ValidateIntegerProperty(root, fileName, "revokedInvitationCount", 0, issues);
                 ValidateStringProperty(root, fileName, "removedAtUtc", "date-time", issues);
                 break;
+            case "management-unit-created.v1.schema.json":
+                ValidateClosedObject(
+                    root,
+                    fileName,
+                    ["organizationId", "managementUnitId", "unitType", "status", "createdAtUtc"],
+                    issues);
+                ValidateExactProperties(
+                    root,
+                    fileName,
+                    ["organizationId", "managementUnitId", "unitType", "status", "createdAtUtc"],
+                    issues);
+                ValidateStringProperty(root, fileName, "organizationId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "managementUnitId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "unitType", null, issues);
+                ValidateStringProperty(root, fileName, "status", null, issues);
+                ValidateStringProperty(root, fileName, "createdAtUtc", "date-time", issues);
+                ValidateConstProperty(root, fileName, "unitType", "field", issues);
+                ValidateConstProperty(root, fileName, "status", "draft", issues);
+                break;
             default:
                 Add(issues, "schema.unregistered", $"Schema '{fileName}' is not registered.");
                 break;
@@ -326,6 +346,24 @@ public static class PublishedSchemaValidator
                 issues,
                 "schema.property-shape.invalid",
                 $"Schema '{fileName}' property '{propertyName}' must be an integer with minimum {expectedMinimum}.");
+        }
+    }
+
+    private static void ValidateConstProperty(
+        JsonElement root,
+        string fileName,
+        string propertyName,
+        string expectedValue,
+        ICollection<ValidationIssue> issues)
+    {
+        if (!TryProperty(root, "properties", propertyName, out JsonElement property)
+            || !property.TryGetProperty("const", out JsonElement constant)
+            || !string.Equals(constant.GetString(), expectedValue, StringComparison.Ordinal))
+        {
+            Add(
+                issues,
+                "schema.property-const.invalid",
+                $"Schema '{fileName}' property '{propertyName}' must remain '{expectedValue}'.");
         }
     }
 

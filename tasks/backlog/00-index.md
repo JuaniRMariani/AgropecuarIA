@@ -65,7 +65,7 @@ La columna “plan” contiene release, épica, MoSCoW y tamaño. Las dependenci
 | [AGRO-CAT-004](EPIC-03-catalogo-nucleo-productivo.md#agro-cat-004) | Gestionar extensiones privadas y propuestas editoriales | R1 · EPIC-03 · Must · M | Propuesto | CAT-002, ID-003 y workflow editorial |
 | [AGRO-CAT-005](EPIC-03-catalogo-nucleo-productivo.md#agro-cat-005) | Activar perfiles especializados con abstención segura | R1–R4 · EPIC-03 · Must · L | Propuesto | DIS-002, CAT-002/003 y panel profesional |
 | [AGRO-GIS-001](EPIC-04-gis-territorio-unidades.md#agro-gis-001) | Normalizar territorio oficial en 24 jurisdicciones | R1/R2 · EPIC-04 · Must · M | En curso | DIS-004, FND-002 y fixtures 24 puntos |
-| [AGRO-GIS-002](EPIC-04-gis-territorio-unidades.md#agro-gis-002) | Crear campos y unidades con mapa, área y ficha | R2 · EPIC-04 · Must · L | Propuesto | GIS-001, CAT-003, DIS-004 y proveedor tiles |
+| [AGRO-GIS-002](EPIC-04-gis-territorio-unidades.md#agro-gis-002) | Crear campos y unidades con mapa, área y ficha | R2 · EPIC-04 · Must · L | En curso | GIS-001, CAT-003, DIS-004 y proveedor tiles |
 | [AGRO-GIS-003](EPIC-04-gis-territorio-unidades.md#agro-gis-003) | Versionar, subdividir y fusionar sin perder historia | R2 · EPIC-04 · Must · L | Propuesto | GIS-002 y FND-003 |
 | [AGRO-GIS-004](EPIC-04-gis-territorio-unidades.md#agro-gis-004) | Incorporar intercambio GIS y capas opcionales | R7 · EPIC-04 · Should · M | Propuesto | GIS-002/003 y decisión R7/licencias |
 | [AGRO-CLI-001](EPIC-05-clima-alertas.md#agro-cli-001) | Persistir pronósticos auditables con cache y degradación | R2 · EPIC-05 · Must · L | Propuesto | DIS-004, GIS-001/002 y FND-002 |

@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\AgropecuarIA.ArchitectureFitness\AgropecuarIA.ArchitectureFitness.csproj" />
     <ProjectReference Include="..\..\..\..\..\..\src\AgropecuarIA.Identity\AgropecuarIA.Identity.csproj" />
+    <ProjectReference Include="..\..\..\..\..\..\src\AgropecuarIA.ProductiveCore\AgropecuarIA.ProductiveCore.csproj" />
     <ProjectReference Include="..\..\..\..\..\..\src\AgropecuarIA.Territory\AgropecuarIA.Territory.csproj" />
   </ItemGroup>
   <ItemGroup>
@@ -28,5 +29,6 @@
     <None Include="..\..\..\fixtures\**\*.json" Link="evidence\fixtures\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\..\..\..\..\contracts\identity.openapi.yaml" Link="evidence\contracts\identity.openapi.yaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\..\..\..\..\contracts\territory.openapi.yaml" Link="evidence\contracts\territory.openapi.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\..\..\..\contracts\productive-core.openapi.yaml" Link="evidence\contracts\productive-core.openapi.yaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -1,12 +1,12 @@
 # Inventario R0/R1 de proveedores y tratamiento de datos
 
-Fecha de corte: 2026-08-11  
+Fecha de corte: 2026-08-18  
 Tarea: `AGRO-SEC-001`  
 Estado: evidencia de discovery; no constituye selección, contratación, DPA ni autorización productiva.
 
 ## Alcance y regla de decisión
 
-Este inventario describe superficies previstas, candidatas y el runtime R1 local integrado. `apps/AgropecuarIA.Api`, `src/AgropecuarIA.Identity` y `apps/web` son código de producto ejecutable; el proveedor OIDC sintético y su configuración pertenecen solo a Development/Test. `AGRO-DIS-003/004/005/007` continúan siendo pruebas descartables o sintéticas. Ninguna de estas evidencias demuestra región, residencia, retención, subencargados, SLA ni controles de una cuenta contratada o un despliegue compartido.
+Este inventario describe superficies previstas, candidatas y el runtime R1 local integrado. `apps/AgropecuarIA.Api`, `src/AgropecuarIA.Identity`, `src/AgropecuarIA.Territory`, `src/AgropecuarIA.ProductiveCore` y `apps/web` son código de producto ejecutable; el proveedor OIDC sintético y su configuración pertenecen solo a Development/Test. Productive Core usa PostgreSQL local y no introduce proveedor ni egress externo. `AGRO-DIS-003/004/005/007` continúan siendo pruebas descartables o sintéticas. Ninguna de estas evidencias demuestra región, residencia, retención, subencargados, SLA ni controles de una cuenta contratada o un despliegue compartido.
 
 La evidencia se rotula así: `R1 local` para runtime integrado verificable en el workspace; `Development/Test` para adaptadores sintéticos que deben fallar cerrados fuera de esos ambientes; `R0 descartable` para spikes; `externo pendiente` para proveedores/cuentas no seleccionados; y `CI ausente` para controles que requieren pipeline o artefactos publicados.
 
@@ -153,19 +153,30 @@ Un estado tiene esta semántica:
 - **Evidencia R0:** [`AGRO-DIS-005/runbook.md`](../AGRO-DIS-005/runbook.md), [`AGRO-DIS-005/validation-report.md`](../AGRO-DIS-005/validation-report.md), [`docs/adr/ADR-007-storage-retencion-recuperacion.md`](../../../docs/adr/ADR-007-storage-retencion-recuperacion.md).
 - **Gate:** proveedor/región/DPA/retención/keys; backup inmutable y separado; PITR; restore representativo DB+GIS+objects+audit; rights/hold/purge y roll-forward; RPO/RTO medidos y aceptados. Hasta entonces: `NO-GO productivo`.
 
+### PI-13 — Productive Core PostgreSQL local
+
+- **Estado/fase:** `INTEGRADO LOCAL/SIN PROVEEDOR EXTERNO`. Cubre únicamente crear, listar y ver campos draft no espaciales.
+- **Datos y dirección:** navegador same-origin → API autenticada → puerto Identity SQL → schema PostgreSQL `productive_core`. Cruzan actor/tenant/session derivados por servidor, nombre de campo `Confidential`, UUID internos, fingerprint/aliases HMAC versionados, journal y outbox tipado. No cruzan coordenadas, área, geometría, key idempotente cruda, token ni identidad externa.
+- **Región, credenciales, retención y subencargados:** PostgreSQL efímero local; no acredita DB administrada, región, backup, DPA, subencargados, retención ni secret manager. Roles owner/app/job son `NOLOGIN`, `NOINHERIT`, `NOBYPASSRLS`; el principal de prueba es efímero.
+- **Egress/SSRF:** ninguno en este slice. No recibe URL, host, callback ni destino por tenant/request. El outbox se persiste localmente y no tiene worker de delivery.
+- **Degradación:** sesión vencida/revocada, membership removida, tenant ajeno o contexto ausente niegan antes de lookup/replay; error de DB/serialización revierte la unidad, ledger, journal y outbox. La ausencia del puerto Identity o un orden de migración incorrecto falla cerrado.
+- **Owner:** Productive Core + Identity + Data + AppSec.
+- **Evidencia R1 local:** [`contracts/productive-core.openapi.yaml`](../../../contracts/productive-core.openapi.yaml), [`ProductiveCoreDbContext.cs`](../../../src/AgropecuarIA.ProductiveCore/Infrastructure/ProductiveCoreDbContext.cs), [`ProductiveCoreDatabaseSecurityTests.cs`](../../../tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs), [`ProductiveCoreAuthorizationPortDatabaseTests.cs`](../../../tests/AgropecuarIA.Identity.Tests/ProductiveCoreAuthorizationPortDatabaseTests.cs).
+- **Gate:** `GO integrado-local` solo para campos draft no espaciales. Geometría/área/tiles/historial, roles no-owner, delivery externo, DB/backup/credenciales administradas, hosting compartido y producción permanecen `NO-GO`.
+
 ## Mapeo amenaza → control → prueba
 
 | Amenaza/impacto | Superficies | Controles mínimos antes de runtime | Evidencia/prueba exigida |
 |---|---|---|---|
 | Toma de cuenta, linking indebido, sesión web o recovery enumerable | PI-01, PI-07, PI-09 | OIDC/PKCE, CSP/CSRF/CORS/cookie segura, doble reautenticación, tokens one-shot, rate limit, sesión revocable, respuesta neutral | PASS local para contrato OIDC, step-up, replay/concurrencia y aislamiento de endpoint sintético; PENDIENTE sandbox externo para callback/factor/recovery/revocación, CSP/edge y outage/failover |
-| Fuga cross-tenant/BOLA o privilegio platform↔tenant | PI-01, PI-02, PI-03, PI-08, PI-09 | authz por recurso antes de acceso/ETag/tool, RLS, claves compuestas, binding tenant, scope discriminado y cache privada deshabilitada o tenant-safe | dos tenants por API/DB/job/cache/edge/storage/AI; rol sin contexto; pool reutilizado; cache poisoning/cross-leak; grants y tools ajenos; error neutral |
-| Robo/abuso de credencial o clave | PI-01–PI-12 | secret manager/KMS, workload identity, scope mínimo, rotación, no secretos en cliente/log/URL | secret scan; permisos efectivos; rotación/revocación; token/key ausente de errores, trazas, bundles y snapshots |
+| Fuga cross-tenant/BOLA o privilegio platform↔tenant | PI-01, PI-02, PI-03, PI-08, PI-09, PI-13 | authz por recurso antes de acceso/ETag/tool, RLS, claves compuestas, binding tenant, scope discriminado y cache privada deshabilitada o tenant-safe | dos tenants por API/DB/job/cache/edge/storage/AI; rol sin contexto; pool reutilizado; membership removida; cache poisoning/cross-leak; grants y tools ajenos; error neutral |
+| Robo/abuso de credencial o clave | PI-01–PI-13 | secret manager/KMS, workload identity, scope mínimo, rotación, no secretos en cliente/log/URL | secret scan; permisos efectivos; rotación/revocación; token/key ausente de errores, trazas, bundles y snapshots |
 | SSRF/egress no controlado y exfiltración | PI-04–PI-11 | hosts/esquemas/redirects allow-listed, resolución segura, sin URL libre, payload/response limits | loopback, link-local/metadata, IPv6 local, DNS rebinding, redirect externo, body oversized, timeout |
 | Proveedor/fuente comprometido o schema drift | PI-04–PI-06, PI-08 | schema estricto, hash/snapshot, staging, revisión/publicación, citas/evals, fuente/fecha visibles | fixture válido/adverso, tipo/enum desconocido, hash cambiado, CAP lifecycle, cita falsa, model/schema drift |
 | Malware, parser exploit o agotamiento de recursos | PI-03, PI-06 | cuarentena fail-closed, MIME/hash/tamaño, parser sin XXE, límites de compresión/geometría/grilla | EICAR sintético, polyglot/zip bomb, XML DTD/entity, CAP/NetCDF oversized, timeout/memoria/cancelación |
-| Pérdida, corrupción, retención o borrado ilegal | PI-02, PI-03, PI-08, PI-12 | política por clase, hold, versionado/WORM, PITR, manifest/hash, roll-forward, borrado conciliable | backup/restore aislado y proveedor real; hold/purga; objeto huérfano/corrupto; referencias/auditoría consistentes |
-| Indisponibilidad o datos stale presentados como actuales | PI-01–PI-12 | timeout/circuit breaker, cache/snapshot con edad, retry acotado, kill switch/fallback, núcleo independiente | provider-down/429/5xx; retry storm; CAP vencido; cache stale; IdP/DB/storage/email/edge/telemetría/registry/backup/IA caídos y recovery probado |
-| Transferencia, retención o subencargado no autorizado | PI-01–PI-12 | inventario completo, minimización, DPA/región/subencargados/retención, `VAL-LEG`, no-training cuando aplica | revisión documental nominada; configuración/región contrastada; export/delete verificados; evidencia de no payload sensible |
+| Pérdida, corrupción, retención o borrado ilegal | PI-02, PI-03, PI-08, PI-12, PI-13 | política por clase, hold, versionado/WORM, PITR, manifest/hash, roll-forward, borrado conciliable | backup/restore aislado y proveedor real; hold/purga; objeto huérfano/corrupto; referencias/auditoría consistentes |
+| Indisponibilidad o datos stale presentados como actuales | PI-01–PI-13 | timeout/circuit breaker, cache/snapshot con edad, retry acotado, kill switch/fallback, núcleo independiente | provider-down/429/5xx; retry storm; CAP vencido; cache stale; IdP/DB/storage/email/edge/telemetría/registry/backup/IA caídos y recovery probado |
+| Transferencia, retención o subencargado no autorizado | PI-01–PI-13 | inventario completo, minimización, DPA/región/subencargados/retención, `VAL-LEG`, no-training cuando aplica | revisión documental nominada; configuración/región contrastada; export/delete verificados; evidencia de no payload sensible |
 
 ## Plantilla obligatoria para incorporar o cambiar un proveedor
 

@@ -40,3 +40,19 @@ El baseline anterior se conserva como evidencia histórica. El registro vigente 
 - Restore locked, build Release 0/0, format, EF Identity/Territory, SCA NuGet/pnpm, JSON y diff-check: PASS.
 
 Resultado vigente: PASS integrado-local, sin vulnerabilidades críticas, altas o medias confirmadas. `AGRO-SEC-002` permanece `En curso` y no demuestra deploy compartido.
+
+## Refresh: Productive Core field draft no espacial — 2026-08-18
+
+El registro vigente cubre exactamente `25/25` operaciones HTTP: las 22 previas de Identity/Territory más `productive-core.field.create`, `productive-core.field.list` y `productive-core.field.detail`.
+
+- Rutas, OpenAPI, runtime/consumer maps y catálogo `ManagementUnitCreated` quedaron trazados; el evento es tenant-scoped y su payload no incluye nombre, actor, key/digest ni geometría.
+- Productive Core revalida sesión y owner mediante `identity.authorize_productive_owner()` antes de alias/ledger o recurso; fija actor, tenant, sesión y authorization version transaction-local y aplica `FORCE RLS`.
+- Build dirigido Productive Core: PASS, 0 warnings/0 errores.
+- Pruebas no-DB/API Productive Core: PASS `21/21`, incluida normalización Unicode exacta, estado inicial, replay/mismatch, capacidad, duplicados permitidos, denial-before-lookup, orden/ficha neutral, begin/read-commit unavailable, commit unknown, keyring fail-fast, rutas/metadata y shape JSON.
+- Suite Productive Core completa PostgreSQL: PASS `30/30`, 0 failed/skipped; tres casos de fault injection atraviesan `CreateField` y dejan 0 filas en unidad/ledger/aliases/journal/outbox ante fallo de ledger, journal u outbox. También cubre la carrera 99→100, sentinel 101, cancelación y reutilización del pool sin contexto.
+- Suite raíz MTP: PASS `308/308`; Architecture Fitness `121/121`; frontend Vitest `130/130`; Playwright `6/6`; FND `45/45`; SEC `53/53`.
+- Restore locked, build Release `0/0`, format, EF Identity/Territory/Productive Core `3/3`, NuGet `9/9` y pnpm audit sin vulnerabilidades, JSON/UTF-8/secrets y diff-check: PASS.
+- Revisión security-audit no confirmó BOLA, bypass owner/CSRF, SQLi, XSS, fuga de idempotency material ni telemetría sensible. El mismatch backend/OpenAPI de idempotency key fue corregido a `32..128` `[A-Za-z0-9_-]` y cubierto con fronteras negativas.
+- Límite local: no se verifican Auth0, proxy/edge/TLS, Data Protection, limiter distribuido, collector, secrets compartidos, backups ni egress Georef en un ambiente desplegado.
+
+Resultado del refresh: PASS de seguridad integrado-local para este sub-slice. `AGRO-SEC-002` permanece `En curso`.

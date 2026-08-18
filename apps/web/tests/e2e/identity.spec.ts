@@ -76,6 +76,53 @@ async function expectNoAccessibilityViolations(page: Page) {
   expect(result.violations).toEqual([]);
 }
 
+async function loadOrganizationIds(page: Page): Promise<readonly string[]> {
+  return page.evaluate(async () => {
+    const response = await fetch("/api/identity/session", {
+      cache: "no-store",
+      credentials: "include",
+    });
+    const payload: unknown = await response.json();
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("memberships" in payload) ||
+      !Array.isArray(payload.memberships)
+    ) {
+      throw new Error("Session did not expose memberships.");
+    }
+    return payload.memberships.map((membership: unknown) => {
+      if (
+        typeof membership !== "object" ||
+        membership === null ||
+        !("organizationId" in membership) ||
+        typeof membership.organizationId !== "string"
+      ) {
+        throw new Error("Session exposed an invalid membership.");
+      }
+      return membership.organizationId;
+    });
+  });
+}
+
+async function loadNewOrganizationId(
+  page: Page,
+  previousIds: readonly string[],
+): Promise<string> {
+  const currentIds = await loadOrganizationIds(page);
+  const organizationId = currentIds.find(
+    (candidate) => !previousIds.includes(candidate),
+  );
+  if (organizationId === undefined) {
+    throw new Error("Session did not expose the newly created organization.");
+  }
+  return organizationId;
+}
+
+function shortId(value: string): string {
+  return value.replaceAll("-", "").slice(0, 6).toUpperCase();
+}
+
 test.describe("identity access", () => {
   test.beforeEach(async ({ page }) => {
     trackBrowserErrors(page);
@@ -89,6 +136,7 @@ test.describe("identity access", () => {
     browser,
     page,
   }, testInfo) => {
+    testInfo.setTimeout(60_000);
     await page.goto("/");
     await expectNoAccessibilityViolations(page);
 
@@ -122,6 +170,85 @@ test.describe("identity access", () => {
     await expect(page.getByText("owner", { exact: true })).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Crear otra" }),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Crear campo" }).click();
+    const fieldName = page.getByRole("textbox", {
+      name: "Nombre del campo",
+    });
+    await fieldName.fill("Campo Norte");
+    await fieldName.press("Enter");
+    await expect(
+      page.getByText(/Campo Norte quedó como borrador sin geometría/i),
+    ).toBeVisible();
+    await expectNoAccessibilityViolations(page);
+
+    const ownerField = await page.evaluate(async () => {
+      const sessionResponse = await fetch("/api/identity/session", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const sessionPayload: unknown = await sessionResponse.json();
+      if (
+        typeof sessionPayload !== "object" ||
+        sessionPayload === null ||
+        !("memberships" in sessionPayload) ||
+        !Array.isArray(sessionPayload.memberships)
+      ) {
+        throw new Error("Owner session did not expose memberships.");
+      }
+      const membership = sessionPayload.memberships.find(
+        (item: unknown) =>
+          typeof item === "object" &&
+          item !== null &&
+          "organizationName" in item &&
+          item.organizationName === "Establecimiento La Esperanza",
+      );
+      if (
+        typeof membership !== "object" ||
+        membership === null ||
+        !("organizationId" in membership) ||
+        typeof membership.organizationId !== "string"
+      ) {
+        throw new Error("Owner session did not expose the created org.");
+      }
+      const fieldsResponse = await fetch(
+        `/api/organizations/${encodeURIComponent(membership.organizationId)}/fields`,
+        { cache: "no-store", credentials: "include" },
+      );
+      const fieldsPayload: unknown = await fieldsResponse.json();
+      if (
+        !Array.isArray(fieldsPayload) ||
+        fieldsPayload.length !== 1 ||
+        typeof fieldsPayload[0] !== "object" ||
+        fieldsPayload[0] === null ||
+        !("fieldId" in fieldsPayload[0]) ||
+        typeof fieldsPayload[0].fieldId !== "string"
+      ) {
+        throw new Error("Owner field list did not expose exactly one field.");
+      }
+      return {
+        organizationId: membership.organizationId,
+        fieldId: fieldsPayload[0].fieldId,
+      };
+    });
+
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Tus campos" }),
+    ).toBeVisible();
+    const fieldDetailButton = page.getByRole("button", {
+      name: /Abrir ficha de Campo Norte/i,
+    });
+    await expect(fieldDetailButton).toBeVisible();
+    await fieldDetailButton.focus();
+    await expect(fieldDetailButton).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "Campo Norte", level: 4 }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Sin geometría", { exact: true }).last(),
     ).toBeVisible();
 
     const linkGoogle = page.getByRole("button", {
@@ -249,6 +376,72 @@ test.describe("identity access", () => {
     await expect(
       attackerPage.getByRole("heading", { name: "Enlace no disponible" }),
     ).toBeVisible();
+    const attackerOrganizationIds = await loadOrganizationIds(attackerPage);
+    const attackerCreateOrganization = attackerPage.getByRole("button", {
+      name: /Crear (mi organización|otra)/,
+    });
+    await attackerCreateOrganization.click();
+    await attackerPage
+      .getByRole("textbox", { name: "Nombre de la organización" })
+      .fill("Organización B");
+    await attackerPage
+      .getByRole("button", { name: "Crear organización" })
+      .click();
+    await expect(
+      attackerPage.getByText("Organización B ya está lista y sos owner."),
+    ).toBeVisible();
+    const tenantBOrganizationId = await loadNewOrganizationId(
+      attackerPage,
+      attackerOrganizationIds,
+    );
+    const tenantBCard = attackerPage.getByRole("article").filter({
+      hasText: `Organización ${shortId(tenantBOrganizationId)}`,
+    });
+    await tenantBCard.getByRole("button", { name: "Crear campo" }).click();
+    await tenantBCard
+      .getByRole("textbox", { name: "Nombre del campo" })
+      .fill("Campo Norte");
+    await tenantBCard.getByRole("button", { name: "Crear campo" }).click();
+    await expect(
+      attackerPage.getByText(/Campo Norte quedó como borrador sin geometría/i),
+    ).toBeVisible();
+
+    const tenantBResult = await attackerPage.evaluate(
+      async ({ tenantAOrganizationId, ownOrganizationId }) => {
+        const crossTenantResponse = await fetch(
+          `/api/organizations/${encodeURIComponent(tenantAOrganizationId)}/fields`,
+          { cache: "no-store", credentials: "include" },
+        );
+        const ownFieldsResponse = await fetch(
+          `/api/organizations/${encodeURIComponent(ownOrganizationId)}/fields`,
+          { cache: "no-store", credentials: "include" },
+        );
+        const ownFields: unknown = await ownFieldsResponse.json();
+        if (
+          !Array.isArray(ownFields) ||
+          ownFields.length !== 1 ||
+          typeof ownFields[0] !== "object" ||
+          ownFields[0] === null ||
+          !("displayName" in ownFields[0]) ||
+          !("fieldId" in ownFields[0]) ||
+          typeof ownFields[0].fieldId !== "string"
+        ) {
+          throw new Error("Tenant B did not expose exactly its own field.");
+        }
+        return {
+          crossTenantStatus: crossTenantResponse.status,
+          displayName: ownFields[0].displayName,
+          fieldId: ownFields[0].fieldId,
+        };
+      },
+      {
+        tenantAOrganizationId: ownerField.organizationId,
+        ownOrganizationId: tenantBOrganizationId,
+      },
+    );
+    expect(tenantBResult.crossTenantStatus).toBe(404);
+    expect(tenantBResult.displayName).toBe("Campo Norte");
+    expect(tenantBResult.fieldId).not.toBe(ownerField.fieldId);
     expect(browserErrors.get(attackerPage) ?? []).toEqual([]);
     await attackerContext.close();
 
@@ -317,6 +510,24 @@ test.describe("identity access", () => {
       organizationId,
     );
     expect(removedInviteeDirectoryStatus).toBe(404);
+    const removedInviteeFieldStatuses = await inviteePage.evaluate(
+      async ({ acceptedOrganizationId, acceptedFieldId }) => {
+        const listResponse = await fetch(
+          `/api/organizations/${encodeURIComponent(acceptedOrganizationId)}/fields`,
+          { cache: "no-store", credentials: "include" },
+        );
+        const detailResponse = await fetch(
+          `/api/organizations/${encodeURIComponent(acceptedOrganizationId)}/fields/${encodeURIComponent(acceptedFieldId)}`,
+          { cache: "no-store", credentials: "include" },
+        );
+        return [listResponse.status, detailResponse.status];
+      },
+      {
+        acceptedOrganizationId: ownerField.organizationId,
+        acceptedFieldId: ownerField.fieldId,
+      },
+    );
+    expect(removedInviteeFieldStatuses).toEqual([404, 404]);
     expect(browserErrors.get(inviteePage) ?? []).toEqual([]);
     await inviteeContext.close();
 
@@ -359,6 +570,8 @@ test.describe("identity access", () => {
     await page.keyboard.press("Enter");
     await expect(sessionHeading).toBeVisible();
 
+    const previousOrganizationIds = await loadOrganizationIds(page);
+
     const createOrganization = page.getByRole("button", {
       name: /Crear (mi organización|otra)/,
     });
@@ -372,6 +585,27 @@ test.describe("identity access", () => {
     await organizationName.press("Enter");
     await expect(
       page.getByText("Campo móvil ya está lista y sos owner."),
+    ).toBeVisible();
+    const mobileOrganizationId = await loadNewOrganizationId(
+      page,
+      previousOrganizationIds,
+    );
+    const mobileOrganizationCard = page.getByRole("article").filter({
+      hasText: `Organización ${shortId(mobileOrganizationId)}`,
+    });
+    const createField = mobileOrganizationCard.getByRole("button", {
+      name: "Crear campo",
+    });
+    await createField.focus();
+    await expect(createField).toBeFocused();
+    await page.keyboard.press("Enter");
+    const mobileFieldName = mobileOrganizationCard.getByRole("textbox", {
+      name: "Nombre del campo",
+    });
+    await mobileFieldName.fill("Lote móvil");
+    await mobileFieldName.press("Enter");
+    await expect(
+      page.getByText(/Lote móvil quedó como borrador sin geometría/i),
     ).toBeVisible();
     await expectNoAccessibilityViolations(page);
 

@@ -39,7 +39,7 @@ public sealed class AuthorizationSurfaceContractTests
             Directory.CreateDirectory(Path.GetDirectoryName(newEndpointSource)!);
             File.WriteAllText(
                 newEndpointSource,
-                "var admin = endpoints.MapGroup(\"/api/admin\");\nadmin.MapPut(\"/thing\", () => 204);\n");
+                "RouteGroupBuilder admin = endpoints\n    .MapGroup(\"/api/admin\");\nadmin.MapPut(\"/thing\", () => 204);\n");
             string identityOpenApi = Path.Combine(temporaryRoot, "contracts", "identity.openapi.yaml");
             File.AppendAllText(identityOpenApi, "\n  /api/admin/thing:\n    put:\n      responses: {}\n");
 
@@ -297,8 +297,10 @@ public sealed class AuthorizationSurfaceContractTests
         [
             "contracts/identity.openapi.yaml",
             "contracts/territory.openapi.yaml",
+            "contracts/productive-core.openapi.yaml",
             "apps/AgropecuarIA.Api/IdentityEndpoints.cs",
             "src/AgropecuarIA.Territory/Delivery/TerritoryEndpoints.cs",
+            "src/AgropecuarIA.ProductiveCore/Delivery/ProductiveCoreEndpoints.cs",
         ];
         foreach (string relativePath in relativePaths)
         {

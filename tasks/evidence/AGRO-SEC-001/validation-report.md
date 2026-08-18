@@ -241,3 +241,44 @@ PASS — threat-register.json and runtime-surface-register.json.
 Las mutations nuevas prueban drift de paths Territory y pérdida de: snapshot 23+CABA, `FORCE RLS`, adapter Georef v2.0 fijo, no persistencia durable, caché volátil, redacción compartida, endpoint exacto, redirect policy, timeout, body budget, minimización tenant, `NO-GO` externo y la regla de que tests locales no constituyen aprobación.
 
 `AGRO-SEC-001` permanece `En curso`. El GO se limita al snapshot/search/UI y adapter verificable localmente; Georef externo, hosting/proxy/collector, base administrada, CI/provenance, backup/restore representativo y decisiones Privacy/Legal continúan NO-GO.
+
+## Refresh actual: Productive Core field draft no espacial — 2026-08-18
+
+`RS-011` registra el primer recurso tenant de Productive Core como `integrated-local`: create/list/detail autenticados, contrato OpenAPI exacto, actor/tenant derivados por servidor y autorización owner revalidada dentro de la transacción antes de lookup o replay. El puerto `identity.authorize_productive_owner()` es `SECURITY DEFINER`, usa search path fijo, no entrega PII y solo expone la versión vigente de sesión al rol Productive app. Membership removida, sesión vencida/revocada, tenant ajeno, contexto ausente, job y conexión reutilizada niegan cerrado.
+
+PostgreSQL local separa owner/migrator/app/job sin login, inheritance, ownership ni `BYPASSRLS`; las cinco tablas aplican `FORCE RLS`. Crear un campo persiste unidad draft, ledger y aliases HMAC versionados, journal append-only y outbox tipado `1.0.0` de forma atómica. Los tests cubren orden Identity→Productive, ausencia N-1 fail-closed, rollback/roll-forward, A/B/sin contexto/pool/job, nombres duplicados permitidos, replay/races, key coverage y rollback. Fault injection real instala triggers que fallan por separado el INSERT de ledger, journal y outbox, invoca `CreateField` y verifica cero unidades, ledgers, aliases, journals y outbox después de cada fallo. El modelo EF de ambos contextos quedó sin cambios pendientes.
+
+El registro de amenazas incorpora este control en TM-001/008/011/012/014. La clasificación trata `DisplayName` como `Confidential`; no hay coordenadas, área, geometría, tiles ni historial espacial. Telemetría conserva solo operación, outcome y conteo acotado, sin nombre de campo, UUID de tenant/recurso, sesión ni material idempotente. `PI-13` confirma que no se agregó proveedor ni egress: el outbox todavía no tiene worker externo.
+
+### Gate reproducido
+
+```text
+validate-threat-model.ps1 -SelfTest
+PASS — 53/53 mutations; 14 threats; 7 critical; 7 high; 0 critical without owner/test/gate.
+
+dotnet build AgropecuarIA.slnx --no-restore
+PASS — 9/9 projects; 0 warnings; 0 errors.
+
+dotnet test --solution AgropecuarIA.slnx --no-build
+PASS — 308/308; 0 failed; 0 skipped.
+
+dotnet test --project tests/AgropecuarIA.ProductiveCore.Tests/AgropecuarIA.ProductiveCore.Tests.csproj --no-build
+PASS — 30/30, incluidos los tres casos de fault injection ledger/journal/outbox, la capacidad concurrente y la cancelación con limpieza de pool.
+
+dotnet ef migrations has-pending-model-changes (ProductiveCoreDbContext + IdentityDbContext)
+PASS — 2/2; no pending model changes.
+
+pnpm test
+PASS — 130/130 across 8 files.
+
+pnpm typecheck; pnpm lint; pnpm format
+PASS — TypeScript, ESLint with zero warnings and Prettier check.
+
+pnpm build
+PASS — Next.js optimized production build and 3/3 static pages.
+
+Playwright desktop + móvil (gate coordinado por el runner raíz)
+PASS — 6/6.
+```
+
+`AGRO-SEC-001` permanece `En curso`. El `GO` es solo integrado-local para campos draft no espaciales. Geometría/área/tiles/history, roles no-owner, dispatcher/inbox/worker y delivery externo, DB/backup/secretos administrados, hosting/edge/collector compartidos, CI/provenance, Privacy/Legal y producción permanecen `NO-GO`; ninguna suite local aprueba esas capacidades.

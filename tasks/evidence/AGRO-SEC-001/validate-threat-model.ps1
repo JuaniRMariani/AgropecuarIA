@@ -299,8 +299,8 @@ function Test-RuntimeSurfaceRegister {
     }
 
     $surfaces = @($SurfaceRegister.surfaces)
-    if ($surfaces.Count -lt 10) {
-        $errors.Add('At least ten R1 runtime and external surfaces are required.')
+    if ($surfaces.Count -lt 11) {
+        $errors.Add('At least eleven R1 runtime and external surfaces are required.')
     }
 
     $ids = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
@@ -332,7 +332,7 @@ function Test-RuntimeSurfaceRegister {
                 $errors.Add("$($surface.id): unknown threat ID $threatId.")
             }
         }
-        if ($surface.id -in @('RS-001', 'RS-004', 'RS-009')) {
+        if ($surface.id -in @('RS-001', 'RS-004', 'RS-009', 'RS-011')) {
             $contractPaths = @($surface.contractPaths)
             if ($contractPaths.Count -eq 0 -or @($contractPaths | Where-Object {
                 [string]::IsNullOrWhiteSpace([string] $_)
@@ -356,7 +356,7 @@ function Test-RuntimeSurfaceRegister {
                     $errors.Add("$($surface.id): runtime surface evidence path does not exist: $anchor.")
                 }
             }
-            if ($surface.id -in @('RS-001', 'RS-002', 'RS-003', 'RS-004', 'RS-009', 'RS-010')) {
+            if ($surface.id -in @('RS-001', 'RS-002', 'RS-003', 'RS-004', 'RS-009', 'RS-010', 'RS-011')) {
                 foreach ($declaredTest in @($surface.tests)) {
                     $testName = [string] $declaredTest
                     if ($testName.Contains('/')) {
@@ -400,6 +400,7 @@ function Test-R1Evidence {
         'apps/AgropecuarIA.Api/Program.cs',
         'contracts/identity.openapi.yaml',
         'contracts/territory.openapi.yaml',
+        'contracts/productive-core.openapi.yaml',
         'src/AgropecuarIA.Identity/AgropecuarIA.Identity.csproj',
         'src/AgropecuarIA.Identity/Infrastructure/IdentityDbContext.cs',
         'src/AgropecuarIA.Identity/Infrastructure/Migrations/IdentityDbContextModelSnapshot.cs',
@@ -412,6 +413,12 @@ function Test-R1Evidence {
         'src/AgropecuarIA.Territory/Delivery/TerritoryExceptionHandler.cs',
         'src/AgropecuarIA.Territory/Providers/Georef/GeorefTerritoryClient.cs',
         'src/AgropecuarIA.Territory/Infrastructure/Migrations/20260811223525_InitializeOfficialTerritory.cs',
+        'src/AgropecuarIA.ProductiveCore/AgropecuarIA.ProductiveCore.csproj',
+        'src/AgropecuarIA.ProductiveCore/packages.lock.json',
+        'src/AgropecuarIA.ProductiveCore/Infrastructure/ProductiveCoreDbContext.cs',
+        'src/AgropecuarIA.ProductiveCore/Infrastructure/PostgresProductiveCoreUnitOfWork.cs',
+        'src/AgropecuarIA.ProductiveCore/Infrastructure/Migrations/20260818170935_InitializeProductiveCore.cs',
+        'src/AgropecuarIA.Identity/Infrastructure/Migrations/20260818180000_AddProductiveCoreAuthorizationPort.cs',
         'apps/AgropecuarIA.Api/packages.lock.json',
         'src/AgropecuarIA.Identity/packages.lock.json',
         'tests/AgropecuarIA.Identity.Tests/packages.lock.json',
@@ -424,6 +431,12 @@ function Test-R1Evidence {
         'tests/AgropecuarIA.Territory.Tests/TerritoryEndpointsTests.cs',
         'tests/AgropecuarIA.Territory.Tests/TerritoryDatabaseSecurityTests.cs',
         'tests/AgropecuarIA.Territory.Tests/TerritorySnapshotValidatorTests.cs',
+        'tests/AgropecuarIA.ProductiveCore.Tests/AgropecuarIA.ProductiveCore.Tests.csproj',
+        'tests/AgropecuarIA.ProductiveCore.Tests/packages.lock.json',
+        'tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreApplicationServiceTests.cs',
+        'tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs',
+        'tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs',
+        'tests/AgropecuarIA.Identity.Tests/ProductiveCoreAuthorizationPortDatabaseTests.cs',
         'apps/web/tests/e2e/identity.spec.ts',
         'apps/web/tests/unit/territory-api.test.ts',
         'apps/web/tests/unit/territory-explorer.test.tsx',
@@ -474,19 +487,35 @@ function Test-R1Evidence {
         if ($territoryPathDrift.Count -gt 0) {
             $errors.Add('Territory OpenAPI paths and RS-009 contractPaths must match exactly.')
         }
+
+        $productiveOpenApiPaths = @(
+            Get-Content -LiteralPath (Join-Path $repoRoot 'contracts\productive-core.openapi.yaml') -Encoding UTF8 |
+                ForEach-Object {
+                    if ($_ -match '^\s{2}(/[^:]+):\s*$') {
+                        $Matches[1]
+                    }
+                }
+        )
+        $productiveSurface = @($SurfaceRegister.surfaces | Where-Object { $_.id -eq 'RS-011' }) | Select-Object -First 1
+        $productivePathDrift = @(
+            Compare-Object -ReferenceObject @($productiveOpenApiPaths | Sort-Object -Unique) -DifferenceObject @(@($productiveSurface.contractPaths) | Sort-Object -Unique)
+        )
+        if ($productivePathDrift.Count -gt 0) {
+            $errors.Add('Productive Core OpenAPI paths and RS-011 contractPaths must match exactly.')
+        }
     }
 
     $requiredThreatEvidence = [ordered]@{
-        'TM-001' = @('tests/AgropecuarIA.Identity.Tests/IdentityRequestContextTests.cs', 'tasks/evidence/AGRO-DIS-003/validation-report.md')
+        'TM-001' = @('tests/AgropecuarIA.Identity.Tests/IdentityRequestContextTests.cs', 'tasks/evidence/AGRO-DIS-003/validation-report.md', 'tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs', 'tests/AgropecuarIA.Identity.Tests/ProductiveCoreAuthorizationPortDatabaseTests.cs')
         'TM-002' = @('apps/AgropecuarIA.Api/OidcReauthentication.cs', 'tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs', 'apps/web/tests/e2e/identity.spec.ts')
         'TM-004' = @('src/AgropecuarIA.Territory/Providers/Georef/GeorefTerritoryClient.cs', 'tests/AgropecuarIA.Territory.Tests/TerritorySnapshotValidatorTests.cs')
         'TM-006' = @('src/AgropecuarIA.Territory/TerritoryServiceCollectionExtensions.cs', 'tests/AgropecuarIA.Territory.Tests/GeorefTerritoryClientTests.cs')
-        'TM-008' = @('src/AgropecuarIA.Identity/IdentityTelemetry.cs', 'tests/AgropecuarIA.Identity.Tests/IdentityTelemetryTests.cs', 'src/AgropecuarIA.Territory/Delivery/TerritoryExceptionHandler.cs', 'apps/web/tests/unit/territory-explorer.test.tsx')
+        'TM-008' = @('src/AgropecuarIA.Identity/IdentityTelemetry.cs', 'tests/AgropecuarIA.Identity.Tests/IdentityTelemetryTests.cs', 'src/AgropecuarIA.Territory/Delivery/TerritoryExceptionHandler.cs', 'apps/web/tests/unit/territory-explorer.test.tsx', 'src/AgropecuarIA.ProductiveCore/ProductiveCoreTelemetry.cs')
         'TM-010' = @('apps/AgropecuarIA.Api/packages.lock.json', 'apps/web/pnpm-lock.yaml')
-        'TM-011' = @('tests/AgropecuarIA.Territory.Tests/TerritoryDatabaseSecurityTests.cs', 'tests/AgropecuarIA.Territory.Tests/TerritorySnapshotValidatorTests.cs')
-        'TM-012' = @('tests/AgropecuarIA.Identity.Tests/IdentityDatabaseMigrationTests.cs', 'tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/IdentityPublishedEventContractTests.cs')
+        'TM-011' = @('tests/AgropecuarIA.Territory.Tests/TerritoryDatabaseSecurityTests.cs', 'tests/AgropecuarIA.Territory.Tests/TerritorySnapshotValidatorTests.cs', 'tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs')
+        'TM-012' = @('tests/AgropecuarIA.Identity.Tests/IdentityDatabaseMigrationTests.cs', 'tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/IdentityPublishedEventContractTests.cs', 'tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreApplicationServiceTests.cs')
         'TM-013' = @('src/AgropecuarIA.Territory/Application/TerritoryReferenceService.cs', 'src/AgropecuarIA.Territory/Providers/Georef/GeorefTerritoryClient.cs')
-        'TM-014' = @('tests/AgropecuarIA.Territory.Tests/TerritoryEndpointsTests.cs', 'tests/AgropecuarIA.Territory.Tests/GeorefTerritoryClientTests.cs')
+        'TM-014' = @('tests/AgropecuarIA.Territory.Tests/TerritoryEndpointsTests.cs', 'tests/AgropecuarIA.Territory.Tests/GeorefTerritoryClientTests.cs', 'tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs')
     }
     foreach ($threatId in $requiredThreatEvidence.Keys) {
         $threat = @($Register.threats | Where-Object { $_.id -eq $threatId }) | Select-Object -First 1
@@ -502,16 +531,16 @@ function Test-R1Evidence {
     }
 
     $requiredThreatTests = [ordered]@{
-        'TM-001' = @('IdentityRequestContextTests', 'TST-TENANT-NEG')
+        'TM-001' = @('IdentityRequestContextTests', 'ProductiveCoreDatabaseSecurityTests', 'TST-TENANT-NEG')
         'TM-002' = @('OidcConfigurationContractTests', 'TST-ID-AUTH')
         'TM-004' = @('GeorefTerritoryClientTests', 'TerritorySnapshotValidatorTests')
         'TM-006' = @('GeorefTerritoryClientTests', 'fixed host')
         'TM-008' = @('IdentityTelemetryTests', 'TST-OTEL-REDACTION', 'TST-TERRITORY-URL-REDACTION')
         'TM-010' = @('Frozen restore/install', 'TST-SEC-GATES')
         'TM-011' = @('TerritoryDatabaseSecurityTests', 'TST-RESTORE')
-        'TM-012' = @('IdentityDatabaseMigrationTests', 'TST-IDEMPOTENCY')
+        'TM-012' = @('IdentityDatabaseMigrationTests', 'ProductiveCoreApplicationServiceTests', 'TST-IDEMPOTENCY')
         'TM-013' = @('TST-TERRITORY-URL-REDACTION', 'Provider data-flow review')
-        'TM-014' = @('TerritoryEndpointsTests', 'GeorefTerritoryClientTests')
+        'TM-014' = @('TerritoryEndpointsTests', 'GeorefTerritoryClientTests', 'ProductiveCoreEndpointContractTests')
     }
     foreach ($threatId in $requiredThreatTests.Keys) {
         $threat = @($Register.threats | Where-Object { $_.id -eq $threatId }) | Select-Object -First 1
@@ -533,7 +562,7 @@ function Test-R1Evidence {
         'TM-006' = 'external Georef remains NO-GO'
         'TM-008' = 'No OTLP exporter'
         'TM-010' = 'No CI workflow'
-        'TM-012' = 'Tenant-scoped AGRO-FND-002'
+        'TM-012' = 'AGRO-FND-002 shared delivery'
         'TM-013' = 'External Georef is NO-GO'
         'TM-014' = 'external Georef/provider quotas'
     }
@@ -556,7 +585,8 @@ function Test-R1Evidence {
             'discovery fails fast',
             'CreateOrganization implements forward-safe product migrations',
             'One-shot co-owner invitations derive actor and tenant server-side',
-            'removal of another co-owner repeats those boundaries')) {
+            'removal of another co-owner repeats those boundaries',
+            'Productive Core non-spatial fields revalidate a live owner before lookup and replay')) {
             if (-not $tm001Controls.Contains($requiredRlsEvidence)) {
                 $errors.Add("TM-001 must keep accepted disposable RLS evidence explicit: $requiredRlsEvidence.")
             }
@@ -574,6 +604,7 @@ function Test-R1Evidence {
         'RS-008' = 'external-no-go'
         'RS-009' = 'integrated-local'
         'RS-010' = 'external-no-go'
+        'RS-011' = 'integrated-local'
     }
     foreach ($surfaceId in $surfaceExpectations.Keys) {
         $surface = @($SurfaceRegister.surfaces | Where-Object { $_.id -eq $surfaceId }) | Select-Object -First 1
@@ -601,6 +632,16 @@ function Test-R1Evidence {
         foreach ($requiredToken in @('https://apis.datos.gob.ar/georef/api/v2.0/', 'disables redirects', 'five-second timeout', '256 KiB', 'no tenant', 'NO-GO', 'end-to-end URL/query redaction', 'Passing local adapter tests does not approve the provider')) {
             if (-not $georefEvidence.Contains($requiredToken)) {
                 $errors.Add("RS-010 must keep its external Georef boundary explicit: $requiredToken.")
+            }
+        }
+    }
+
+    $productiveSurface = @($SurfaceRegister.surfaces | Where-Object { $_.id -eq 'RS-011' }) | Select-Object -First 1
+    if ($null -ne $productiveSurface) {
+        $productiveEvidence = "$($productiveSurface.control) $($productiveSurface.gate)"
+        foreach ($requiredToken in @('non-spatial', 'FORCE RLS', 'SECURITY DEFINER', 'active owner membership', 'before lookup/replay', 'atomic', 'append-only', 'excludes field name', 'NO-GO')) {
+            if (-not $productiveEvidence.Contains($requiredToken)) {
+                $errors.Add("RS-011 must keep its local Productive Core boundary explicit: $requiredToken.")
             }
         }
     }
@@ -696,6 +737,11 @@ function Invoke-MutationTests {
     $territoryOpenApiSurface.contractPaths = @($territoryOpenApiSurface.contractPaths | Select-Object -Skip 1)
     $cases['territory-openapi-path-drift'] = (Test-R1Evidence -Register $Register -SurfaceRegister $territoryOpenApiPathDrift -CheckArtifactPaths).Count -gt 0
 
+    $productiveOpenApiPathDrift = Copy-Register $SurfaceRegister
+    $productiveOpenApiSurface = @($productiveOpenApiPathDrift.surfaces | Where-Object { $_.id -eq 'RS-011' }) | Select-Object -First 1
+    $productiveOpenApiSurface.contractPaths = @($productiveOpenApiSurface.contractPaths | Select-Object -Skip 1)
+    $cases['productive-openapi-path-drift'] = (Test-R1Evidence -Register $Register -SurfaceRegister $productiveOpenApiPathDrift -CheckArtifactPaths).Count -gt 0
+
     $missingThreatGateTest = Copy-Register $Register
     $missingThreatGateTest.threats[1].requiredTests = @('Only a generic test')
     $cases['missing-r1-gate-test'] = (Test-R1Evidence -Register $missingThreatGateTest -SurfaceRegister $SurfaceRegister).Count -gt 0
@@ -710,6 +756,7 @@ function Invoke-MutationTests {
         'organization-runtime' = 'CreateOrganization implements forward-safe product migrations'
         'owner-invitation-runtime' = 'One-shot co-owner invitations derive actor and tenant server-side'
         'owner-removal-runtime' = 'removal of another co-owner repeats those boundaries'
+        'productive-core-runtime' = 'Productive Core non-spatial fields revalidate a live owner before lookup and replay'
     }
     foreach ($mutationName in $rlsEvidenceMutations.Keys) {
         $missingRlsEvidence = Copy-Register $Register
@@ -767,6 +814,26 @@ function Invoke-MutationTests {
         $mutatedGeoref.control = ([string] $mutatedGeoref.control).Replace($token, '[removed Georef boundary]')
         $mutatedGeoref.gate = ([string] $mutatedGeoref.gate).Replace($token, '[removed Georef boundary]')
         $cases["missing-georef-boundary-$mutationName"] = (Test-R1Evidence -Register $Register -SurfaceRegister $mutatedSurfaces).Count -gt 0
+    }
+
+    $productiveBoundaryMutations = [ordered]@{
+        'non-spatial' = 'non-spatial'
+        'force-rls' = 'FORCE RLS'
+        'identity-port' = 'SECURITY DEFINER'
+        'live-owner' = 'active owner membership'
+        'authorize-before-replay' = 'before lookup/replay'
+        'atomic-write' = 'atomic'
+        'append-only-journal' = 'append-only'
+        'telemetry-redaction' = 'excludes field name'
+        'external-no-go' = 'NO-GO'
+    }
+    foreach ($mutationName in $productiveBoundaryMutations.Keys) {
+        $mutatedSurfaces = Copy-Register $SurfaceRegister
+        $mutatedProductive = @($mutatedSurfaces.surfaces | Where-Object { $_.id -eq 'RS-011' }) | Select-Object -First 1
+        $token = $productiveBoundaryMutations[$mutationName]
+        $mutatedProductive.control = ([string] $mutatedProductive.control).Replace($token, '[removed Productive Core boundary]')
+        $mutatedProductive.gate = ([string] $mutatedProductive.gate).Replace($token, '[removed Productive Core boundary]')
+        $cases["missing-productive-boundary-$mutationName"] = (Test-R1Evidence -Register $Register -SurfaceRegister $mutatedSurfaces).Count -gt 0
     }
 
     $cases['obsolete-r0-declaration'] = (Test-ObsoleteDeclarations -Contents @('No root product lockfiles, CI identity, provenance or artifact signing exists')).Count -gt 0

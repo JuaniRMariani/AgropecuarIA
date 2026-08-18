@@ -193,7 +193,7 @@ describe("IdentityHub organization attempts", () => {
     );
 
     expect(apiMocks.createOrganization.mock.calls[1]?.[1]).toBe(firstKey);
-    expect(await screen.findByText("Organización 126639")).toBeVisible();
+    expect(await screen.findAllByText("Organización 126639")).toHaveLength(2);
     expect(
       screen
         .getByText("La Esperanza ya está lista y sos owner.")

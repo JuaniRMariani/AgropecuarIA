@@ -304,6 +304,13 @@
           "OpenTelemetry.Extensions.Hosting": "[1.17.0, )"
         }
       },
+      "agropecuaria.productivecore": {
+        "type": "Project",
+        "dependencies": {
+          "AgropecuarIA.Identity": "[1.0.0, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
       "agropecuaria.territory": {
         "type": "Project",
         "dependencies": {

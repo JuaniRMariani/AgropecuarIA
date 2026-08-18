@@ -652,6 +652,7 @@
         "type": "Project",
         "dependencies": {
           "AgropecuarIA.Identity": "[1.0.0, )",
+          "AgropecuarIA.ProductiveCore": "[1.0.0, )",
           "AgropecuarIA.Territory": "[1.0.0, )",
           "Microsoft.AspNetCore.Authentication.OpenIdConnect": "[10.0.10, )",
           "OpenTelemetry.Instrumentation.AspNetCore": "[1.17.0, )"
@@ -662,6 +663,13 @@
         "dependencies": {
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "OpenTelemetry.Extensions.Hosting": "[1.17.0, )"
+        }
+      },
+      "agropecuaria.productivecore": {
+        "type": "Project",
+        "dependencies": {
+          "AgropecuarIA.Identity": "[1.0.0, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
         }
       },
       "agropecuaria.territory": {

@@ -1,27 +1,30 @@
-# AGRO-SEC-002 — gate Identity tenant v1
+# AGRO-SEC-002 — gate tenant Identity + Productive Core v1
 
-Incremento integrado-local de la tarea multirelease AGRO-SEC-002. El padre permanece `En curso`.
+Incremento integrado-local de la tarea multirelease `AGRO-SEC-002`. El padre permanece `En curso`.
 
 ## Qué queda comprobado
 
-- Las 22 operaciones HTTP actuales de Identity y Territory coinciden exactamente entre OpenAPI, código de rutas y `authorization-surface-register.json`.
-- Cada operación declara recurso, acción, frontera, autenticación, fuente de actor/tenant, autorización de aplicación, frontera de storage, error neutral, owner y prueba ejecutable.
-- Las operaciones tenant de invitaciones y remoción de co-owner requieren tenant server-derived/revalidado, autorización owner, `FORCE RLS` y errores sin oracle cross-tenant.
-- Territory queda como referencia compartida autenticada, sin autoridad tenant.
-- Las tres rutas sintéticas permanecen `development-test-only`, con gate de ambiente+flag y prueba de ausencia en Production.
-- `/signin-oidc` se registra como entrypoint framework-owned con state, PKCE y frescura.
-- Jobs, storage, export, AI y retrieval se declaran explícitamente ausentes; el gate impide presentarlos como integrados.
+- Las 25 operaciones HTTP actuales de Identity, Territory y Productive Core coinciden entre OpenAPI, rutas y `authorization-surface-register.json`.
+- Cada operación declara recurso, acción, frontera, autenticación, fuentes de actor/tenant, autorización de aplicación, frontera de storage, error neutral, owner y prueba ejecutable.
+- Las tres operaciones nuevas de Productive Core —crear, listar y abrir un campo— son tenant-scoped y sólo admiten owner activo con sesión viva revalidada antes de cualquier lookup de recurso o idempotencia.
+- `POST /api/organizations/{organizationId}/fields` exige cookie, CSRF y `Idempotency-Key` URL-safe de 32..128 caracteres. Actor, sesión, tenant, tipo `field` y estados `draft/not_configured` se fijan en servidor.
+- La creación conserva unidad, ledger y aliases HMAC versionados, journal y `ManagementUnitCreated` en una única transacción; replay, fingerprint distinto, carrera y commit incierto fallan cerrados o recuperan el mismo resultado.
+- PostgreSQL usa el puerto estrecho `identity.authorize_productive_owner()`, contexto transaction-local, principal propio, privilegios mínimos y `FORCE RLS`; Productive Core no consulta tablas Identity desde Application.
+- Lista y ficha responden neutralmente ante organización, membership o field ausentes/ajenos. Las respuestas privadas usan `no-store` y rate limit por sesión.
+- `ManagementUnitCreated` es tenant-scoped y no contiene nombre, actor, idempotency key/digest ni geometría. La telemetría usa tags allow-listed sin UUID, tenant o display name.
+- El frontend valida la frontera JSON, usa React escaping, conserva la misma idempotency key durante retry/reauth/reconciliación y sólo muestra UUID corto.
+- Territory continúa como referencia compartida autenticada, sin autoridad tenant. Las rutas sintéticas permanecen `development-test-only` y ausentes en Production.
 
 ## Artefactos
 
 - `architecture.md`: reconnaissance y fronteras auditadas.
-- `authorization-surface-register.json`: matriz machine-readable.
+- `authorization-surface-register.json`: matriz machine-readable vigente de 25 operaciones.
 - `REPORT.md`, `FINDINGS-DETAIL.md`, `findings.json`: resultado del security audit.
-- `validation-report.md`: comandos y resultados reproducibles.
-- `AuthorizationSurfaceValidator.cs` y `AuthorizationSurfaceContractTests.cs` dentro del fitness FND: enforcement en la suite raíz.
+- `validation-report.md`: comandos, resultados y límites reproducibles.
+- Fitness FND/SEC: enforcement de rutas, contratos, eventos y storage boundaries.
 
 ## Límites honestos
 
-Este incremento no agrega endpoints, roles, superadmin ni features. Tampoco demuestra Auth0, edge/TLS, proxy, Data Protection, limiter distribuido, secrets manager, exporter/collector ni egress Georef en un ambiente compartido. El cache de resolución Territory es global por coordenada; como Georef está default-off y no existe deploy compartido no constituye un hallazgo explotable actual, pero debe particionarse o dejar de exponer timestamps de consulta antes de habilitar egress multiusuario.
+Este resultado prueba el runtime integrado local; no autoriza un deploy compartido. No demuestra Auth0 real, edge/TLS/proxy, Data Protection persistente, limiter distribuido, secrets manager, exporter/collector, backup/restore operativo ni egress Georef multiusuario. Tampoco prueba todavía geometría, PostGIS productivo, área, mapa, edición o borrado de campos: esas capacidades quedan fuera de este sub-slice.
 
-Siguientes superficies tenant deben entrar al registro en el mismo cambio que su OpenAPI/runtime. La remoción de otro co-owner ya protege concurrentemente el último owner; self-remove, transferencia, democión y roles no-owner siguen fuera del slice.
+El cache de resolución Territory continúa global por coordenada. Con Georef default-off no hay explotación actual confirmada, pero debe particionarse o dejar de exponer timestamps correlacionables antes de habilitar egress compartido.

@@ -1,0 +1,16 @@
+<Project Sdk="MSTest.Sdk/4.3.3">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AgropecuarIA.ProductiveCore\AgropecuarIA.ProductiveCore.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\AgropecuarIA.Identity.Tests\Infrastructure\PostgreSqlTestServer.cs"
+             Link="Infrastructure\PostgreSqlTestServer.cs" />
+    <Compile Include="..\AgropecuarIA.Identity.Tests\Infrastructure\IdentityTestAssembly.cs"
+             Link="Infrastructure\IdentityTestAssembly.cs" />
+  </ItemGroup>
+</Project>

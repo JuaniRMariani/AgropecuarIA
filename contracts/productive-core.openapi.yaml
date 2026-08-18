@@ -1,0 +1,182 @@
+openapi: 3.1.0
+info:
+  title: AgropecuarIA Productive Core API
+  version: 1.0.0
+  description: Tenant-owned productive units. Version 1 creates fields as non-spatial drafts; it does not claim geometry, area, cadastral status or agronomic location.
+paths:
+  /api/organizations/{organizationId}/fields:
+    get:
+      summary: List the active owner's fields
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+      responses:
+        '200':
+          description: Fields ordered by creation time and field ID
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 100
+                items: { $ref: '#/components/schemas/Field' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotAvailable' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    post:
+      summary: Create a non-spatial field draft
+      description: The server derives actor, tenant, type and initial states. The body never accepts geometry, area, role or identifiers.
+      security:
+        - SessionCookie: []
+          AntiforgeryCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 32, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateFieldRequest' }
+      responses:
+        '201':
+          description: Field created, or the authorized result of an identical replay
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedField' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotAvailable' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/organizations/{organizationId}/fields/{fieldId}:
+    get:
+      summary: Get one field draft
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - in: path
+          name: fieldId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Authorized field
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Field' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotAvailable' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-agro-session
+    AntiforgeryCookie:
+      type: apiKey
+      in: header
+      name: X-CSRF-TOKEN
+  parameters:
+    OrganizationId:
+      in: path
+      name: organizationId
+      required: true
+      description: Resource locator only; authorization and tenant context are derived and revalidated by the server.
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: Invalid display name or idempotency key
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: Missing, expired or revoked durable session
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotAvailable:
+      description: Organization, membership or field is not available to the current actor
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: Idempotency key mismatch, an in-progress attempt, or organization field capacity reached (productive_core.management_unit_capacity_reached)
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    RateLimited:
+      description: Request rate exceeded
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unavailable:
+      description: Idempotency reconciliation, Productive Core configuration or persistence is unavailable; retry preserves the same key
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    CreateFieldRequest:
+      type: object
+      description: displayName trims leading and trailing Unicode White_Space plus U+FEFF, then normalizes to NFC, counts Unicode scalars and rejects controls or lone surrogates.
+      additionalProperties: false
+      required: [displayName]
+      properties:
+        displayName: { type: string, minLength: 2, maxLength: 120 }
+    Field:
+      type: object
+      additionalProperties: false
+      required: [fieldId, organizationId, displayName, type, status, spatialStatus, createdAtUtc, version]
+      properties:
+        fieldId: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        displayName: { type: string, minLength: 2, maxLength: 120 }
+        type: { type: string, const: field }
+        status: { type: string, const: draft }
+        spatialStatus: { type: string, const: not_configured }
+        createdAtUtc: { type: string, format: date-time }
+        version: { type: string, format: uuid }
+    CreatedField:
+      type: object
+      additionalProperties: false
+      required: [fieldId, organizationId, displayName, type, status, spatialStatus, createdAtUtc, version, isReplay]
+      properties:
+        fieldId: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        displayName: { type: string, minLength: 2, maxLength: 120 }
+        type: { type: string, const: field }
+        status: { type: string, const: draft }
+        spatialStatus: { type: string, const: not_configured }
+        createdAtUtc: { type: string, format: date-time }
+        version: { type: string, format: uuid }
+        isReplay: { type: boolean }
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code, correlationId]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        code: { type: string }
+        correlationId: { type: string }
+        retryable: { type: boolean }

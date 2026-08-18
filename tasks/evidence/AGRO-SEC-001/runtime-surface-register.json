@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "taskId": "AGRO-SEC-001",
   "currentRelease": "R1",
-  "reviewedAt": "2026-08-11",
+  "reviewedAt": "2026-08-18",
   "surfaces": [
     {
       "id": "RS-001",
@@ -116,6 +116,18 @@
       "tests": ["GeorefTerritoryClientTests", "TerritoryReferenceServiceTests", "TerritoryEndpointsTests"],
       "evidence": ["src/AgropecuarIA.Territory/Providers/Georef/GeorefTerritoryClient.cs", "src/AgropecuarIA.Territory/TerritoryServiceCollectionExtensions.cs", "tests/AgropecuarIA.Territory.Tests/GeorefTerritoryClientTests.cs", "tasks/evidence/AGRO-DIS-004/source-and-license-matrix.md"],
       "gate": "NO-GO for external Georef use until terms/licence, attribution, region, DPA, retention, subprocessors, SLA, quota/capacity, managed egress and end-to-end URL/query redaction are approved and verified. Passing local adapter tests does not approve the provider."
+    },
+    {
+      "id": "RS-011",
+      "name": "Productive Core non-spatial field API and PostgreSQL persistence",
+      "status": "integrated-local",
+      "threatIds": ["TM-001", "TM-008", "TM-011", "TM-012", "TM-014"],
+      "owner": "Productive Core + API + Data + AppSec",
+      "control": "Authenticated owner-only GET/POST field endpoints create and read tenant-confidential non-spatial drafts without coordinates, area or geometry. The server derives actor, organization, unit type and states; POST requires antiforgery and a versioned HMAC idempotency key. A narrow Identity SECURITY DEFINER port revalidates the live session and active owner membership before lookup/replay, then Productive Core uses NOLOGIN/NOINHERIT/NOBYPASSRLS roles, transaction-local actor/organization/session/authorization context, FORCE RLS, atomic unit+ledger+aliases+journal+typed outbox writes, append-only journal and neutral not-available errors. Telemetry is allow-listed to operation, outcome and bounded result count and excludes field name, organization/resource UUID, session and idempotency material.",
+      "tests": ["ProductiveCoreEndpointContractTests", "ProductiveCoreApplicationServiceTests", "ProductiveCoreDatabaseSecurityTests", "ProductiveCoreAuthorizationPortDatabaseTests", "ManagementUnitCreationOptionsValidatorTests"],
+      "contractPaths": ["/api/organizations/{organizationId}/fields", "/api/organizations/{organizationId}/fields/{fieldId}"],
+      "evidence": ["contracts/productive-core.openapi.yaml", "src/AgropecuarIA.ProductiveCore/Infrastructure/ProductiveCoreDbContext.cs", "src/AgropecuarIA.ProductiveCore/Infrastructure/PostgresProductiveCoreUnitOfWork.cs", "src/AgropecuarIA.ProductiveCore/Infrastructure/Migrations/20260818170935_InitializeProductiveCore.cs", "src/AgropecuarIA.Identity/Infrastructure/Migrations/20260818180000_AddProductiveCoreAuthorizationPort.cs", "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs", "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs", "tests/AgropecuarIA.Identity.Tests/ProductiveCoreAuthorizationPortDatabaseTests.cs"],
+      "gate": "GO only for the integrated-local non-spatial draft field slice. Geometry, area, tiles, spatial history, non-owner roles, external delivery, managed credentials/database/backup, shared hosting and production remain NO-GO; local tests do not approve those capabilities."
     }
   ]
 }

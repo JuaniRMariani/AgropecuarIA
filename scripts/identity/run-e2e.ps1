@@ -19,9 +19,11 @@ $previousEnvironment = @{
     ASPNETCORE_URLS = $env:ASPNETCORE_URLS
     ConnectionStrings__Identity = $env:ConnectionStrings__Identity
     ConnectionStrings__Territory = $env:ConnectionStrings__Territory
+    ConnectionStrings__ProductiveCore = $env:ConnectionStrings__ProductiveCore
     AGRO_API_ORIGIN = $env:AGRO_API_ORIGIN
     Identity__ApplyMigrations = $env:Identity__ApplyMigrations
     Territory__ApplyMigrations = $env:Territory__ApplyMigrations
+    ProductiveCore__ApplyMigrations = $env:ProductiveCore__ApplyMigrations
     Territory__Reference__CoordinateResolutionEnabled = $env:Territory__Reference__CoordinateResolutionEnabled
     Identity__DevelopmentProvider__Enabled = $env:Identity__DevelopmentProvider__Enabled
     Identity__DevelopmentProvider__SyntheticProfileCount = $env:Identity__DevelopmentProvider__SyntheticProfileCount
@@ -36,6 +38,10 @@ $previousEnvironment = @{
     Identity__RateLimits__PerIpPerMinute = $env:Identity__RateLimits__PerIpPerMinute
     Identity__RateLimits__PerSessionPerMinute = $env:Identity__RateLimits__PerSessionPerMinute
     Identity__RateLimits__StepUpPerSessionPerFiveMinutes = $env:Identity__RateLimits__StepUpPerSessionPerFiveMinutes
+    ProductiveCore__ManagementUnitCreation__Enabled = $env:ProductiveCore__ManagementUnitCreation__Enabled
+    ProductiveCore__ManagementUnitCreation__CurrentKeyVersion = $env:ProductiveCore__ManagementUnitCreation__CurrentKeyVersion
+    ProductiveCore__ManagementUnitCreation__HmacKeys__e2e_v1 = $env:ProductiveCore__ManagementUnitCreation__HmacKeys__e2e_v1
+    ProductiveCore__RateLimits__PerSessionPerMinute = $env:ProductiveCore__RateLimits__PerSessionPerMinute
     AGRO_E2E_REUSE_SERVER = $env:AGRO_E2E_REUSE_SERVER
     PGPASSWORD = $env:PGPASSWORD
 }
@@ -169,7 +175,8 @@ try {
     $postgresPassword = New-EphemeralSecret
     $idempotencyHmacKey = New-EphemeralSecret
     $ownerInvitationHmacKey = New-EphemeralSecret
-    if (@($postgresPassword, $idempotencyHmacKey, $ownerInvitationHmacKey) |
+    $fieldIdempotencyHmacKey = New-EphemeralSecret
+    if (@($postgresPassword, $idempotencyHmacKey, $ownerInvitationHmacKey, $fieldIdempotencyHmacKey) |
         Group-Object | Where-Object Count -gt 1) {
         throw 'Cryptographic secret generation produced a duplicate value.'
     }
@@ -219,9 +226,11 @@ try {
     $env:ASPNETCORE_URLS = "http://127.0.0.1:$ApiPort"
     $env:ConnectionStrings__Identity = "Host=127.0.0.1;Port=$postgresPort;Database=postgres;Username=postgres;Password=$postgresPassword;Pooling=false"
     $env:ConnectionStrings__Territory = $env:ConnectionStrings__Identity
+    $env:ConnectionStrings__ProductiveCore = $env:ConnectionStrings__Identity
     $env:AGRO_API_ORIGIN = "http://127.0.0.1:$ApiPort"
     $env:Identity__ApplyMigrations = 'true'
     $env:Territory__ApplyMigrations = 'true'
+    $env:ProductiveCore__ApplyMigrations = 'true'
     $env:Territory__Reference__CoordinateResolutionEnabled = 'false'
     $env:Identity__DevelopmentProvider__Enabled = 'true'
     $env:Identity__DevelopmentProvider__SyntheticProfileCount = '4'
@@ -236,6 +245,10 @@ try {
     $env:Identity__RateLimits__PerIpPerMinute = '600'
     $env:Identity__RateLimits__PerSessionPerMinute = '300'
     $env:Identity__RateLimits__StepUpPerSessionPerFiveMinutes = '100'
+    $env:ProductiveCore__ManagementUnitCreation__Enabled = 'true'
+    $env:ProductiveCore__ManagementUnitCreation__CurrentKeyVersion = 'e2e_v1'
+    $env:ProductiveCore__ManagementUnitCreation__HmacKeys__e2e_v1 = $fieldIdempotencyHmacKey
+    $env:ProductiveCore__RateLimits__PerSessionPerMinute = '300'
     $env:AGRO_E2E_REUSE_SERVER = 'false'
 
     $apiProcess = Start-Process dotnet -ArgumentList @(
@@ -309,4 +322,5 @@ finally {
     $postgresPassword = $null
     $idempotencyHmacKey = $null
     $ownerInvitationHmacKey = $null
+    $fieldIdempotencyHmacKey = $null
 }

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 
 import { formatShortId } from "../../lib/format-id";
+import { FieldManagement } from "../fields/field-management";
 import { TerritoryExplorer } from "../territory/territory-explorer";
 
 import type {
@@ -1309,6 +1310,8 @@ function CurrentSession({
         onReauthenticate={onReauthenticateOrganization}
         session={session}
       />
+
+      <FieldManagement organizations={session.memberships} />
 
       <OwnerMembershipManagement
         action={ownerMembershipAction}

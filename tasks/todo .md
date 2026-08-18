@@ -1427,3 +1427,54 @@ Outcome observable: el owner A lista los co-owners activos de Org A y remueve a 
 - Frontend: pnpm frozen/format/lint/typecheck/build `PASS`, Vitest `95/95`; Playwright PostgreSQL real `6/6` desktop/mobile con journey A→B→remoción, Axe, teclado y 390 px.
 - Supply chain: advisories transitivos detectados durante el gate corregidos mediante pins compatibles `SSH.NET 2026.0.0` y `nanoid 3.3.18`; NuGet/pnpm audit final sin vulnerabilidades conocidas.
 - Sin deploy. Self-remove/transfer/democión, roles no-owner, scopes campo, email/delivery y superadmin siguen fuera.
+
+## Iteración 29 — AGRO-GIS-002 campo borrador no espacial (2026-08-18)
+
+Estado inicial: `Ready` únicamente para el sub-slice estrecho `CreateField draft + lista/ficha accesible`. `AGRO-GIS-002` permanece `En curso`; geometría, área, mapa, tiles, establecimiento/parcela/lote/potrero, catálogo y edición quedan fuera hasta cerrar sus dependencias.
+
+### DoR, alcance y decisiones
+
+- [x] Crear el bounded context productivo `Productive Core`; posee `ManagementUnit`. Territory no persiste ni consulta campos en este slice.
+- [x] Fijar `ManagementUnit` de tipo server-side `field`, estado inicial `draft` y representación espacial `not_configured`; el request no acepta tipo, estado, actor, tenant, rol, coordenadas ni área.
+- [x] Fijar `displayName` con trim Unicode `White_Space`+`U+FEFF`, NFC, 2..120 escalares, sin controles ni surrogates aislados; nombres duplicados se permiten dentro y entre organizaciones y se distinguen por UUID corto.
+- [x] Autorizar sólo owner activo. Actor, sesión y organización se derivan/revalidan en servidor antes de consultar idempotencia o recurso.
+- [x] Congelar rutas `POST/GET /api/organizations/{organizationId}/fields` y `GET /api/organizations/{organizationId}/fields/{fieldId}` con cookie, CSRF en POST, `Idempotency-Key` y errores Problem neutrales.
+- [x] Crear `ManagementUnitCreated` tenant-scoped sin nombre, coordenadas, key/digest ni PII; journal local y outbox quedan atómicos con negocio e idempotencia.
+
+Outcome observable: un owner crea `Campo Norte`, recarga, lo ve en una lista y abre su ficha `Sin geometría`. Otra organización puede usar el mismo nombre pero nunca ve ni infiere el recurso ajeno. Un co-owner removido pierde acceso inmediatamente.
+
+### Aceptación verificable
+
+- [x] POST válido responde 201 y confirma exactamente una unidad `field/draft/not_configured`; GET list/detail conserva orden determinista y UUID corto sólo en UI.
+- [x] Mismo key+fingerprint reproduce el mismo recurso; payload diferente da conflicto; concurrencia, respuesta perdida/commit incierto y retry no duplican unidad, journal ni outbox.
+- [x] El límite local de 100 campos por organización se aplica dentro de la transacción `SERIALIZABLE`: replay precede al conteo, dos altas concurrentes desde 99 dejan exactamente 100 y el exceso responde conflicto terminal sin ledger ni efectos auxiliares.
+- [x] Org A/B, actor ajeno, target ausente/ajeno, sin contexto, sesión o membership revocada fallan neutralmente antes de lookup/replay; no existe oracle cross-tenant.
+- [x] PostgreSQL usa schema/owner/principal propios, `FORCE RLS`, actor+tenant transaction-local, grants mínimos y pruebas de pool, rollback, error, cancelación y job sin contexto.
+- [x] Fallo inyectado de ledger, journal u outbox revierte todas las superficies; telemetría allow-listed no contiene UUID, nombre, idempotency key, digest ni payload.
+- [x] Migración expand-compatible demuestra clean, N/N-1, app rollback/roll-forward y pending model; `Down` destructivo sólo en base efímera.
+- [x] OpenAPI, module/event/runtime/consumer maps y SEC-002 registran las tres operaciones y fallan ante drift.
+- [x] UI cubre empty/loading/submitting/offline/validation/conflict/reconciliation/unavailable/success, ficha `Sin geometría`, foco/teclado/Axe y 390 px sin UUID completo.
+- [x] Playwright demuestra create→reload→detail y aislamiento A/B en desktop y mobile, sin PostGIS, tiles ni egress.
+
+### Ownership y gates
+
+- [x] Principal: plan, contrato compartido, composición, mapas/evidencia, integración, gates y Git.
+- [x] Backend: nuevo módulo Productive Core, dominio/aplicación/API/telemetría y pruebas no-DB bajo ownership exclusivo.
+- [x] Database/Security: DbContext, migración, roles/RLS/primitivas y pruebas PostgreSQL bajo ownership exclusivo.
+- [x] Frontend/QA: tipos/cliente/UI, Vitest y Playwright bajo ownership exclusivo.
+- [x] Ejecutar restore locked, build Release, MTP raíz/dirigidos, format, EF pending/N-N-1/rollback, pnpm frozen/format/lint/typecheck/Vitest/build, Playwright, FND/SEC/SEC-002, SCA, secrets, UTF-8/JSON y diff-check.
+- [x] Revisión independiente sin hallazgos críticos/altos/medios; mantener `AGRO-GIS-002` `En curso`.
+- [ ] Commit/push con `JuaniRMariani <juanirmariani@gmail.com>`; verificar author/committer y no desplegar.
+
+### Baseline
+
+- Git `main`/`origin/main` en `5f32e15`; worktree limpio.
+- Backend: restore/build/format/EF PASS; MTP raíz `256/256`; fitness `101/101`.
+- Frontend: pnpm frozen/format/lint/typecheck/build PASS; Vitest `95/95`; Playwright `6/6`.
+- Validadores: FND `45/45`; SEC `42/42`; SEC-002 `22/22`; SCA y secrets sin hallazgos.
+
+### Review final
+
+- PASS integrado-local: restore locked; build Release 9 proyectos `0/0`; MTP raíz `308/308`; Productive Core/PostgreSQL `30/30`; Architecture Fitness `121/121`; Vitest `130/130`; Playwright oficial `6/6`; FND `45/45`; SEC `53/53`; SEC-002 `25/25`; EF `3/3`, format, SCA, secretos, UTF-8/JSON y diff-check verdes.
+- La revisión independiente cerró cinco hallazgos medios antes de publicar: errores de apertura/commit read tipados como 503, seguridad OpenAPI AND, persistencia idempotente ante respuesta ambigua, capacidad atómica de 100 sin truncamiento y canonicalización Unicode idéntica. Verificó 0 Critical, 0 High y 0 Medium restantes.
+- `AGRO-GIS-002` permanece `En curso`: geometría, área, mapas/tiles, catálogo, edición, delivery y gates de ambiente compartido continúan fuera de este sub-slice.

@@ -85,3 +85,9 @@ Este archivo se actualizará después de cada corrección del sponsor o de un ha
 - Disparador: el sponsor trabaja temporalmente con una cuenta laboral y pidió que los commits del proyecto sigan atribuidos a `JuaniRMariani`, no a la identidad global activa de la máquina.
 - Regla: antes de cada commit, verificar la configuración local del repositorio y usar `user.name=JuaniRMariani` y `user.email=juanirmariani@gmail.com`; no depender de la configuración Git global.
 - Prevención: validar el autor del commit creado con `git show --format=fuller -1` antes del push y corregirlo localmente si no coincide, sin reescribir commits ya publicados salvo instrucción explícita.
+
+## Regla: la atomicidad se prueba atravesando el servicio y cada sink
+
+- Disparador: una prueba SQL directa de rollback por alias duplicado no cubría el criterio explícito de fallo de journal y outbox durante `CreateField`.
+- Regla: cuando un caso de uso persiste agregado, idempotencia, auditoría y outbox en una transacción, inyectar por separado un fallo real en cada sink crítico a través del servicio público y verificar que todas las tablas queden sin efectos parciales.
+- Prevención: traducir cada fault-injection nombrado por el AC a un test de aplicación+PostgreSQL; no inferir cobertura de un sink desde otro constraint ni desde una transacción SQL que omite la capa de servicio.

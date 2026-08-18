@@ -92,9 +92,9 @@ public static partial class AuthorizationSurfaceValidator
             Add(issues, "authorization-register.schema-version.invalid", "Schema version must be 1.");
         }
 
-        if (!string.Equals(document.Scope, "identity-territory-integrated-local", StringComparison.Ordinal))
+        if (!string.Equals(document.Scope, "identity-territory-productive-core-integrated-local", StringComparison.Ordinal))
         {
-            Add(issues, "authorization-register.scope.invalid", "Scope must remain the bounded integrated-local Identity/Territory slice.");
+            Add(issues, "authorization-register.scope.invalid", "Scope must remain the bounded integrated-local Identity/Territory/Productive Core slice.");
         }
 
         ValidateOperations(document.Operations, repositoryRoot, issues);
@@ -296,6 +296,8 @@ public static partial class AuthorizationSurfaceValidator
             Path.Combine(repositoryRoot, "contracts", "identity.openapi.yaml"));
         openApi.UnionWith(ExtractOpenApiOperations(
             Path.Combine(repositoryRoot, "contracts", "territory.openapi.yaml")));
+        openApi.UnionWith(ExtractOpenApiOperations(
+            Path.Combine(repositoryRoot, "contracts", "productive-core.openapi.yaml")));
         HashSet<string> runtime = ExtractRuntimeOperations(repositoryRoot, issues);
 
         AddSetDifference(registered, openApi, "authorization-register.openapi", issues);
@@ -362,7 +364,7 @@ public static partial class AuthorizationSurfaceValidator
         foreach (Match match in MappedEndpoint().Matches(source))
         {
             string receiver = match.Groups["receiver"].Value;
-            string path = RouteConstraint().Replace(match.Groups["path"].Value, "}");
+            string path = match.Groups["path"].Value;
             string? prefix = prefixes.GetValueOrDefault(receiver);
             if (prefix is null && path.StartsWith("/api/", StringComparison.Ordinal))
             {
@@ -374,7 +376,8 @@ public static partial class AuthorizationSurfaceValidator
                 continue;
             }
 
-            operations.Add($"{match.Groups["method"].Value.ToUpperInvariant()} {prefix}{path}");
+            string normalizedPath = RouteConstraint().Replace($"{prefix}{path}", "}");
+            operations.Add($"{match.Groups["method"].Value.ToUpperInvariant()} {normalizedPath}");
         }
 
         foreach (Match match in UnsupportedMappedEndpoint().Matches(source))
@@ -464,10 +467,10 @@ public static partial class AuthorizationSurfaceValidator
     [GeneratedRegex("^    (get|post|put|patch|delete|options|head):\\s*$", RegexOptions.CultureInvariant)]
     private static partial Regex MethodLine();
 
-    [GeneratedRegex("(?<receiver>[A-Za-z_][A-Za-z0-9_]*)\\.Map(?<method>Get|Post|Put|Patch|Delete|Options|Head)\\s*\\(\\s*\"(?<path>[^\"]+)\"", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("(?<receiver>[A-Za-z_][A-Za-z0-9_]*)\\.Map(?<method>Get|Post|Put|Patch|Delete|Options|Head)\\s*\\(\\s*\"(?<path>[^\"]*)\"", RegexOptions.CultureInvariant)]
     private static partial Regex MappedEndpoint();
 
-    [GeneratedRegex("(?:RouteGroupBuilder|var)\\s+(?<receiver>[A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*[A-Za-z_][A-Za-z0-9_]*\\.MapGroup\\(\"(?<prefix>/api/[^\"]*)\"\\)", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("(?:RouteGroupBuilder|var)\\s+(?<receiver>[A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*[A-Za-z_][A-Za-z0-9_]*\\s*\\.\\s*MapGroup\\(\"(?<prefix>/api/[^\"]*)\"\\)", RegexOptions.CultureInvariant)]
     private static partial Regex RouteGroup();
 
     [GeneratedRegex("(?<receiver>[A-Za-z_][A-Za-z0-9_]*)\\.MapMethods\\s*\\(\\s*\"(?<path>[^\"]+)\"", RegexOptions.CultureInvariant)]

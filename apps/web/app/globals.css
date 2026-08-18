@@ -785,6 +785,217 @@ input:focus-visible {
   gap: 10px;
 }
 
+.field-management,
+.field-organizations,
+.field-organization,
+.field-form,
+.field-list,
+.field-list__copy,
+.field-chips,
+.field-detail,
+.field-detail dl {
+  display: grid;
+}
+
+.field-management {
+  gap: 18px;
+}
+
+.field-management__heading {
+  margin-bottom: 0;
+}
+
+.field-management__heading p:last-child {
+  max-width: 680px;
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.field-organizations {
+  gap: 14px;
+}
+
+.field-organization {
+  min-width: 0;
+  padding: 17px;
+  gap: 15px;
+  border: 1px solid #d5dccf;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(145deg, #fcfbf5, #f5f8ef);
+}
+
+.field-organization__heading,
+.field-list li,
+.field-resource__state,
+.field-detail__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.field-organization__heading {
+  align-items: flex-start;
+}
+
+.field-organization h3,
+.field-detail h4 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.field-organization__heading p,
+.field-detail p,
+.field-empty p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.field-form {
+  padding: 16px;
+  gap: 14px;
+  border: 1px solid #a8b9a2;
+  border-radius: var(--radius-sm);
+  background: #f7faf3;
+}
+
+.field-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.field-action-state,
+.field-resource__state,
+.field-empty,
+.field-detail {
+  padding: 14px;
+  border-radius: var(--radius-sm);
+}
+
+.field-action-state {
+  color: #6c2923;
+  border: 1px solid #dfb9b3;
+  background: #fff4f1;
+}
+
+.field-action-state p,
+.field-resource__state p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.field-resource__state {
+  min-height: 62px;
+  color: var(--muted);
+  background: #f1f2ea;
+  font-size: 0.8rem;
+}
+
+.field-empty {
+  border: 1px dashed #a8b5a3;
+  background: #fafbf6;
+}
+
+.field-list {
+  margin: 0;
+  padding: 0;
+  gap: 8px;
+  list-style: none;
+}
+
+.field-list li {
+  min-width: 0;
+  padding: 13px 0;
+  border-top: 1px solid #e3e6da;
+}
+
+.field-list__copy {
+  min-width: 0;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+
+.field-list__copy > span {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.field-chips {
+  grid-auto-flow: column;
+  justify-content: start;
+  gap: 6px;
+}
+
+.field-chip {
+  display: inline-flex;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #6e4b18;
+  background: #f5e8c7;
+  font-size: 0.68rem;
+  font-weight: 760;
+}
+
+.field-chip--spatial {
+  color: #40574a;
+  background: #e7ece4;
+}
+
+.field-detail {
+  gap: 14px;
+  border: 1px solid #9ab39d;
+  background: #f7faf3;
+  outline: none;
+}
+
+.field-detail:focus-visible {
+  box-shadow: 0 0 0 3px rgb(51 105 69 / 18%);
+}
+
+.field-detail--loading {
+  grid-auto-flow: column;
+  justify-content: start;
+  align-items: center;
+}
+
+.field-detail--error {
+  border-color: #dfb9b3;
+  background: #fff4f1;
+}
+
+.field-detail dl {
+  margin: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.field-detail dl div {
+  padding: 10px;
+  border-radius: 10px;
+  background: white;
+}
+
+.field-detail dt {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 760;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.field-detail dd {
+  margin: 4px 0 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
 .owner-membership-management,
 .owner-membership-organizations,
 .owner-membership-action,
@@ -1669,6 +1880,27 @@ input:focus-visible {
   .organization-form__heading {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .field-organization__heading,
+  .field-list li,
+  .field-resource__state,
+  .field-detail__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .field-organization__heading .button,
+  .field-list li .button,
+  .field-resource__state .button,
+  .field-detail__actions .button,
+  .field-form__actions .button,
+  .field-detail > .button {
+    width: 100%;
+  }
+
+  .field-detail dl {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .owner-membership-organization__heading,

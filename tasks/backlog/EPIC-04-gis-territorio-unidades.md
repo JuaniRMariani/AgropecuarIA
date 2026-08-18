@@ -37,6 +37,7 @@ Objetivo: cobertura argentina, mapa usable y geometrías versionadas que preserv
 
 ## AGRO-GIS-002 — Crear campos y unidades con mapa, área y ficha
 
+- **Estado:** En curso. El incremento local no espacial `CreateField draft + lista/ficha` está autorizado; mapa, geometría, área, catálogo y tiles continúan bloqueados por las dependencias del padre.
 - **Release, épica, prioridad y tamaño:** R2 · EPIC-04 · Must · L.
 - **Owner y colaboradores:** GIS; Frontend, Productive Core, Data, AppSec y QA.
 - **Resultado/valor esperado:** dibujo/edición/selección con superficie declarada/calculada y alternativa accesible.

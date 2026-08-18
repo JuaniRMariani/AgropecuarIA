@@ -6,6 +6,9 @@ using AgropecuarIA.Api;
 using AgropecuarIA.Identity;
 using AgropecuarIA.Identity.Delivery;
 using AgropecuarIA.Identity.Infrastructure;
+using AgropecuarIA.ProductiveCore;
+using AgropecuarIA.ProductiveCore.Delivery;
+using AgropecuarIA.ProductiveCore.Infrastructure;
 using AgropecuarIA.Territory;
 using AgropecuarIA.Territory.Delivery;
 using AgropecuarIA.Territory.Infrastructure;
@@ -21,6 +24,7 @@ using OpenTelemetry.Trace;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 bool applyIdentityMigrations = builder.Configuration.GetValue<bool>("Identity:ApplyMigrations");
 bool applyTerritoryMigrations = builder.Configuration.GetValue<bool>("Territory:ApplyMigrations");
+bool applyProductiveCoreMigrations = builder.Configuration.GetValue<bool>("ProductiveCore:ApplyMigrations");
 if (applyIdentityMigrations &&
     !builder.Environment.IsDevelopment() &&
     !builder.Environment.IsEnvironment("Test"))
@@ -35,6 +39,13 @@ if (applyTerritoryMigrations &&
     throw new InvalidOperationException(
         "Territory:ApplyMigrations can only be enabled in Development/Test. Use an explicit migrator in shared environments.");
 }
+if (applyProductiveCoreMigrations &&
+    !builder.Environment.IsDevelopment() &&
+    !builder.Environment.IsEnvironment("Test"))
+{
+    throw new InvalidOperationException(
+        "ProductiveCore:ApplyMigrations can only be enabled in Development/Test. Use an explicit migrator in shared environments.");
+}
 
 builder.Services.AddProblemDetails(options =>
 {
@@ -42,6 +53,7 @@ builder.Services.AddProblemDetails(options =>
         context.ProblemDetails.Extensions.Remove("traceId");
 });
 builder.Services.AddTerritoryModule(builder.Configuration);
+builder.Services.AddProductiveCoreModule(builder.Configuration);
 builder.Services.AddExceptionHandler<IdentityExceptionHandler>();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -77,13 +89,18 @@ int stepUpPermitLimit = builder.Configuration.GetValue(
 int territoryPermitLimit = builder.Configuration.GetValue(
     "Territory:RateLimits:PerSessionPerMinute",
     60);
+int productiveCorePermitLimit = builder.Configuration.GetValue(
+    "ProductiveCore:RateLimits:PerSessionPerMinute",
+    30);
 if (perIpPermitLimit <= 0 ||
     perSessionPermitLimit <= 0 ||
     perSessionPermitLimit > perIpPermitLimit ||
     stepUpPermitLimit <= 0 ||
     stepUpPermitLimit > perSessionPermitLimit ||
     territoryPermitLimit <= 0 ||
-    territoryPermitLimit > perIpPermitLimit)
+    territoryPermitLimit > perIpPermitLimit ||
+    productiveCorePermitLimit <= 0 ||
+    productiveCorePermitLimit > perIpPermitLimit)
 {
     throw new InvalidOperationException(
         "Rate limits must be positive; step-up cannot exceed the identity per-session limit and session policies cannot exceed per-IP.");
@@ -188,6 +205,23 @@ builder.Services.AddRateLimiter(options =>
                 AutoReplenishment = true,
             });
     });
+    options.AddPolicy(ProductiveCoreEndpoints.RateLimitPolicy, context =>
+    {
+        string partitionKey = context.Request.Cookies.TryGetValue(
+            IdentityAuthenticationDefaults.SessionCookieName,
+            out string? sessionToken)
+            ? $"productive-core:{Convert.ToHexString(IdentityTokenService.HashToken(sessionToken))}"
+            : $"productive-core-anonymous:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = productiveCorePermitLimit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            });
+    });
     options.OnRejected = async (context, cancellationToken) =>
     {
         context.HttpContext.RequestServices
@@ -238,11 +272,13 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddOpenTelemetry()
     .WithTracing(tracing => tracing
         .AddAspNetCoreInstrumentation()
-        .AddSource(IdentityTelemetry.SourceName))
+        .AddSource(IdentityTelemetry.SourceName)
+        .AddSource(ProductiveCoreTelemetry.SourceName))
     .WithMetrics(metrics => metrics
         .AddAspNetCoreInstrumentation()
         .AddMeter(IdentityTelemetry.SourceName)
-        .AddMeter(TerritoryTelemetry.SourceName));
+        .AddMeter(TerritoryTelemetry.SourceName)
+        .AddMeter(ProductiveCoreTelemetry.SourceName));
 
 WebApplication app = builder.Build();
 
@@ -258,6 +294,13 @@ if (applyTerritoryMigrations)
     TerritoryDbContext territoryDbContext = scope.ServiceProvider.GetRequiredService<TerritoryDbContext>();
     await territoryDbContext.Database.MigrateAsync();
 }
+if (applyProductiveCoreMigrations)
+{
+    await using AsyncServiceScope scope = app.Services.CreateAsyncScope();
+    ProductiveCoreDbContext productiveCoreDbContext =
+        scope.ServiceProvider.GetRequiredService<ProductiveCoreDbContext>();
+    await productiveCoreDbContext.Database.MigrateAsync();
+}
 
 app.UseExceptionHandler();
 app.UseForwardedHeaders();
@@ -265,7 +308,8 @@ app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/api/identity") ||
         context.Request.Path.StartsWithSegments("/api/development/identity") ||
-        context.Request.Path.StartsWithSegments("/api/territory"))
+        context.Request.Path.StartsWithSegments("/api/territory") ||
+        context.Request.Path.StartsWithSegments("/api/organizations"))
     {
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers.Pragma = "no-cache";
@@ -285,6 +329,7 @@ app.UseAntiforgery();
 
 app.MapIdentityEndpoints();
 app.MapTerritoryEndpoints();
+app.MapProductiveCoreEndpoints();
 
 app.Run();
 

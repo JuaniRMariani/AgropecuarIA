@@ -50,12 +50,27 @@
           "version": "1.0.0"
         }
       ]
+    },
+    {
+      "moduleId": "productive-core",
+      "projectPath": "src/AgropecuarIA.ProductiveCore/AgropecuarIA.ProductiveCore.csproj",
+      "databaseSchema": "productive_core",
+      "contracts": [
+        {
+          "path": "contracts/productive-core.openapi.yaml",
+          "version": "1.0.0"
+        },
+        {
+          "path": "tasks/evidence/AGRO-FND-001/contracts/management-unit-created.v1.schema.json",
+          "version": "1.0.0"
+        }
+      ]
     }
   ],
   "compositionRoots": [
     {
       "projectPath": "apps/AgropecuarIA.Api/AgropecuarIA.Api.csproj",
-      "allowedModuleIds": ["identity-tenancy", "territory"]
+      "allowedModuleIds": ["identity-tenancy", "territory", "productive-core"]
     }
   ]
 }

@@ -343,7 +343,7 @@ describe("IdentityView", () => {
       },
     });
 
-    expect(screen.getByText("Organización 126639")).toBeVisible();
+    expect(screen.getAllByText("Organización 126639")).toHaveLength(2);
     expect(container).not.toHaveTextContent(organizationId);
     fireEvent.click(screen.getByRole("button", { name: "Crear otra" }));
     expect(handlers.onStartOrganization).toHaveBeenCalledOnce();
@@ -477,7 +477,7 @@ describe("IdentityView", () => {
     expect(
       screen.getByRole("heading", { name: "Invitaciones de co-owner" }),
     ).toBeVisible();
-    expect(screen.getAllByText("Organización 126639")).toHaveLength(2);
+    expect(screen.getAllByText("Organización 126639")).toHaveLength(3);
     expect(screen.getByText("No hay invitaciones")).toBeVisible();
     fireEvent.click(
       screen.getByRole("button", { name: "Verificar y crear enlace" }),

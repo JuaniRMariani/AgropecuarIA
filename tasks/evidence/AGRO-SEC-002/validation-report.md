@@ -69,3 +69,15 @@ El registro vigente cubre exactamente `26/26` operaciones HTTP y agrega `product
 Resultado vigente: PASS integrado-local, sin vulnerabilidades críticas, altas o medias confirmadas. `AGRO-SEC-002` permanece `En curso`; cada nueva mutación, job, export, retrieval o boundary debe agregarse al registro con sus pruebas negativas.
 
 La revisión independiente cerró dos Medium antes del gate final: recuperación de alias split tipada como reconciliación 503 y eliminación del privilegio UPDATE de la app sobre rename ledgers. Los probes PostgreSQL confirman sólo SELECT/INSERT y UPDATE denegado `42501`.
+
+## Refresh: inventario y revocación de sesiones propias — 2026-08-18
+
+El registro vigente cubre exactamente `28/28` operaciones HTTP y agrega `identity.sessions.list` y `identity.sessions.revoke`. Ambas son platform-scoped: actor y sesión actual se derivan de la cookie opaca revalidada y no intervienen organización, tenant o rol.
+
+- GET pagina únicamente sesiones propias activas y devuelve sólo ID, autenticación, expiración, marca current y versión. No expone token/hash, IP, user-agent, dispositivo, proveedor ni organización.
+- DELETE exige CSRF, `If-Match` UUID fuerte y step-up purpose exacto `manage_sessions`; la sesión actual usa el logout existente, foreign/missing/active-expired fallan neutralmente y stale responde 412. Una sesión propia ya revocada conserva replay 204 sin segundo efecto.
+- PostgreSQL usa funciones `SECURITY DEFINER` con `search_path` fijo y EXECUTE app-only. La app no recibe SELECT de `TokenHash`, acceso a users ni UPDATE de sessions; el CAS concurrente conserva una transición y un journal.
+- Suite raíz MTP `361/361`; Identity `126/126`; Architecture Fitness `135/135`; frontend Vitest `206/206`; Playwright oficial `10/10`; FND `45/45`; SEC `56/56`; EF `3/3` sin drift.
+- Restore locked, build Release `0/0`, format, NuGet/pnpm audit, UTF-8/JSON, parser, secretos y diff-check: PASS.
+
+Resultado vigente: PASS integrado-local. `AGRO-SEC-002` permanece `En curso`; revoke-all, device inventory, notificaciones, retención/purge, propagación distribuida, Auth0/edge/collector y deploy compartido siguen fuera.

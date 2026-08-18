@@ -1184,6 +1184,127 @@ input:focus-visible {
   background: #fff8e8;
 }
 
+.own-session-management,
+.own-session-action,
+.own-session-list,
+.own-session-meta {
+  display: grid;
+}
+
+.own-session-management {
+  gap: 16px;
+}
+
+.own-session-management .section-heading {
+  margin-bottom: 0;
+}
+
+.own-session-management__heading p:last-child {
+  max-width: 680px;
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.own-session-state,
+.own-session-row,
+.own-session-title,
+.own-session-pages,
+.own-session-pages > div,
+.own-session-confirmation__actions {
+  display: flex;
+  align-items: center;
+}
+
+.own-session-state {
+  min-height: 64px;
+  padding: 14px;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: #f3f3eb;
+  font-size: 0.8rem;
+}
+
+.own-session-state p,
+.own-session-pages p {
+  margin: 0;
+}
+
+.own-session-list {
+  margin: 0;
+  padding: 0;
+  gap: 8px;
+  list-style: none;
+}
+
+.own-session-row {
+  min-width: 0;
+  padding: 14px;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #d7dacd;
+  border-radius: var(--radius-sm);
+  background: #fcfbf5;
+}
+
+.own-session-meta {
+  min-width: 0;
+  gap: 5px;
+}
+
+.own-session-title {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.own-session-meta > span,
+.own-session-meta small {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.own-session-pages {
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.own-session-pages > div,
+.own-session-confirmation__actions {
+  gap: 8px;
+}
+
+.own-session-confirmation {
+  display: grid;
+  padding: 14px;
+  gap: 14px;
+  border: 1px solid #dfb9b3;
+  border-radius: var(--radius-sm);
+  color: #6c2923;
+  background: #fff4f1;
+}
+
+.own-session-confirmation h3,
+.own-session-confirmation p {
+  margin: 0;
+}
+
+.own-session-confirmation h3 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.own-session-confirmation p {
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
 .invitation-management {
   display: grid;
   gap: 18px;
@@ -2118,6 +2239,28 @@ input:focus-visible {
   .inline-notice .button,
   .owner-membership-actions .button {
     width: 100%;
+  }
+
+  .own-session-management__heading,
+  .own-session-state,
+  .own-session-row,
+  .own-session-pages,
+  .own-session-confirmation__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .own-session-management__heading .button,
+  .own-session-state .button,
+  .own-session-row .button,
+  .own-session-pages .button,
+  .own-session-confirmation__actions .button {
+    width: 100%;
+  }
+
+  .own-session-pages > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .invitation-organization > header,

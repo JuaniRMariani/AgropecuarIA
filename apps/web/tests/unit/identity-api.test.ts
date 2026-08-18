@@ -7,16 +7,19 @@ import {
   IdentityApiError,
   invalidateAntiforgeryToken,
   listOrganizationOwnerMemberships,
+  listOwnSessions,
   parseCreatedOrganization,
   parseIdentityCapabilities,
   parseIdentitySession,
   parseLinkStart,
   parseCreatedOwnerInvitation,
   parseOwnerInvitationList,
+  parseOwnSessionPage,
   parseOrganizationOwnerMembershipList,
   parseRemovedOrganizationOwnerMembership,
   parseStepUpAttempt,
   revokeOwnerInvitation,
+  revokeOwnSession,
   removeOrganizationOwnerMembership,
   resolveAuthorizationUrl,
   startLink,
@@ -66,6 +69,13 @@ const ownerMembership = {
   createdAtUtc: "2026-08-10T10:00:00Z",
   removedAtUtc: null,
   version: "5766395e-ec88-481e-9a72-81fa2cc2904a",
+} as const;
+const ownSession = {
+  sessionId: "6766395e-ec88-481e-9a72-81fa2cc2904a",
+  authenticatedAtUtc: "2026-08-18T10:00:00Z",
+  expiresAtUtc: "2026-08-25T10:00:00Z",
+  isCurrent: false,
+  version: "7766395e-ec88-481e-9a72-81fa2cc2904a",
 } as const;
 
 afterEach(() => {
@@ -177,6 +187,55 @@ describe("identity contract parsing", () => {
           "/api/identity/step-up/d68a20db-bae4-4822-99bd-e016517bd0ee",
       }),
     ).toMatchObject({ purpose: "manage_authentication_methods" });
+  });
+
+  it("accepts the manage-sessions purpose in attempts and assurance", () => {
+    expect(
+      parseStepUpAttempt({
+        attemptId: "d68a20db-bae4-4822-99bd-e016517bd0ee",
+        purpose: "manage_sessions",
+        expiresAtUtc: "2026-08-18T10:05:00Z",
+        authorizationUrl: "/provider",
+      }),
+    ).toMatchObject({ purpose: "manage_sessions" });
+  });
+
+  it("parses the closed paginated own-session envelope without private metadata", () => {
+    expect(
+      parseOwnSessionPage({
+        items: [
+          {
+            ...ownSession,
+            ipAddress: "203.0.113.10",
+            userAgent: "private",
+            token: "never-render",
+          },
+        ],
+        total: 1,
+        offset: 0,
+        limit: 20,
+        futureField: true,
+      }),
+    ).toEqual({ items: [ownSession], total: 1, offset: 0, limit: 20 });
+  });
+
+  it("rejects malformed own-session pages at the HTTP boundary", () => {
+    expect(() =>
+      parseOwnSessionPage({
+        items: [{ ...ownSession, version: "weak" }],
+        total: 1,
+        offset: 0,
+        limit: 20,
+      }),
+    ).toThrow(IdentityApiError);
+    expect(() =>
+      parseOwnSessionPage({
+        items: Array.from({ length: 51 }, () => ownSession),
+        total: 51,
+        offset: 0,
+        limit: 50,
+      }),
+    ).toThrow(IdentityApiError);
   });
 
   it("rejects assurance with an unknown purpose", () => {
@@ -332,6 +391,88 @@ describe("identity contract parsing", () => {
 });
 
 describe("identity mutations", () => {
+  it("lists a bounded own-session page with cookies and no cache", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [ownSession],
+          total: 1,
+          offset: 20,
+          limit: 20,
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(listOwnSessions(20, 20)).resolves.toMatchObject({
+      items: [ownSession],
+      offset: 20,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/identity/sessions?offset=20&limit=20",
+      expect.objectContaining({
+        cache: "no-store",
+        credentials: "include",
+      }),
+    );
+  });
+
+  it("revokes another own session with CSRF and a strong If-Match", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "safe-token" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      revokeOwnSession(ownSession.sessionId, ownSession.version),
+    ).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      `/api/identity/sessions/${ownSession.sessionId}`,
+      expect.objectContaining({
+        method: "DELETE",
+        body: undefined,
+        credentials: "include",
+        headers: expect.objectContaining({
+          "X-CSRF-TOKEN": "safe-token",
+          "If-Match": `"${ownSession.version}"`,
+        }),
+      }),
+    );
+  });
+
+  it.each([
+    [403, "identity.reauthentication_required", "reauthentication-required"],
+    [404, "identity.session_not_available", "unavailable"],
+    [409, "identity.current_session_requires_logout", "conflict"],
+    [412, "identity.session_version_mismatch", "conflict"],
+    [503, "identity.session_management_unavailable", "provider-down"],
+  ] as const)(
+    "keeps typed own-session failure %i/%s",
+    async (status, code, kind) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ token: "safe-token" }), {
+            status: 200,
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ code }), { status }),
+        );
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        revokeOwnSession(ownSession.sessionId, ownSession.version),
+      ).rejects.toMatchObject({ status, code, kind });
+      invalidateAntiforgeryToken();
+    },
+  );
+
   it("refreshes and retries once when the antiforgery token is stale", async () => {
     const linkResponse = {
       attemptId: "d68a20db-bae4-4822-99bd-e016517bd0ee",

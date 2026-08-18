@@ -15,9 +15,10 @@ public static class StepUpPurposes
 {
     public const string ManageAuthenticationMethods = "manage_authentication_methods";
     public const string ManageOrganizationOwners = "manage_organization_owners";
+    public const string ManageSessions = "manage_sessions";
 
     public static bool IsSupported(string value) =>
-        value is ManageAuthenticationMethods or ManageOrganizationOwners;
+        value is ManageAuthenticationMethods or ManageOrganizationOwners or ManageSessions;
 }
 
 public sealed class PlatformUser
@@ -171,10 +172,16 @@ public sealed class UserSession
 
     public Guid Version { get; private set; } = Guid.NewGuid();
 
-    public void Revoke(DateTimeOffset revokedAtUtc)
+    public bool Revoke(DateTimeOffset revokedAtUtc)
     {
-        RevokedAtUtc ??= revokedAtUtc;
+        if (RevokedAtUtc is not null)
+        {
+            return false;
+        }
+
+        RevokedAtUtc = revokedAtUtc;
         Version = Guid.NewGuid();
+        return true;
     }
 }
 

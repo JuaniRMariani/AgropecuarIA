@@ -23,10 +23,14 @@ import type {
   OrganizationOwnerMembershipSummary,
   OwnerMembershipActionState,
   OwnerMembershipResourceState,
+  OwnSessionActionState,
+  OwnSessionResourceState,
+  OwnSessionSummary,
   OwnerInvitationAcceptanceState,
   OwnerInvitationActionState,
   OwnerInvitationResourceState,
   OwnerInvitationSummary,
+  StepUpPurpose,
 } from "./identity-types";
 
 type IdentityViewProps = Readonly<{
@@ -67,6 +71,17 @@ type IdentityViewProps = Readonly<{
   onRetryOwnerRemoval: () => void;
   onResumeOwnerRemoval: () => void;
   onDismissOwnerRemoval: () => void;
+  ownSessions: OwnSessionResourceState;
+  ownSessionAction: OwnSessionActionState;
+  onBeginOwnSessionRevocation: (session: OwnSessionSummary) => void;
+  onCancelOwnSessionRevocation: () => void;
+  onConfirmOwnSessionRevocation: () => void;
+  onRefreshOwnSessions: () => void;
+  onPreviousOwnSessions: () => void;
+  onNextOwnSessions: () => void;
+  onRetryOwnSessionRevocation: () => void;
+  onResumeOwnSessionRevocation: () => void;
+  onDismissOwnSessionNotice: () => void;
   onActiveOrganizationChange?: (organizationId: string | null) => void;
 }>;
 
@@ -240,6 +255,12 @@ function formatAssuranceTime(value: string): string {
   }).format(new Date(value));
 }
 
+const STRONG_PURPOSE_LABELS = {
+  manage_authentication_methods: "administrar métodos de acceso",
+  manage_organization_owners: "administrar co-owners",
+  manage_sessions: "administrar tus sesiones abiertas",
+} satisfies Record<StepUpPurpose, string>;
+
 function AuthenticationCard({
   capabilities,
   session,
@@ -254,9 +275,9 @@ function AuthenticationCard({
   const assurance = session.authentication;
   const isStrong = assurance.level === "strong";
   const strongPurposeLabel =
-    assurance.purpose === "manage_organization_owners"
-      ? "administrar co-owners"
-      : "administrar métodos de acceso";
+    assurance.purpose === null
+      ? "completar esta acción sensible"
+      : STRONG_PURPOSE_LABELS[assurance.purpose];
 
   return (
     <section
@@ -1133,6 +1154,300 @@ function OwnerInvitationAcceptance({
   );
 }
 
+function OwnSessionManagement({
+  resources,
+  action,
+  onBeginRevocation,
+  onCancelRevocation,
+  onConfirmRevocation,
+  onRefresh,
+  onPrevious,
+  onNext,
+  onRetryRevocation,
+  onResumeRevocation,
+  onDismissNotice,
+}: Readonly<{
+  resources: IdentityViewProps["ownSessions"];
+  action: IdentityViewProps["ownSessionAction"];
+  onBeginRevocation: IdentityViewProps["onBeginOwnSessionRevocation"];
+  onCancelRevocation: IdentityViewProps["onCancelOwnSessionRevocation"];
+  onConfirmRevocation: IdentityViewProps["onConfirmOwnSessionRevocation"];
+  onRefresh: IdentityViewProps["onRefreshOwnSessions"];
+  onPrevious: IdentityViewProps["onPreviousOwnSessions"];
+  onNext: IdentityViewProps["onNextOwnSessions"];
+  onRetryRevocation: IdentityViewProps["onRetryOwnSessionRevocation"];
+  onResumeRevocation: IdentityViewProps["onResumeOwnSessionRevocation"];
+  onDismissNotice: IdentityViewProps["onDismissOwnSessionNotice"];
+}>) {
+  const titleId = useId();
+  const confirmationTitleId = useId();
+  const confirmationDescriptionId = useId();
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const previousAction = useRef(action.kind);
+
+  useEffect(() => {
+    const previous = previousAction.current;
+    previousAction.current = action.kind;
+    if (action.kind === "confirming") {
+      cancelRef.current?.focus();
+    } else if (action.kind === "revoked") {
+      titleRef.current?.focus();
+    } else if (action.kind === "idle" && previous === "confirming") {
+      triggerRef.current?.focus();
+    }
+  }, [action.kind]);
+
+  const retryable = action.kind === "offline" || action.kind === "error";
+  const dismissible =
+    action.kind === "stale" ||
+    action.kind === "unavailable" ||
+    action.kind === "revoked";
+  const confirmingSession =
+    action.kind === "confirming" ? action.session : null;
+
+  return (
+    <section
+      aria-busy={resources.kind === "loading" || action.kind === "revoking"}
+      aria-labelledby={titleId}
+      className="own-session-management identity-card"
+    >
+      <div className="section-heading own-session-management__heading">
+        <div>
+          <p className="section-kicker">Seguridad de cuenta</p>
+          <h2 id={titleId} ref={titleRef} tabIndex={-1}>
+            Sesiones abiertas
+          </h2>
+          <p>
+            Revisá tus accesos activos y cerrá los que ya no uses. Solo
+            mostramos un identificador corto y las fechas de vigencia.
+          </p>
+        </div>
+        <button
+          className="button button--quiet"
+          disabled={resources.kind === "loading" || action.kind === "revoking"}
+          onClick={onRefresh}
+          type="button"
+        >
+          Actualizar
+        </button>
+      </div>
+
+      <div aria-live="polite" className="own-session-action">
+        {action.kind === "revoking" ? (
+          <div className="inline-notice" role="status">
+            <Spinner />
+            <p>Cerrando la sesión de forma segura…</p>
+          </div>
+        ) : null}
+        {action.kind === "reauthentication-required" ? (
+          <div className="inline-notice inline-notice--warning" role="status">
+            <p>{action.message}</p>
+            <button
+              className="button button--secondary"
+              onClick={onResumeRevocation}
+              type="button"
+            >
+              Verificar con MFA y continuar
+            </button>
+          </div>
+        ) : null}
+        {retryable ? (
+          <div className="inline-notice inline-notice--warning" role="alert">
+            <p>{action.message}</p>
+            <button
+              className="button button--secondary"
+              onClick={onRetryRevocation}
+              type="button"
+            >
+              Reintentar cierre
+            </button>
+          </div>
+        ) : null}
+        {dismissible ? (
+          <div
+            className={`inline-notice ${action.kind === "revoked" ? "inline-notice--success" : "inline-notice--warning"}`}
+            role={action.kind === "revoked" ? "status" : "alert"}
+          >
+            <p>{action.message}</p>
+            <button
+              className="button button--quiet"
+              onClick={onDismissNotice}
+              type="button"
+            >
+              Cerrar aviso
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {resources.kind === "idle" || resources.kind === "loading" ? (
+        <div className="own-session-state" role="status">
+          <Spinner /> Cargando sesiones
+        </div>
+      ) : null}
+      {resources.kind !== "idle" &&
+      resources.kind !== "loading" &&
+      resources.kind !== "ready" ? (
+        <div className="own-session-state" role="alert">
+          <p>
+            {resources.kind === "offline"
+              ? "Estás sin conexión. No pudimos cargar tus sesiones."
+              : resources.kind === "unavailable"
+                ? "La gestión de sesiones no está disponible temporalmente."
+                : "No pudimos cargar tus sesiones."}
+          </p>
+          <button
+            className="button button--secondary"
+            onClick={onRefresh}
+            type="button"
+          >
+            Reintentar
+          </button>
+        </div>
+      ) : null}
+
+      {resources.kind === "ready" ? (
+        resources.page.items.length === 0 ? (
+          <div className="own-session-state" role="status">
+            <p>No hay sesiones abiertas en esta página.</p>
+          </div>
+        ) : (
+          <ul className="own-session-list">
+            {resources.page.items.map((item) => {
+              const shortId = formatShortId(item.sessionId);
+              const busy =
+                action.kind === "revoking" &&
+                action.sessionId === item.sessionId;
+              return (
+                <li className="own-session-row" key={item.sessionId}>
+                  <div className="own-session-meta">
+                    <div className="own-session-title">
+                      <strong>Sesión {shortId}</strong>
+                      {item.isCurrent ? (
+                        <span className="current-user-chip">Actual</span>
+                      ) : null}
+                    </div>
+                    <span>
+                      Iniciada{" "}
+                      <time dateTime={item.authenticatedAtUtc}>
+                        {formatInvitationDate(item.authenticatedAtUtc)}
+                      </time>
+                    </span>
+                    <span>
+                      Vence{" "}
+                      <time dateTime={item.expiresAtUtc}>
+                        {formatInvitationDate(item.expiresAtUtc)}
+                      </time>
+                    </span>
+                    {item.isCurrent ? (
+                      <small>
+                        Este navegador usa el control Cerrar sesión al final de
+                        la cuenta.
+                      </small>
+                    ) : null}
+                  </div>
+                  {!item.isCurrent ? (
+                    <button
+                      aria-label={`Cerrar sesión ${shortId}`}
+                      className="button button--danger-quiet"
+                      disabled={busy || action.kind === "revoking"}
+                      onClick={(event) => {
+                        triggerRef.current = event.currentTarget;
+                        onBeginRevocation(item);
+                      }}
+                      type="button"
+                    >
+                      {busy ? <Spinner /> : null}
+                      Cerrar sesión
+                    </button>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )
+      ) : null}
+
+      {resources.kind === "ready" && resources.page.total > 0 ? (
+        <nav aria-label="Paginación de sesiones" className="own-session-pages">
+          <p>
+            {resources.page.offset + 1}–
+            {Math.min(
+              resources.page.offset + resources.page.items.length,
+              resources.page.total,
+            )}{" "}
+            de {resources.page.total}
+          </p>
+          <div>
+            <button
+              className="button button--quiet"
+              disabled={resources.page.offset === 0}
+              onClick={onPrevious}
+              type="button"
+            >
+              Anterior
+            </button>
+            <button
+              className="button button--quiet"
+              disabled={
+                resources.page.offset + resources.page.items.length >=
+                resources.page.total
+              }
+              onClick={onNext}
+              type="button"
+            >
+              Siguiente
+            </button>
+          </div>
+        </nav>
+      ) : null}
+
+      {confirmingSession !== null ? (
+        <div
+          aria-describedby={confirmationDescriptionId}
+          aria-labelledby={confirmationTitleId}
+          className="own-session-confirmation"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              onCancelRevocation();
+            }
+          }}
+          role="alertdialog"
+        >
+          <h3 id={confirmationTitleId}>
+            ¿Cerrar la sesión {formatShortId(confirmingSession.sessionId)}?
+          </h3>
+          <p id={confirmationDescriptionId}>
+            Ese acceso dejará de funcionar en su próxima solicitud. Tu sesión
+            actual permanecerá abierta.
+          </p>
+          <div className="own-session-confirmation__actions">
+            <button
+              className="button button--secondary"
+              onClick={onCancelRevocation}
+              ref={cancelRef}
+              type="button"
+            >
+              Cancelar
+            </button>
+            <button
+              className="button button--danger-quiet"
+              onClick={onConfirmRevocation}
+              type="button"
+            >
+              Confirmar cierre de sesión{" "}
+              {formatShortId(confirmingSession.sessionId)}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function CurrentSession({
   capabilities,
   session,
@@ -1165,6 +1480,17 @@ function CurrentSession({
   onRetryOwnerRemoval,
   onResumeOwnerRemoval,
   onDismissOwnerRemoval,
+  ownSessions,
+  ownSessionAction,
+  onBeginOwnSessionRevocation,
+  onCancelOwnSessionRevocation,
+  onConfirmOwnSessionRevocation,
+  onRefreshOwnSessions,
+  onPreviousOwnSessions,
+  onNextOwnSessions,
+  onRetryOwnSessionRevocation,
+  onResumeOwnSessionRevocation,
+  onDismissOwnSessionNotice,
   onActiveOrganizationChange,
 }: Readonly<{
   capabilities: IdentityCapabilities;
@@ -1198,6 +1524,17 @@ function CurrentSession({
   onRetryOwnerRemoval: IdentityViewProps["onRetryOwnerRemoval"];
   onResumeOwnerRemoval: IdentityViewProps["onResumeOwnerRemoval"];
   onDismissOwnerRemoval: IdentityViewProps["onDismissOwnerRemoval"];
+  ownSessions: IdentityViewProps["ownSessions"];
+  ownSessionAction: IdentityViewProps["ownSessionAction"];
+  onBeginOwnSessionRevocation: IdentityViewProps["onBeginOwnSessionRevocation"];
+  onCancelOwnSessionRevocation: IdentityViewProps["onCancelOwnSessionRevocation"];
+  onConfirmOwnSessionRevocation: IdentityViewProps["onConfirmOwnSessionRevocation"];
+  onRefreshOwnSessions: IdentityViewProps["onRefreshOwnSessions"];
+  onPreviousOwnSessions: IdentityViewProps["onPreviousOwnSessions"];
+  onNextOwnSessions: IdentityViewProps["onNextOwnSessions"];
+  onRetryOwnSessionRevocation: IdentityViewProps["onRetryOwnSessionRevocation"];
+  onResumeOwnSessionRevocation: IdentityViewProps["onResumeOwnSessionRevocation"];
+  onDismissOwnSessionNotice: IdentityViewProps["onDismissOwnSessionNotice"];
   onActiveOrganizationChange: (organizationId: string | null) => void;
 }>) {
   const connections = new Set(
@@ -1414,6 +1751,20 @@ function CurrentSession({
 
               {organizationOnboarding}
 
+              <OwnSessionManagement
+                action={ownSessionAction}
+                onBeginRevocation={onBeginOwnSessionRevocation}
+                onCancelRevocation={onCancelOwnSessionRevocation}
+                onConfirmRevocation={onConfirmOwnSessionRevocation}
+                onDismissNotice={onDismissOwnSessionNotice}
+                onNext={onNextOwnSessions}
+                onPrevious={onPreviousOwnSessions}
+                onRefresh={onRefreshOwnSessions}
+                onResumeRevocation={onResumeOwnSessionRevocation}
+                onRetryRevocation={onRetryOwnSessionRevocation}
+                resources={ownSessions}
+              />
+
               <section className="revoke-card" aria-labelledby="revoke-title">
                 <div>
                   <h2 id="revoke-title">Cerrar esta sesión</h2>
@@ -1525,6 +1876,17 @@ export function IdentityView({
   onRetryOwnerRemoval,
   onResumeOwnerRemoval,
   onDismissOwnerRemoval,
+  ownSessions,
+  ownSessionAction,
+  onBeginOwnSessionRevocation,
+  onCancelOwnSessionRevocation,
+  onConfirmOwnSessionRevocation,
+  onRefreshOwnSessions,
+  onPreviousOwnSessions,
+  onNextOwnSessions,
+  onRetryOwnSessionRevocation,
+  onResumeOwnSessionRevocation,
+  onDismissOwnSessionNotice,
   onActiveOrganizationChange = () => undefined,
 }: IdentityViewProps) {
   return (
@@ -1624,6 +1986,17 @@ export function IdentityView({
                 onRetryOwnerRemoval={onRetryOwnerRemoval}
                 onResumeOwnerRemoval={onResumeOwnerRemoval}
                 onDismissOwnerRemoval={onDismissOwnerRemoval}
+                ownSessions={ownSessions}
+                ownSessionAction={ownSessionAction}
+                onBeginOwnSessionRevocation={onBeginOwnSessionRevocation}
+                onCancelOwnSessionRevocation={onCancelOwnSessionRevocation}
+                onConfirmOwnSessionRevocation={onConfirmOwnSessionRevocation}
+                onRefreshOwnSessions={onRefreshOwnSessions}
+                onPreviousOwnSessions={onPreviousOwnSessions}
+                onNextOwnSessions={onNextOwnSessions}
+                onRetryOwnSessionRevocation={onRetryOwnSessionRevocation}
+                onResumeOwnSessionRevocation={onResumeOwnSessionRevocation}
+                onDismissOwnSessionNotice={onDismissOwnSessionNotice}
                 onActiveOrganizationChange={onActiveOrganizationChange}
                 onResumeOwnerManagement={onResumeOwnerManagement}
                 onRevokeOwnerInvitation={onRevokeOwnerInvitation}

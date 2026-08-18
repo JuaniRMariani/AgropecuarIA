@@ -821,7 +821,7 @@ namespace AgropecuarIA.Identity.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_step_up_attempts_Expiry", "\"ExpiresAtUtc\" > \"StartedAtUtc\"");
 
-                            t.HasCheckConstraint("CK_step_up_attempts_Purpose", "\"Purpose\" IN ('manage_authentication_methods', 'manage_organization_owners')");
+                            t.HasCheckConstraint("CK_step_up_attempts_Purpose", "\"Purpose\" IN ('manage_authentication_methods', 'manage_organization_owners', 'manage_sessions')");
                         });
                 });
 
@@ -873,7 +873,7 @@ namespace AgropecuarIA.Identity.Infrastructure.Migrations
 
                     b.ToTable("sessions", "identity", t =>
                         {
-                            t.HasCheckConstraint("CK_sessions_StrongAuthentication", "(\"StrongAuthenticatedAtUtc\" IS NULL AND \"StrongAuthenticationPurpose\" IS NULL) OR (\"StrongAuthenticatedAtUtc\" IS NOT NULL AND \"StrongAuthenticationPurpose\" IS NOT NULL AND \"StrongAuthenticationPurpose\" IN ('manage_authentication_methods', 'manage_organization_owners'))");
+                            t.HasCheckConstraint("CK_sessions_StrongAuthentication", "(\"StrongAuthenticatedAtUtc\" IS NULL AND \"StrongAuthenticationPurpose\" IS NULL) OR (\"StrongAuthenticatedAtUtc\" IS NOT NULL AND \"StrongAuthenticationPurpose\" IS NOT NULL AND \"StrongAuthenticationPurpose\" IN ('manage_authentication_methods', 'manage_organization_owners', 'manage_sessions'))");
                         });
                 });
 

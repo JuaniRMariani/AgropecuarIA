@@ -99,6 +99,8 @@ Objetivo: acceso moderno, recuperación segura y colaboración por organización
 
 ## AGRO-ID-004 — Revocar sesiones y proteger acciones sensibles
 
+- **Estado:** En curso. El sub-slice local `OwnSessionInventoryAndRevokeV1` cubre únicamente inventario privacy-safe y revocación individual de otra sesión propia; dispositivos, cierre global, notificaciones, familias, propagación distribuida y SLO del padre permanecen pendientes.
+
 - **Release, épica, prioridad y tamaño:** R1 · EPIC-02 · Must · M.
 - **Owner y colaboradores:** Identidad/AppSec; Frontend, Auditoría, Soporte y QA.
 - **Resultado/valor esperado:** contener una toma de cuenta y confirmar de nuevo la identidad antes de acciones sensibles.

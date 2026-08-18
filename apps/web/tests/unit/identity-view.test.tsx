@@ -41,6 +41,8 @@ import type {
   OwnerInvitationAcceptanceState,
   OwnerInvitationActionState,
   OwnerMembershipActionState,
+  OwnSessionActionState,
+  OwnSessionResourceState,
 } from "../../features/identity/identity-types";
 
 const productionCapabilities: IdentityCapabilities = {
@@ -116,6 +118,20 @@ const ownerMembershipProps = {
   onDismissOwnerRemoval: vi.fn(),
 };
 
+const ownSessionProps = {
+  ownSessions: { kind: "idle" } as const,
+  ownSessionAction: { kind: "idle" } as const,
+  onBeginOwnSessionRevocation: vi.fn(),
+  onCancelOwnSessionRevocation: vi.fn(),
+  onConfirmOwnSessionRevocation: vi.fn(),
+  onRefreshOwnSessions: vi.fn(),
+  onPreviousOwnSessions: vi.fn(),
+  onNextOwnSessions: vi.fn(),
+  onRetryOwnSessionRevocation: vi.fn(),
+  onResumeOwnSessionRevocation: vi.fn(),
+  onDismissOwnSessionNotice: vi.fn(),
+};
+
 function renderView(
   resource: IdentityResourceState,
   notice: IdentityNotice = { kind: "none" },
@@ -126,6 +142,10 @@ function renderView(
   }> = {},
   invitationOptions: Partial<typeof invitationProps> = {},
   ownerMembershipOptions: Partial<typeof ownerMembershipProps> = {},
+  ownSessionOptions: Readonly<{
+    resources?: OwnSessionResourceState;
+    action?: OwnSessionActionState;
+  }> = {},
 ) {
   workspaceMockState.view =
     Object.keys(invitationOptions).length > 0 ||
@@ -145,11 +165,23 @@ function renderView(
     onCancelOrganization: vi.fn(),
     onCreateOrganization: vi.fn(),
     onReauthenticateOrganization: vi.fn(),
+    onBeginOwnSessionRevocation: vi.fn(),
+    onCancelOwnSessionRevocation: vi.fn(),
+    onConfirmOwnSessionRevocation: vi.fn(),
+    onRefreshOwnSessions: vi.fn(),
+    onPreviousOwnSessions: vi.fn(),
+    onNextOwnSessions: vi.fn(),
+    onRetryOwnSessionRevocation: vi.fn(),
+    onResumeOwnSessionRevocation: vi.fn(),
+    onDismissOwnSessionNotice: vi.fn(),
   };
   const result = render(
     <IdentityView
       {...invitationProps}
       {...ownerMembershipProps}
+      {...ownSessionProps}
+      ownSessionAction={ownSessionOptions.action ?? { kind: "idle" }}
+      ownSessions={ownSessionOptions.resources ?? { kind: "idle" }}
       {...ownerMembershipOptions}
       {...invitationOptions}
       notice={notice}
@@ -233,6 +265,207 @@ describe("IdentityView", () => {
     );
   });
 
+  it("lists only the public own-session fields and directs current logout to the existing control", () => {
+    const currentSessionId = "8766395e-ec88-481e-9a72-81fa2cc2904a";
+    const otherSessionId = "9766395e-ec88-481e-9a72-81fa2cc2904a";
+    const other = {
+      sessionId: otherSessionId,
+      authenticatedAtUtc: "2026-08-17T10:00:00Z",
+      expiresAtUtc: "2026-08-24T10:00:00Z",
+      isCurrent: false,
+      version: "a766395e-ec88-481e-9a72-81fa2cc2904a",
+    } as const;
+    const { container, handlers } = renderView(
+      {
+        kind: "authenticated",
+        capabilities: productionCapabilities,
+        session: accountSession,
+      },
+      { kind: "none" },
+      {},
+      {},
+      {},
+      {
+        resources: {
+          kind: "ready",
+          page: {
+            items: [
+              {
+                sessionId: currentSessionId,
+                authenticatedAtUtc: "2026-08-18T10:00:00Z",
+                expiresAtUtc: "2026-08-25T10:00:00Z",
+                isCurrent: true,
+                version: "b766395e-ec88-481e-9a72-81fa2cc2904a",
+              },
+              other,
+            ],
+            total: 2,
+            offset: 0,
+            limit: 20,
+          },
+        },
+      },
+    );
+
+    expect(screen.getByText("Sesión 876639")).toBeVisible();
+    expect(screen.getByText("Actual")).toBeVisible();
+    expect(screen.getByText(/usa el control Cerrar sesión/i)).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Cerrar sesión 876639" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Cerrar sesión 976639",
+      }),
+    );
+    expect(handlers.onBeginOwnSessionRevocation).toHaveBeenCalledWith(other);
+    expect(container).not.toHaveTextContent(currentSessionId);
+    expect(container).not.toHaveTextContent(otherSessionId);
+    expect(container).not.toHaveTextContent("user-agent");
+    expect(container).not.toHaveTextContent("token");
+  });
+
+  it("keeps the session confirmation keyboard-accessible and restores the trigger", () => {
+    const target = {
+      sessionId: "9766395e-ec88-481e-9a72-81fa2cc2904a",
+      authenticatedAtUtc: "2026-08-17T10:00:00Z",
+      expiresAtUtc: "2026-08-24T10:00:00Z",
+      isCurrent: false,
+      version: "a766395e-ec88-481e-9a72-81fa2cc2904a",
+    } as const;
+    const { handlers } = renderView(
+      {
+        kind: "authenticated",
+        capabilities: productionCapabilities,
+        session: accountSession,
+      },
+      { kind: "none" },
+      {},
+      {},
+      {},
+      {
+        resources: {
+          kind: "ready",
+          page: { items: [target], total: 1, offset: 0, limit: 20 },
+        },
+        action: { kind: "confirming", session: target },
+      },
+    );
+
+    const dialog = screen.getByRole("alertdialog", {
+      name: "¿Cerrar la sesión 976639?",
+    });
+    expect(screen.getByRole("button", { name: "Cancelar" })).toHaveFocus();
+    expect(dialog).toHaveAccessibleDescription(/próxima solicitud/i);
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(handlers.onCancelOwnSessionRevocation).toHaveBeenCalledOnce();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Confirmar cierre de sesión 976639",
+      }),
+    );
+    expect(handlers.onConfirmOwnSessionRevocation).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [
+      { kind: "loading" } as OwnSessionResourceState,
+      "Cargando sesiones",
+      "status",
+    ],
+    [
+      {
+        kind: "ready",
+        page: { items: [], total: 0, offset: 0, limit: 20 },
+      } as OwnSessionResourceState,
+      "No hay sesiones abiertas",
+      "status",
+    ],
+    [{ kind: "offline" } as OwnSessionResourceState, "sin conexión", "alert"],
+    [
+      { kind: "unavailable" } as OwnSessionResourceState,
+      "no está disponible",
+      "alert",
+    ],
+    [
+      { kind: "error" } as OwnSessionResourceState,
+      "No pudimos cargar",
+      "alert",
+    ],
+  ])("renders the own-session resource state", (resources, message, role) => {
+    renderView(
+      {
+        kind: "authenticated",
+        capabilities: productionCapabilities,
+        session: accountSession,
+      },
+      { kind: "none" },
+      {},
+      {},
+      {},
+      { resources },
+    );
+
+    expect(
+      screen
+        .getAllByRole(role)
+        .some((element) => element.textContent?.includes(message)),
+    ).toBe(true);
+  });
+
+  it.each([
+    [
+      {
+        kind: "reauthentication-required",
+        session: {
+          sessionId: "9766395e-ec88-481e-9a72-81fa2cc2904a",
+          authenticatedAtUtc: "2026-08-17T10:00:00Z",
+          expiresAtUtc: "2026-08-24T10:00:00Z",
+          isCurrent: false,
+          version: "a766395e-ec88-481e-9a72-81fa2cc2904a",
+        },
+        message: "Verificá tu identidad con MFA.",
+      } as OwnSessionActionState,
+      "Verificá tu identidad",
+      "status",
+    ],
+    [
+      {
+        kind: "stale",
+        message: "La sesión cambió en paralelo.",
+      } as OwnSessionActionState,
+      "cambió en paralelo",
+      "alert",
+    ],
+    [
+      {
+        kind: "revoked",
+        message: "La otra sesión fue cerrada.",
+      } as OwnSessionActionState,
+      "fue cerrada",
+      "status",
+    ],
+  ])("announces the own-session action state", (action, message, role) => {
+    renderView(
+      {
+        kind: "authenticated",
+        capabilities: productionCapabilities,
+        session: accountSession,
+      },
+      { kind: "none" },
+      {},
+      {},
+      {},
+      { action },
+    );
+
+    expect(
+      screen
+        .getAllByRole(role)
+        .some((element) => element.textContent?.includes(message)),
+    ).toBe(true);
+  });
+
   it("does not allow removing the last identity", () => {
     renderView({
       kind: "authenticated",
@@ -256,6 +489,7 @@ describe("IdentityView", () => {
       <IdentityView
         {...invitationProps}
         {...ownerMembershipProps}
+        {...ownSessionProps}
         notice={{ kind: "replay", message: "Ese intento ya fue utilizado." }}
         onCancelOrganization={vi.fn()}
         onCreateOrganization={vi.fn()}
@@ -286,6 +520,7 @@ describe("IdentityView", () => {
       <IdentityView
         {...invitationProps}
         {...ownerMembershipProps}
+        {...ownSessionProps}
         notice={{ kind: "none" }}
         onCancelOrganization={vi.fn()}
         onCreateOrganization={vi.fn()}
@@ -336,6 +571,29 @@ describe("IdentityView", () => {
     expect(handlers.onStepUp).toHaveBeenCalledOnce();
     expect(screen.getByText(/custodiados por el proveedor/i)).toBeVisible();
     expect(screen.queryByRole("button", { name: /crear passkey/i })).toBeNull();
+  });
+
+  it("describes manage-sessions assurance without claiming authentication-method scope", () => {
+    renderView({
+      kind: "authenticated",
+      capabilities: productionCapabilities,
+      session: {
+        ...accountSession,
+        authentication: {
+          level: "strong",
+          authenticatedAtUtc: "2026-08-18T10:00:00Z",
+          purpose: "manage_sessions",
+          strongAuthenticatedAtUtc: "2026-08-18T10:01:00Z",
+          expiresAtUtc: "2026-08-18T10:06:00Z",
+        },
+      },
+    });
+
+    const assurance = screen.getByRole("region", {
+      name: "Identidad verificada con MFA",
+    });
+    expect(assurance).toHaveTextContent("administrar tus sesiones abiertas");
+    expect(assurance).not.toHaveTextContent("administrar métodos de acceso");
   });
 
   it("opens zero-membership onboarding and exposes an accessible form", () => {

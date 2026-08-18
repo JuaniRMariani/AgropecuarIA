@@ -55,7 +55,8 @@ public sealed class IdentityApplicationService(
                 session.AuthenticatedAtUtc,
                 session.IsAuthenticationAssuranceVerified,
                 session.StrongAuthenticatedAtUtc,
-                session.StrongAuthenticationPurpose))
+                session.StrongAuthenticationPurpose,
+                session.Version))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -1762,6 +1763,255 @@ public sealed class IdentityApplicationService(
         telemetry.Record("session_revoked", "succeeded");
     }
 
+    public async Task<OwnSessionPageResult> ListOwnActiveSessionsAsync(
+        AuthenticatedSession currentSession,
+        int offset,
+        int limit,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ListOwnActiveSessionsCoreAsync(
+                currentSession,
+                offset,
+                limit,
+                requestContext,
+                cancellationToken);
+        }
+        catch (Exception exception) when (
+            !cancellationToken.IsCancellationRequested &&
+            IsSessionManagementInfrastructureFailure(exception))
+        {
+            throw IdentityErrors.SessionManagementUnavailable();
+        }
+    }
+
+    private async Task<OwnSessionPageResult> ListOwnActiveSessionsCoreAsync(
+        AuthenticatedSession currentSession,
+        int offset,
+        int limit,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        requestContext.RequirePlatformActor(currentSession.UserId);
+        if (offset < 0 || limit is < 1 or > 50)
+        {
+            throw IdentityErrors.InvalidSessionPage();
+        }
+
+        RequireSessionManagementContext(currentSession);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.RepeatableRead,
+            cancellationToken);
+        await SetSessionManagementDatabaseContextAsync(currentSession, cancellationToken);
+
+        long total = await dbContext.Database
+            .SqlQueryRaw<long>(
+                "SELECT identity.count_own_active_sessions() AS \"Value\"")
+            .SingleAsync(cancellationToken);
+        OwnSessionDatabaseResult[] rows = await dbContext.Database
+            .SqlQueryRaw<OwnSessionDatabaseResult>(
+                """
+                SELECT session_id AS "SessionId",
+                       authenticated_at_utc AS "AuthenticatedAtUtc",
+                       expires_at_utc AS "ExpiresAtUtc",
+                       version AS "Version",
+                       is_current AS "IsCurrent",
+                       total_count AS "TotalCount"
+                FROM identity.list_own_active_sessions({0}, {1})
+                """,
+                offset,
+                limit)
+            .ToArrayAsync(cancellationToken);
+
+        if (total < 1 ||
+            rows.Length > limit ||
+            (offset < total && rows.Length == 0) ||
+            rows.Any(row => row.TotalCount != total))
+        {
+            throw IdentityErrors.SessionManagementUnavailable();
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return new OwnSessionPageResult(
+            rows.Select(row => new OwnSessionSummaryResult(
+                    row.SessionId,
+                    row.AuthenticatedAtUtc,
+                    row.ExpiresAtUtc,
+                    row.IsCurrent,
+                    row.Version))
+                .ToArray(),
+            total,
+            offset,
+            limit);
+    }
+
+    public async Task RevokeOtherOwnSessionAsync(
+        RevokeOwnSessionCommand command,
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RevokeOtherOwnSessionCoreAsync(
+                command,
+                currentSession,
+                requestContext,
+                cancellationToken);
+        }
+        catch (Exception exception) when (
+            !cancellationToken.IsCancellationRequested &&
+            IsSessionManagementInfrastructureFailure(exception))
+        {
+            throw IdentityErrors.SessionManagementUnavailable();
+        }
+    }
+
+    private async Task RevokeOtherOwnSessionCoreAsync(
+        RevokeOwnSessionCommand command,
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        requestContext.RequirePlatformActor(currentSession.UserId);
+        if (command.SessionId == Guid.Empty)
+        {
+            throw IdentityErrors.SessionNotAvailable();
+        }
+
+        if (command.ExpectedVersion == Guid.Empty)
+        {
+            throw IdentityErrors.InvalidSessionVersion();
+        }
+
+        if (command.SessionId == currentSession.SessionId)
+        {
+            throw IdentityErrors.CurrentSessionRequiresLogout();
+        }
+
+        RequireSessionManagementContext(currentSession);
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        if (!HasCurrentSessionManagementAssurance(currentSession, now))
+        {
+            throw IdentityErrors.StrongAuthenticationRequired();
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted,
+            cancellationToken);
+        await SetSessionManagementDatabaseContextAsync(currentSession, cancellationToken);
+        RevokeOwnSessionDatabaseResult result = await dbContext.Database
+            .SqlQueryRaw<RevokeOwnSessionDatabaseResult>(
+                """
+                SELECT outcome AS "Outcome",
+                       session_id AS "SessionId",
+                       revoked_at_utc AS "RevokedAtUtc",
+                       version AS "Version"
+                FROM identity.revoke_other_own_session({0}, {1}, {2}, {3})
+                """,
+                command.SessionId,
+                command.ExpectedVersion,
+                now.Subtract(runtimeOptions.StrongAuthenticationWindow),
+                Guid.NewGuid())
+            .SingleAsync(cancellationToken);
+
+        switch (result.Outcome)
+        {
+            case "revoked":
+                if (result.SessionId != command.SessionId ||
+                    result.RevokedAtUtc is null ||
+                    result.Version is not Guid resultVersion ||
+                    resultVersion == Guid.Empty)
+                {
+                    throw IdentityErrors.SessionManagementUnavailable();
+                }
+
+                dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
+                    currentSession.UserId,
+                    command.SessionId,
+                    "session_revoked",
+                    "succeeded",
+                    null,
+                    requestContext));
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                telemetry.Record(
+                    "session_revoked",
+                    "succeeded",
+                    purpose: StepUpPurposes.ManageSessions);
+                return;
+            case "already_revoked":
+                await transaction.CommitAsync(cancellationToken);
+                telemetry.Record(
+                    "session_revoked",
+                    "replayed",
+                    purpose: StepUpPurposes.ManageSessions);
+                return;
+            case "current_session":
+                throw IdentityErrors.CurrentSessionRequiresLogout();
+            case "version_mismatch":
+                throw IdentityErrors.SessionVersionMismatch();
+            case "strong_authentication_required":
+                throw IdentityErrors.StrongAuthenticationRequired();
+            case "not_available":
+                throw IdentityErrors.SessionNotAvailable();
+            default:
+                throw IdentityErrors.SessionManagementUnavailable();
+        }
+    }
+
+    private static void RequireSessionManagementContext(AuthenticatedSession currentSession)
+    {
+        if (currentSession.SessionId == Guid.Empty ||
+            currentSession.UserId == Guid.Empty ||
+            currentSession.Version == Guid.Empty)
+        {
+            throw IdentityErrors.SessionRequired();
+        }
+    }
+
+    private static bool IsSessionManagementInfrastructureFailure(Exception exception) =>
+        exception is InvalidOperationException or DbUpdateException or NpgsqlException;
+
+    private bool HasCurrentSessionManagementAssurance(
+        AuthenticatedSession currentSession,
+        DateTimeOffset now)
+    {
+        if (!currentSession.IsAuthenticationAssuranceVerified ||
+            currentSession.StrongAuthenticatedAtUtc is not DateTimeOffset strongAuthenticatedAtUtc ||
+            currentSession.StrongAuthenticationPurpose != StepUpPurposes.ManageSessions)
+        {
+            return false;
+        }
+
+        TimeSpan authenticationAge = now - strongAuthenticatedAtUtc;
+        return authenticationAge >= TimeSpan.Zero &&
+            authenticationAge < runtimeOptions.StrongAuthenticationWindow;
+    }
+
+    private async Task SetSessionManagementDatabaseContextAsync(
+        AuthenticatedSession currentSession,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "SET LOCAL ROLE agro_identity_app",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_actor_id', {currentSession.UserId.ToString("D")}, true)",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_scope_kind', {"platform"}, true)",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_session_id', {currentSession.SessionId.ToString("D")}, true)",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.current_authorization_version', {currentSession.Version.ToString("D")}, true)",
+            cancellationToken);
+    }
+
     private Dictionary<string, byte[]> GetOwnerInvitationKeyRing()
     {
         if (ownerInvitationOptions.HmacKeys.Count is < 1 or > 8 ||
@@ -3405,6 +3655,32 @@ public sealed class IdentityApplicationService(
         Guid AuthorizationVersion,
         DateTimeOffset AuthenticatedAtUtc,
         bool IsAuthenticationAssuranceVerified);
+
+    private sealed class OwnSessionDatabaseResult
+    {
+        public Guid SessionId { get; init; }
+
+        public DateTimeOffset AuthenticatedAtUtc { get; init; }
+
+        public DateTimeOffset ExpiresAtUtc { get; init; }
+
+        public Guid Version { get; init; }
+
+        public bool IsCurrent { get; init; }
+
+        public long TotalCount { get; init; }
+    }
+
+    private sealed class RevokeOwnSessionDatabaseResult
+    {
+        public string Outcome { get; init; } = string.Empty;
+
+        public Guid? SessionId { get; init; }
+
+        public DateTimeOffset? RevokedAtUtc { get; init; }
+
+        public Guid? Version { get; init; }
+    }
 
     private sealed class OwnerMembershipDatabaseResult
     {

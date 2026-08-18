@@ -71,6 +71,34 @@ public static class IdentityEndpoints
             return Results.Ok(ToResponse(session));
         }).RequireAuthorization();
 
+        identity.MapGet("/sessions", async (
+            [FromQuery] int? offset,
+            [FromQuery] int? limit,
+            ClaimsPrincipal principal,
+            HttpContext context,
+            IdentityApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            AuthenticatedSession current = AuthenticatedSessionClaims.Read(principal);
+            OwnSessionPageResult page = await service.ListOwnActiveSessionsAsync(
+                current,
+                offset ?? 0,
+                limit ?? 20,
+                RequestContext(context, current),
+                cancellationToken);
+            return Results.Ok(new OwnSessionListResponse(
+                page.Items.Select(item => new OwnSessionResponse(
+                        item.SessionId,
+                        item.AuthenticatedAtUtc,
+                        item.ExpiresAtUtc,
+                        item.IsCurrent,
+                        item.Version))
+                    .ToArray(),
+                page.Total,
+                page.Offset,
+                page.Limit));
+        }).RequireAuthorization();
+
         identity.MapGet("/login/{connection}", (
             string connection,
             Guid? linkAttemptId,
@@ -249,6 +277,23 @@ public static class IdentityEndpoints
                 RequestContext(context, current),
                 cancellationToken);
             DeleteSessionCookie(context);
+            return Results.NoContent();
+        }).RequireAuthorization();
+
+        identity.MapDelete("/sessions/{sessionId:guid}", async (
+            Guid sessionId,
+            HttpContext context,
+            IAntiforgery antiforgery,
+            IdentityApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            await antiforgery.ValidateRequestAsync(context);
+            AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
+            await service.RevokeOtherOwnSessionAsync(
+                new RevokeOwnSessionCommand(sessionId, ReadSessionVersion(context)),
+                current,
+                RequestContext(context, current),
+                cancellationToken);
             return Results.NoContent();
         }).RequireAuthorization();
 
@@ -812,6 +857,22 @@ public static class IdentityEndpoints
         return version;
     }
 
+    private static Guid ReadSessionVersion(HttpContext context)
+    {
+        string value = ReadSingleHeader(
+            context,
+            "If-Match",
+            IdentityErrors.InvalidSessionVersion);
+        if (value.Length != 38 || value[0] != '"' || value[^1] != '"' ||
+            !Guid.TryParseExact(value[1..^1], "D", out Guid version) ||
+            version == Guid.Empty)
+        {
+            throw IdentityErrors.InvalidSessionVersion();
+        }
+
+        return version;
+    }
+
     private static Guid ReadOwnerMembershipVersion(HttpContext context)
     {
         string value = ReadSingleHeader(
@@ -929,6 +990,19 @@ public static class IdentityEndpoints
         AuthenticationAssuranceResponse Authentication,
         IReadOnlyList<LinkedIdentityResponse> Identities,
         IReadOnlyList<MembershipResponse> Memberships);
+
+    private sealed record OwnSessionListResponse(
+        IReadOnlyList<OwnSessionResponse> Items,
+        long Total,
+        int Offset,
+        int Limit);
+
+    private sealed record OwnSessionResponse(
+        Guid SessionId,
+        DateTimeOffset AuthenticatedAtUtc,
+        DateTimeOffset ExpiresAtUtc,
+        bool IsCurrent,
+        Guid Version);
 
     private sealed record AuthenticationAssuranceResponse(
         string Level,

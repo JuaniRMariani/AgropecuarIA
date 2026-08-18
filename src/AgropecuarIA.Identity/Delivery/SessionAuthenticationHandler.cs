@@ -16,6 +16,7 @@ public static class IdentityAuthenticationDefaults
     public const string ExternalScheme = "AgropecuarIA.External";
     public const string SessionCookieName = "__Host-agro-session";
     public const string SessionIdClaim = "agro:session_id";
+    public const string SessionVersionClaim = "agro:session_version";
     public const string AuthenticationAssuranceVerifiedClaim =
         "agro:authentication_assurance_verified";
     public const string StrongAuthenticatedAtClaim = "agro:strong_authenticated_at";
@@ -48,6 +49,7 @@ public sealed class SessionAuthenticationHandler(
         [
             new(ClaimTypes.NameIdentifier, session.UserId.ToString("D")),
             new(IdentityAuthenticationDefaults.SessionIdClaim, session.SessionId.ToString("D")),
+            new(IdentityAuthenticationDefaults.SessionVersionClaim, session.Version.ToString("D")),
             new("auth_time", session.AuthenticatedAtUtc.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)),
             new(
                 IdentityAuthenticationDefaults.AuthenticationAssuranceVerifiedClaim,
@@ -96,6 +98,8 @@ public static class AuthenticatedSessionClaims
     {
         string? userIdValue = principal.FindFirstValue(ClaimTypes.NameIdentifier);
         string? sessionIdValue = principal.FindFirstValue(IdentityAuthenticationDefaults.SessionIdClaim);
+        string? sessionVersionValue = principal.FindFirstValue(
+            IdentityAuthenticationDefaults.SessionVersionClaim);
         string? authenticatedAtValue = principal.FindFirstValue("auth_time");
         string? assuranceVerifiedValue = principal.FindFirstValue(
             IdentityAuthenticationDefaults.AuthenticationAssuranceVerifiedClaim);
@@ -106,6 +110,8 @@ public static class AuthenticatedSessionClaims
 
         if (!Guid.TryParse(userIdValue, out Guid userId) ||
             !Guid.TryParse(sessionIdValue, out Guid sessionId) ||
+            !Guid.TryParse(sessionVersionValue, out Guid sessionVersion) ||
+            sessionVersion == Guid.Empty ||
             !long.TryParse(authenticatedAtValue, CultureInfo.InvariantCulture, out long authenticatedAtUnix))
         {
             throw IdentityErrors.SessionRequired();
@@ -122,6 +128,7 @@ public static class AuthenticatedSessionClaims
                 out long strongAuthenticatedAtUnix)
                 ? DateTimeOffset.FromUnixTimeSeconds(strongAuthenticatedAtUnix)
                 : null,
-            strongAuthenticationPurpose);
+            strongAuthenticationPurpose,
+            sessionVersion);
     }
 }

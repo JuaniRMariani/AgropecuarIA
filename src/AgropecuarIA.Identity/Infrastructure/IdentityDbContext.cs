@@ -413,7 +413,8 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
                     "\"StrongAuthenticationPurpose\" IS NOT NULL AND " +
                     $"\"StrongAuthenticationPurpose\" IN " +
                     $"('{StepUpPurposes.ManageAuthenticationMethods}', " +
-                    $"'{StepUpPurposes.ManageOrganizationOwners}'))"));
+                    $"'{StepUpPurposes.ManageOrganizationOwners}', " +
+                    $"'{StepUpPurposes.ManageSessions}'))"));
             entity.HasKey(item => item.Id);
             entity.Property(item => item.TokenHash).HasMaxLength(32).IsRequired();
             entity.Property(item => item.AuthenticatedAtUtc).IsRequired();
@@ -440,7 +441,8 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
                     table.HasCheckConstraint(
                         "CK_step_up_attempts_Purpose",
                         $"\"Purpose\" IN ('{StepUpPurposes.ManageAuthenticationMethods}', " +
-                        $"'{StepUpPurposes.ManageOrganizationOwners}')");
+                        $"'{StepUpPurposes.ManageOrganizationOwners}', " +
+                        $"'{StepUpPurposes.ManageSessions}')");
                     table.HasCheckConstraint(
                         "CK_step_up_attempts_Expiry",
                         "\"ExpiresAtUtc\" > \"StartedAtUtc\"");

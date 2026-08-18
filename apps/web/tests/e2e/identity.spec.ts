@@ -123,6 +123,66 @@ function shortId(value: string): string {
   return value.replaceAll("-", "").slice(0, 6).toUpperCase();
 }
 
+function identityProfiles(projectName: string): Readonly<{
+  ownerFixture: string;
+  inviteeFixture: string;
+  inviteeDisplayName: string;
+  attackerFixture: string;
+  sessionFixture: string;
+}> {
+  return projectName === "mobile"
+    ? {
+        ownerFixture: "email-owner-4",
+        inviteeFixture: "email-owner-1",
+        inviteeDisplayName: "Productor demo 1",
+        attackerFixture: "email-owner-2",
+        sessionFixture: "email-owner-3",
+      }
+    : {
+        ownerFixture: "email-owner-1",
+        inviteeFixture: "email-owner-2",
+        inviteeDisplayName: "Productor demo 2",
+        attackerFixture: "email-owner-3",
+        sessionFixture: "email-owner-4",
+      };
+}
+
+async function loadCurrentSessionShortId(page: Page): Promise<string> {
+  return page.evaluate(async () => {
+    const response = await fetch("/api/identity/sessions?offset=0&limit=20", {
+      cache: "no-store",
+      credentials: "include",
+    });
+    const payload: unknown = await response.json();
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("items" in payload) ||
+      !Array.isArray(payload.items)
+    ) {
+      throw new Error("Own-session inventory returned an invalid page.");
+    }
+    const current = payload.items.find(
+      (item: unknown) =>
+        typeof item === "object" &&
+        item !== null &&
+        "isCurrent" in item &&
+        item.isCurrent === true,
+    );
+    if (
+      typeof current !== "object" ||
+      current === null ||
+      !("sessionId" in current) ||
+      typeof current.sessionId !== "string"
+    ) {
+      throw new Error(
+        "Own-session inventory did not mark the current session.",
+      );
+    }
+    return current.sessionId.replaceAll("-", "").slice(0, 6).toUpperCase();
+  });
+}
+
 async function waitForWorkspaceState(page: Page): Promise<void> {
   await expect(
     page
@@ -198,16 +258,11 @@ test.describe("identity access", () => {
     page,
   }, testInfo) => {
     testInfo.setTimeout(90_000);
+    const profiles = identityProfiles(testInfo.project.name);
     await page.goto("/");
     await expectNoAccessibilityViolations(page);
-
-    const fixtureSignIn = page.getByRole("button", {
-      name: "Entrar con fixture seguro",
-    });
-    await expect(fixtureSignIn).toBeVisible();
-    await fixtureSignIn.focus();
-    await expect(fixtureSignIn).toBeFocused();
-    await page.keyboard.press("Enter");
+    await signInWithExplicitFixture(page, profiles.ownerFixture);
+    await page.reload();
 
     await expect(
       page.getByRole("heading", { name: "Tu acceso", exact: true }),
@@ -405,8 +460,6 @@ test.describe("identity access", () => {
     expect(invitationUrl.search).toBe("");
     expect(invitationUrl.hash).toMatch(/^#owner-invitation=[A-Za-z0-9_-]{43}$/);
 
-    const inviteeFixture = "email-owner-2";
-    const attackerFixture = "email-owner-3";
     const inviteeContext = await browser.newContext();
     const inviteePage = await inviteeContext.newPage();
     trackBrowserErrorsWithAllowList(inviteePage, [
@@ -417,7 +470,7 @@ test.describe("identity access", () => {
     await expect(
       inviteePage.getByRole("heading", { name: "Protegemos este acceso" }),
     ).toBeVisible();
-    await signInWithExplicitFixture(inviteePage, inviteeFixture);
+    await signInWithExplicitFixture(inviteePage, profiles.inviteeFixture);
     await inviteePage.reload();
     await expect(
       inviteePage.getByText(`Ya sos co-owner de ${ownerOrganizationName}.`, {
@@ -425,13 +478,6 @@ test.describe("identity access", () => {
       }),
     ).toBeVisible();
     await expect(inviteePage).not.toHaveURL(/owner-invitation=/);
-    await inviteePage.getByRole("button", { name: "Equipo" }).click();
-    await expect(
-      inviteePage
-        .getByRole("region", { name: "Co-owners" })
-        .getByText("Owner", { exact: true })
-        .first(),
-    ).toBeVisible();
     const organizationId = await inviteePage.evaluate(
       async (selectedOrganizationName) => {
         const response = await fetch("/api/identity/session", {
@@ -466,6 +512,14 @@ test.describe("identity access", () => {
       },
       ownerOrganizationName,
     );
+    await selectOrganization(inviteePage, organizationId);
+    await inviteePage.getByRole("button", { name: "Equipo" }).click();
+    await expect(
+      inviteePage
+        .getByRole("region", { name: "Co-owners" })
+        .getByText("Owner", { exact: true })
+        .first(),
+    ).toBeVisible();
     expect(browserErrors.get(inviteePage) ?? []).toEqual([]);
 
     const attackerContext = await browser.newContext();
@@ -478,7 +532,7 @@ test.describe("identity access", () => {
     await expect(
       attackerPage.getByRole("heading", { name: "Protegemos este acceso" }),
     ).toBeVisible();
-    await signInWithExplicitFixture(attackerPage, attackerFixture);
+    await signInWithExplicitFixture(attackerPage, profiles.attackerFixture);
     await attackerPage.reload();
     await expect(
       attackerPage.getByRole("heading", { name: "Enlace no disponible" }),
@@ -558,7 +612,7 @@ test.describe("identity access", () => {
       page.getByText("Aceptada", { exact: true }).first(),
     ).toBeVisible();
 
-    const inviteeDisplayName = "Productor demo 2";
+    const inviteeDisplayName = profiles.inviteeDisplayName;
     if (testInfo.project.name === "mobile") {
       await page.setViewportSize({ width: 390, height: 844 });
     }
@@ -736,7 +790,10 @@ test.describe("identity access", () => {
 
     await page.getByRole("button", { name: "Cuenta" }).click();
 
-    const revoke = page.getByRole("button", { name: "Cerrar sesión" });
+    const revoke = page.getByRole("button", {
+      name: "Cerrar sesión",
+      exact: true,
+    });
     await revoke.focus();
     await expect(revoke).toBeFocused();
     page.once("dialog", async (dialog) => {
@@ -755,5 +812,101 @@ test.describe("identity access", () => {
     expect(box).not.toBeNull();
     expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
     expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(390);
+  });
+
+  test("lists and revokes another own session without exposing private metadata", async ({
+    browser,
+    page,
+  }, testInfo) => {
+    testInfo.setTimeout(90_000);
+    const profiles = identityProfiles(testInfo.project.name);
+    const otherContext = await browser.newContext();
+    const otherPage = await otherContext.newPage();
+    await otherPage.goto("/");
+    await signInWithExplicitFixture(otherPage, profiles.sessionFixture);
+    await otherPage.reload();
+    await expect(
+      otherPage.getByRole("heading", { name: "Tu acceso", exact: true }),
+    ).toBeVisible();
+    const otherSessionShortId = await loadCurrentSessionShortId(otherPage);
+
+    await page.goto("/");
+    await signInWithExplicitFixture(page, profiles.sessionFixture);
+    await page.reload();
+    await waitForWorkspaceState(page);
+    const createFirstOrganization = page.getByRole("button", {
+      name: "Crear mi organización",
+    });
+    if (await createFirstOrganization.isVisible()) {
+      await createFirstOrganization.click();
+      await page
+        .getByRole("textbox", { name: "Nombre de la organización" })
+        .fill(`Sesiones QA ${testInfo.project.name}`);
+      await page.getByRole("button", { name: "Crear organización" }).click();
+      await expect(page.getByText(/ya está lista y sos owner/i)).toBeVisible();
+    } else {
+      await chooseFirstOrganizationWhenRequired(page);
+    }
+    await page.getByRole("button", { name: "Cuenta" }).click();
+
+    const sessions = page.getByRole("heading", { name: "Sesiones abiertas" });
+    await expect(sessions).toBeVisible();
+    await expect(page.getByText("Actual", { exact: true })).toBeVisible();
+    const otherSessionButton = page.getByRole("button", {
+      name: `Cerrar sesión ${otherSessionShortId}`,
+    });
+    await expect(otherSessionButton).toBeVisible();
+
+    const accountText = await page.locator("main").innerText();
+    expect(accountText).not.toMatch(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+    );
+    expect(accountText).not.toMatch(/user[- ]?agent|ip address|token hash/i);
+
+    await otherSessionButton.focus();
+    await page.keyboard.press("Enter");
+    const confirmation = page.getByRole("alertdialog", {
+      name: `¿Cerrar la sesión ${otherSessionShortId}?`,
+    });
+    await expect(confirmation).toBeVisible();
+    await expect(
+      confirmation.getByRole("button", { name: "Cancelar" }),
+    ).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(otherSessionButton).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await confirmation
+      .getByRole("button", {
+        name: `Confirmar cierre de sesión ${otherSessionShortId}`,
+      })
+      .click();
+    await expect(page.getByText("La otra sesión fue cerrada.")).toBeVisible();
+
+    const revokedStatus = await otherPage.evaluate(async () => {
+      const response = await fetch("/api/identity/session", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      return response.status;
+    });
+    expect(revokedStatus).toBe(401);
+    const currentStatus = await page.evaluate(async () => {
+      const response = await fetch("/api/identity/session", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      return response.status;
+    });
+    expect(currentStatus).toBe(200);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      ),
+    ).toBe(false);
+    await expectNoAccessibilityViolations(page);
+    await otherContext.close();
   });
 });

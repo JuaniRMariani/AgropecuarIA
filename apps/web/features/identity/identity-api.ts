@@ -10,6 +10,8 @@ import type {
   LinkedIdentity,
   MembershipSummary,
   OrganizationOwnerMembershipSummary,
+  OwnSessionPage,
+  OwnSessionSummary,
   RemovedOrganizationOwnerMembership,
   OwnerInvitationStatus,
   OwnerInvitationSummary,
@@ -88,7 +90,8 @@ function nullableDateTime(record: JsonRecord, key: string): string | null {
 function parseStepUpPurpose(value: unknown): StepUpPurpose {
   if (
     value === "manage_authentication_methods" ||
-    value === "manage_organization_owners"
+    value === "manage_organization_owners" ||
+    value === "manage_sessions"
   ) {
     return value;
   }
@@ -114,6 +117,14 @@ function requiredBoolean(record: JsonRecord, key: string): boolean {
 function requiredPositiveInteger(record: JsonRecord, key: string): number {
   const value = record[key];
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    throw new IdentityApiError("error", 502);
+  }
+  return value;
+}
+
+function requiredNonnegativeInteger(record: JsonRecord, key: string): number {
+  const value = record[key];
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     throw new IdentityApiError("error", 502);
   }
   return value;
@@ -212,6 +223,33 @@ export function parseIdentitySession(value: unknown): IdentitySession {
     identities,
     memberships: requiredArray(value, "memberships").map(parseMembership),
   };
+}
+
+export function parseOwnSessionSummary(value: unknown): OwnSessionSummary {
+  if (!isRecord(value)) {
+    throw new IdentityApiError("error", 502);
+  }
+  return {
+    sessionId: requiredUuid(value, "sessionId"),
+    authenticatedAtUtc: requiredDateTime(value, "authenticatedAtUtc"),
+    expiresAtUtc: requiredDateTime(value, "expiresAtUtc"),
+    isCurrent: requiredBoolean(value, "isCurrent"),
+    version: requiredUuid(value, "version"),
+  };
+}
+
+export function parseOwnSessionPage(value: unknown): OwnSessionPage {
+  if (!isRecord(value)) {
+    throw new IdentityApiError("error", 502);
+  }
+  const items = requiredArray(value, "items").map(parseOwnSessionSummary);
+  const total = requiredNonnegativeInteger(value, "total");
+  const offset = requiredNonnegativeInteger(value, "offset");
+  const limit = requiredPositiveInteger(value, "limit");
+  if (items.length > 50 || limit > 50 || items.length > limit) {
+    throw new IdentityApiError("error", 502);
+  }
+  return { items, total, offset, limit };
 }
 
 function parseAuthenticationAssurance(value: unknown): AuthenticationAssurance {
@@ -637,6 +675,28 @@ export async function loadSession(
   return parseIdentitySession(await getJson("/api/identity/session", signal));
 }
 
+export async function listOwnSessions(
+  offset = 0,
+  limit = 20,
+  signal?: AbortSignal,
+): Promise<OwnSessionPage> {
+  if (
+    !Number.isSafeInteger(offset) ||
+    offset < 0 ||
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    limit > 50
+  ) {
+    throw new IdentityApiError("validation", 400);
+  }
+  return parseOwnSessionPage(
+    await getJson(
+      `/api/identity/sessions?offset=${offset}&limit=${limit}`,
+      signal,
+    ),
+  );
+}
+
 export async function startLink(
   connection: IdentityConnection,
   signal?: AbortSignal,
@@ -713,6 +773,25 @@ export async function unlinkIdentity(
 export async function revokeSession(signal?: AbortSignal): Promise<void> {
   await mutate("/api/identity/session/revoke", "POST", undefined, signal);
   invalidateAntiforgeryToken();
+}
+
+export async function revokeOwnSession(
+  sessionId: string,
+  version: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (!UUID_PATTERN.test(sessionId)) {
+    throw new IdentityApiError("validation", 400);
+  }
+  await mutate(
+    `/api/identity/sessions/${encodeURIComponent(sessionId)}`,
+    "DELETE",
+    undefined,
+    signal,
+    true,
+    undefined,
+    version,
+  );
 }
 
 export async function developmentSignIn(

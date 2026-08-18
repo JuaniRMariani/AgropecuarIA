@@ -1563,3 +1563,55 @@ Estado inicial: auditoría Product/QA, Security/Data y Architecture convergió e
 - Revisión independiente final `PASS`: 0 Critical, 0 High, 0 Medium. Cinco Medium encontrados durante revisión fueron corregidos y cubiertos antes de publicación.
 - Publicación funcional: `0a170e0` (`feat(frontend): add owner workspace shell`) en `origin/main`; author y committer verificados como `JuaniRMariani <juanirmariani@gmail.com>`.
 - `OwnerWorkspaceShellV1` queda aprobado integrado-local. `AGRO-FE-001` permanece `En curso`; roles no-owner, preferencias, matriz completa de navegadores y certificación WCAG manual siguen fuera. No hubo deploy.
+
+## Iteración 32 — AGRO-ID-004 OwnSessionInventoryAndRevokeV1 (2026-08-18)
+
+Estado inicial: dos revisiones independientes de tres seleccionaron este sub-slice como el único Ready local. `ArchiveFieldDraft` queda bloqueado por cuota/restore/visibilidad/N-N-1; `AGRO-FND-002` delivery queda bloqueado por falta de consumidor real. `AGRO-ID-004` transiciona `Propuesto → Ready → En curso` sólo para inventario y revocación individual de sesiones propias; el padre permanece `En curso`.
+
+### Plan y decisiones congeladas
+
+- [x] Contrastar Product/QA, Security/Data y Architecture para `ArchiveFieldDraft`, `AGRO-ID-004` sesiones propias y `AGRO-FND-002` delivery con consumidor real.
+- [x] Verificar DoR, dependencias, decisiones, runtime reutilizable, riesgos, valor sponsor y que el alcance no absorba otra tarea.
+- [x] Seleccionar `OwnSessionInventoryAndRevokeV1`: plataforma, sólo actor autenticado, sesiones propias, sin organización/tenant, dispositivo, IP, user-agent, fingerprint ni token/hash.
+- [x] Mantener la sesión actual en el flujo existente de logout; la nueva revocación individual sólo actúa sobre otra sesión propia y exige step-up purpose-bound nuevo `manage_sessions`.
+- [x] Usar colección paginada `offset/limit` acotada y orden estable; wire mínimo `sessionId/authenticatedAtUtc/expiresAtUtc/isCurrent/version`, con UUID corto sólo en UI.
+- [x] Revocar mediante CSRF + `If-Match` fuerte; actor derivado del servidor, target ajeno/ausente neutral, CAS activo→revocado y replay concurrente sin segundo journal.
+- [x] Reutilizar `RevokedAtUtc`/`Version` existentes y auditoría local atómica. La única migración permitida amplía de forma aditiva los CHECK de purpose para `manage_sessions`; no agrega motivo/columnas, dispositivo, notificación, evento/consumer, purge ni claim legal.
+- [x] Implementar OpenAPI, dominio/aplicación/API, autorización/DB mínima, vista Cuenta, tests y evidencia sin cerrar el padre.
+- [ ] Ejecutar gates integrales, revisión independiente, commit/push con identidad local verificada y no desplegar.
+
+### Replan tras gate E2E
+
+- [x] Corregir el locator ambiguo entre logout actual y revocación de otra sesión sin relajar la aserción accesible.
+- [x] Aislar de forma determinista las identidades/sesiones entre proyectos Chromium y mobile; una falla de serialización o un perfil reutilizado no puede convertir A/B en el mismo actor.
+- [x] Demostrar en navegador que la sesión B realmente queda revocada (401 inmediato) mientras A conserva 200, y que el aislamiento tenant sigue dando 404.
+- [x] Repetir el wrapper oficial completo `10/10`, verificar cleanup de puertos/cluster/artefactos y recién entonces retomar revisión/publicación.
+- [x] Corregir el copy purpose-bound de `manage_sessions` y cubrirlo con un mapping exhaustivo en UI.
+- [x] Probar purpose confusion, rollback ante fallo del journal y denegación inmediata de la cookie B en Productive, sin sustituirlos por claims documentales.
+- [x] Invalidar el inventario cuando rota la sesión actual por cualquier purpose, y tratar 401 de list/revoke como sesión global revocada en vez de un falso estado MFA/local.
+- [x] Repetir gates afectados y obtener revisión independiente final con 0 Critical/High/Medium.
+
+### Aceptación verificable
+
+- [x] Un usuario con sesión actual A y otra sesión B lista ambas por páginas; B se muestra con UUID corto, fechas y estado actual, sin secretos ni metadata de dispositivo.
+- [x] Desde A, `manage_sessions` válido revoca B una sola vez; dos requests concurrentes producen una transición y un journal, y el replay seguro no revive ni duplica evidencia.
+- [x] La cookie de B falla en el siguiente request Identity y también ante un puerto Productive; A permanece válida.
+- [x] Target de otro usuario, ausente o activo-expirado no revela existencia; una sesión propia ya revocada reproduce 204 sin segundo efecto, y la sesión actual se deriva al logout existente.
+- [x] Purpose de owners/authentication-methods no autoriza manage-sessions; sesión stale/revocada, CSRF ausente, `If-Match` inválido/stale, cancelación y fallo de journal fallan cerrados.
+- [x] UI Cuenta cubre loading/empty/error/offline/reauth/stale/success, confirmación/foco/teclado/Axe/390 px y nunca muestra UUID completo.
+- [x] OpenAPI, runtime, SEC-002 y tests coinciden; no se afirma notificación, device inventory, revoke-all, propagación distribuida ni deploy.
+
+### Ownership y gates
+
+- [x] Backend/contrato: tipos, query/revoke service, purpose, endpoints, OpenAPI y tests de aplicación/API.
+- [x] Database/Security: grants/RLS/consultas actor-scoped y PostgreSQL real A/B/concurrencia/cancelación/rollback, sin ampliar acceso a `TokenHash`.
+- [x] Frontend/QA: tipos/API/vista Cuenta, estados accesibles, UUID corto, Vitest y Playwright desktop/móvil.
+- [x] Principal: integración, backlog/evidencia, fitness/SEC, restore/build/MTP/format/EF, pnpm gates/E2E, SCA/secrets/UTF-8/JSON/diff y revisión final.
+
+### Review final
+
+- Gate integrado-local final: build Release 9 proyectos `0/0`; suite raíz `361/361`; Identity `126/126`; OwnSession API `8/8` y PostgreSQL `5/5`; Architecture Fitness `135/135`; EF `3/3` sin drift.
+- Frontend frozen/format/lint/typecheck/build PASS; Vitest `206/206`; Playwright oficial `10/10` desktop+móvil con perfiles disjuntos, target exacto, 401 B/200 A, 404 cross-tenant, Axe/390 y cleanup.
+- FND `45/45`, SEC `56/56`, SEC-002 `28/28`, NuGet/pnpm audit, UTF-8/JSON, parser, secretos y diff-check PASS.
+- Revisión independiente: GO con 0 Critical, 0 High y 0 Medium. Cinco Medium fueron corregidos y cubiertos antes de publicación.
+- `AGRO-ID-004` permanece `En curso`; dispositivos/fingerprints, revoke-all, notificaciones, propagación distribuida, SLO, retención/purge y deploy siguen fuera.

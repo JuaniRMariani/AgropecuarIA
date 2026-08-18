@@ -308,3 +308,24 @@ PASS — 45/45 mutations · 26/26 operations · 3/3 contexts without pending cha
 `AGRO-SEC-001` permanece `En curso`. El GO sigue limitado a runtime local integrado; deploy compartido, secretos administrados, delivery/consumers, restore representativo, edge/collector, Privacy/Legal y producción permanecen `NO-GO`.
 
 La revisión independiente detectó y cerró antes de publicación dos defectos medios: un alias split durante recovery que podía escapar como 500 y un grant UPDATE excesivo sobre rename ledgers. El runtime vigente responde 503 de reconciliación sin elegir ledger, y el rol app sólo posee SELECT/INSERT con UPDATE real denegado `42501`.
+
+## Refresh actual: sesiones propias privacy-safe — 2026-08-18
+
+`RS-001` incorpora el inventario y la revocación individual de otra sesión propia. La superficie es platform-scoped, deriva actor/current desde la cookie durable y no acepta user, tenant, dispositivo, IP, user-agent, fingerprint ni provider desde el cliente. El wire expone sólo IDs, fechas, current y versión; la UI limita el ID visible a seis caracteres.
+
+La revocación exige CSRF, `If-Match` fuerte y purpose exacto `manage_sessions`. Las funciones PostgreSQL son actor-scoped, app-only y fixed-search-path; el principal de aplicación conserva cero acceso a `TokenHash`/users y cero UPDATE de sessions. El primer CAS revoca y agrega un journal; los replays concurrentes no duplican evidencia. La cookie target recibe 401 en el siguiente request y el puerto Productive continúa revalidando la misma sesión durable.
+
+### Gate reproducido
+
+```text
+Suite raíz / Identity / Architecture Fitness
+PASS — 361/361 · 126/126 · 135/135.
+
+Vitest / Playwright / FND / SEC
+PASS — 206/206 · 10/10 · 45/45 · 56/56.
+
+SEC-002 / EF model drift / SCA
+PASS — 28/28 operations · 3/3 contexts · 9/9 NuGet projects and pnpm with no known vulnerabilities.
+```
+
+`AGRO-SEC-001` permanece `En curso`. Dispositivos/fingerprints, cierre global, notificaciones, retención/purge, propagación distribuida, Auth0/edge/collector y deploy compartido permanecen `NO-GO`.

@@ -16,7 +16,9 @@ export type IdentityCapabilities = Readonly<{
 }>;
 
 export type StepUpPurpose =
-  "manage_authentication_methods" | "manage_organization_owners";
+  | "manage_authentication_methods"
+  | "manage_organization_owners"
+  | "manage_sessions";
 
 export type AuthenticationAssurance = Readonly<{
   level: "primary" | "strong";
@@ -197,6 +199,44 @@ export type IdentitySession = Readonly<{
   identities: readonly LinkedIdentity[];
   memberships: readonly MembershipSummary[];
 }>;
+
+export type OwnSessionSummary = Readonly<{
+  sessionId: string;
+  authenticatedAtUtc: string;
+  expiresAtUtc: string;
+  isCurrent: boolean;
+  version: string;
+}>;
+
+export type OwnSessionPage = Readonly<{
+  items: readonly OwnSessionSummary[];
+  total: number;
+  offset: number;
+  limit: number;
+}>;
+
+export type OwnSessionResourceState =
+  | Readonly<{ kind: "idle" }>
+  | Readonly<{ kind: "loading" }>
+  | Readonly<{ kind: "ready"; page: OwnSessionPage }>
+  | Readonly<{ kind: "offline" }>
+  | Readonly<{ kind: "unavailable" }>
+  | Readonly<{ kind: "error" }>;
+
+export type OwnSessionActionState =
+  | Readonly<{ kind: "idle" }>
+  | Readonly<{ kind: "confirming"; session: OwnSessionSummary }>
+  | Readonly<{ kind: "revoking"; sessionId: string }>
+  | Readonly<{
+      kind: "reauthentication-required";
+      session: OwnSessionSummary;
+      message: string;
+    }>
+  | Readonly<{ kind: "stale"; message: string }>
+  | Readonly<{ kind: "unavailable"; message: string }>
+  | Readonly<{ kind: "offline"; message: string }>
+  | Readonly<{ kind: "error"; message: string }>
+  | Readonly<{ kind: "revoked"; message: string }>;
 
 export type IdentityResourceState =
   | Readonly<{ kind: "loading" }>

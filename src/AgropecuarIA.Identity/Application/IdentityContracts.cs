@@ -16,6 +16,21 @@ public sealed record AuthenticationAssuranceResult(
     DateTimeOffset? StrongAuthenticatedAtUtc,
     DateTimeOffset? ExpiresAtUtc);
 
+public sealed record OwnSessionSummaryResult(
+    Guid SessionId,
+    DateTimeOffset AuthenticatedAtUtc,
+    DateTimeOffset ExpiresAtUtc,
+    bool IsCurrent,
+    Guid Version);
+
+public sealed record OwnSessionPageResult(
+    IReadOnlyList<OwnSessionSummaryResult> Items,
+    long Total,
+    int Offset,
+    int Limit);
+
+public sealed record RevokeOwnSessionCommand(Guid SessionId, Guid ExpectedVersion);
+
 public sealed record LinkedIdentityResult(
     Guid IdentityId,
     string Connection,
@@ -121,7 +136,8 @@ public sealed record AuthenticatedSession(
     DateTimeOffset AuthenticatedAtUtc,
     bool IsAuthenticationAssuranceVerified,
     DateTimeOffset? StrongAuthenticatedAtUtc = null,
-    string? StrongAuthenticationPurpose = null);
+    string? StrongAuthenticationPurpose = null,
+    Guid Version = default);
 
 public sealed record StartedLinkAttempt(
     Guid AttemptId,
@@ -261,6 +277,32 @@ public static class IdentityErrors
 
     public static IdentityOperationException SessionRequired() =>
         new("identity.session_required", 401, "A valid session is required.");
+
+    public static IdentityOperationException InvalidSessionPage() =>
+        new("identity.invalid_session_page", 400, "The session page is invalid.");
+
+    public static IdentityOperationException InvalidSessionVersion() =>
+        new("identity.invalid_session_version", 400, "A valid session version is required.");
+
+    public static IdentityOperationException SessionNotAvailable() =>
+        new("identity.session_not_available", 404, "The session is not available.");
+
+    public static IdentityOperationException CurrentSessionRequiresLogout() =>
+        new(
+            "identity.current_session_requires_logout",
+            409,
+            "The current session must be closed with the existing logout action.");
+
+    public static IdentityOperationException SessionVersionMismatch() =>
+        new("identity.session_version_mismatch", 412, "The session has changed.");
+
+    public static IdentityOperationException SessionManagementUnavailable() =>
+        new(
+            "identity.session_management_unavailable",
+            503,
+            "Session management is unavailable.",
+            retryable: true,
+            retryAfterSeconds: 1);
 
     public static IdentityOperationException RecentAuthenticationRequired() =>
         new("identity.reauthentication_required", 403, "Recent authentication is required.");

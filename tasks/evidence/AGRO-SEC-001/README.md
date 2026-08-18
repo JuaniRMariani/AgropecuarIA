@@ -21,6 +21,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "tasks/evidence/AGRO-SEC-001
 
 El validador falla si falta un artefacto o sección obligatoria, si los IDs no son únicos/secuenciales, si una referencia local no existe, si una amenaza carece de fronteras/activos/`RSK-*` existente/control/prueba/owner/gate, si un crítico queda sin owner, si la tabla humana diverge del JSON o si Q-054/055/058/060 desaparecen. El gate R1 agrega drift checks exactos contra los tres contratos OpenAPI, solución, API, web, Identity, Territory, Productive Core, PostgreSQL, lockfiles y tests de abuso integrados. Sus mutations preservan la autorización Productive antes de lookup/replay, ETag/If-Match con 412 neutral, `FORCE RLS`, atomicidad, journal append-only, evento rename sin nombres, redacción de telemetría y límites no espaciales, además de los controles Territory/Georef; no sustituyen provider/edge/CI/Legal reales.
 
+Identity agrega además inventario privacy-safe de sesiones propias y revocación individual de otra sesión mediante purpose `manage_sessions`, CSRF, `If-Match`, CAS y funciones actor-scoped. No incorpora dispositivos, IP, user-agent, fingerprints, revoke-all, notificaciones ni propagación distribuida.
+
 ## Límites y NO-GO
 
 - Q-054/055: Product/Legal deben confirmar controlador, propiedad y delegación contractual.

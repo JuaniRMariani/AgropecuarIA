@@ -12,12 +12,14 @@ import {
   identityLoginUrl,
   IdentityApiError,
   loadCapabilities,
+  listOwnSessions,
   listOrganizationOwnerMemberships,
   listOwnerInvitations,
   loadSession,
   resolveAuthorizationUrl,
   removeOrganizationOwnerMembership,
   revokeSession,
+  revokeOwnSession,
   revokeOwnerInvitation,
   startLink,
   startStepUp,
@@ -34,6 +36,9 @@ import type {
   OrganizationOwnerMembershipSummary,
   OwnerMembershipActionState,
   OwnerMembershipResourceState,
+  OwnSessionActionState,
+  OwnSessionResourceState,
+  OwnSessionSummary,
   OwnerInvitationAcceptanceState,
   OwnerInvitationActionState,
   OwnerInvitationResourceState,
@@ -51,6 +56,8 @@ const OWNER_INVITATION_ACTION_KEY =
   "agropecuaria.identity.owner-invitation-action.v1";
 const OWNER_REMOVAL_ACTION_KEY =
   "agropecuaria.identity.owner-removal-action.v1";
+const OWN_SESSION_REVOCATION_KEY =
+  "agropecuaria.identity.session-revocation.v1";
 const OWNER_INVITATION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -80,6 +87,8 @@ type StoredOwnerRemovalAction = Readonly<{
   version: string;
   idempotencyKey: string;
 }>;
+
+type StoredOwnSessionRevocation = OwnSessionSummary;
 
 export function createOrganizationIdempotencyKey(): string {
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
@@ -259,6 +268,64 @@ function clearOwnerRemovalAction(): void {
   }
 }
 
+function isStoredOwnSessionRevocation(
+  value: unknown,
+): value is StoredOwnSessionRevocation {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "sessionId" in value &&
+    typeof value.sessionId === "string" &&
+    UUID_PATTERN.test(value.sessionId) &&
+    "version" in value &&
+    typeof value.version === "string" &&
+    UUID_PATTERN.test(value.version) &&
+    "authenticatedAtUtc" in value &&
+    typeof value.authenticatedAtUtc === "string" &&
+    !Number.isNaN(Date.parse(value.authenticatedAtUtc)) &&
+    "expiresAtUtc" in value &&
+    typeof value.expiresAtUtc === "string" &&
+    !Number.isNaN(Date.parse(value.expiresAtUtc)) &&
+    "isCurrent" in value &&
+    value.isCurrent === false
+  );
+}
+
+function storeOwnSessionRevocation(action: StoredOwnSessionRevocation): void {
+  try {
+    globalThis.sessionStorage.setItem(
+      OWN_SESSION_REVOCATION_KEY,
+      JSON.stringify(action),
+    );
+  } catch {
+    // The action remains in memory when browser storage is unavailable.
+  }
+}
+
+function takeOwnSessionRevocation(): StoredOwnSessionRevocation | null {
+  try {
+    const serialized = globalThis.sessionStorage.getItem(
+      OWN_SESSION_REVOCATION_KEY,
+    );
+    globalThis.sessionStorage.removeItem(OWN_SESSION_REVOCATION_KEY);
+    if (serialized === null) {
+      return null;
+    }
+    const value: unknown = JSON.parse(serialized);
+    return isStoredOwnSessionRevocation(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearOwnSessionRevocation(): void {
+  try {
+    globalThis.sessionStorage.removeItem(OWN_SESSION_REVOCATION_KEY);
+  } catch {
+    // Browser storage is optional; the in-memory action remains authoritative.
+  }
+}
+
 function clearOwnerInvitationToken(): void {
   try {
     globalThis.sessionStorage.removeItem(OWNER_INVITATION_TOKEN_KEY);
@@ -426,6 +493,86 @@ function hasOwnerManagementAssurance(session: IdentitySession): boolean {
     authentication.expiresAtUtc !== null &&
     Date.parse(authentication.expiresAtUtc) > Date.now()
   );
+}
+
+function hasSessionManagementAssurance(session: IdentitySession): boolean {
+  const { authentication } = session;
+  return (
+    authentication.level === "strong" &&
+    authentication.purpose === "manage_sessions" &&
+    authentication.expiresAtUtc !== null &&
+    Date.parse(authentication.expiresAtUtc) > Date.now()
+  );
+}
+
+function ownSessionInventoryContext(session: IdentitySession): string {
+  const { authentication } = session;
+  return [
+    session.userId,
+    authentication.level,
+    authentication.authenticatedAtUtc,
+    authentication.purpose ?? "",
+    authentication.strongAuthenticatedAtUtc ?? "",
+    authentication.expiresAtUtc ?? "",
+  ].join("|");
+}
+
+function ownSessionResourceFailure(error: unknown): OwnSessionResourceState {
+  if (error instanceof TypeError && !window.navigator.onLine) {
+    return { kind: "offline" };
+  }
+  if (error instanceof IdentityApiError && error.status === 503) {
+    return { kind: "unavailable" };
+  }
+  return { kind: "error" };
+}
+
+function ownSessionActionFailure(
+  error: unknown,
+  session: OwnSessionSummary,
+): OwnSessionActionState {
+  if (error instanceof IdentityApiError) {
+    if (error.kind === "reauthentication-required") {
+      return {
+        kind: "reauthentication-required",
+        session,
+        message: "Verificá tu identidad con MFA para cerrar esta sesión.",
+      };
+    }
+    if (error.status === 412) {
+      return {
+        kind: "stale",
+        message:
+          "La sesión cambió en paralelo. Actualizamos la lista para que revises su estado.",
+      };
+    }
+    if (error.status === 404) {
+      return {
+        kind: "unavailable",
+        message:
+          "La sesión ya no está disponible. Actualizamos la lista sin revelar más datos.",
+      };
+    }
+    if (
+      error.status === 409 &&
+      error.code === "identity.current_session_requires_logout"
+    ) {
+      return {
+        kind: "unavailable",
+        message: "La sesión actual se cierra desde el control Cerrar sesión.",
+      };
+    }
+  }
+  if (error instanceof TypeError && !window.navigator.onLine) {
+    return {
+      kind: "offline",
+      message: "Estás sin conexión. No confirmamos ningún cambio.",
+    };
+  }
+  return {
+    kind: "error",
+    message: "No pudimos cerrar la sesión. No confirmamos ningún cambio.",
+  };
 }
 
 function replaceInvitation(
@@ -655,6 +802,11 @@ export function IdentityHub() {
   >({});
   const [ownerMembershipAction, setOwnerMembershipAction] =
     useState<OwnerMembershipActionState>({ kind: "idle" });
+  const [ownSessions, setOwnSessions] = useState<OwnSessionResourceState>({
+    kind: "idle",
+  });
+  const [ownSessionAction, setOwnSessionAction] =
+    useState<OwnSessionActionState>({ kind: "idle" });
   const [activeOrganizationId, setActiveOrganizationId] = useState<
     string | null
   >(null);
@@ -666,6 +818,9 @@ export function IdentityHub() {
   const ownerInvitationsAvailable = useRef(false);
   const ownerMembershipRequestVersions = useRef<Record<string, number>>({});
   const ownerInvitationRequestVersions = useRef<Record<string, number>>({});
+  const ownSessionRequestVersion = useRef(0);
+  const ownSessionRevocation = useRef<StoredOwnSessionRevocation | null>(null);
+  const ownSessionContext = useRef<string | null>(null);
   const activeOrganizationIdRef = useRef<string | null>(null);
   const mounted = useRef(true);
 
@@ -908,6 +1063,180 @@ export function IdentityHub() {
       }
     }
   }, [resource]);
+
+  const handleOwnSessionUnauthorized = useCallback(
+    (error: unknown): boolean => {
+      if (!(error instanceof IdentityApiError) || error.status !== 401) {
+        return false;
+      }
+      ownSessionRequestVersion.current += 1;
+      ownSessionRevocation.current = null;
+      clearOwnSessionRevocation();
+      setOwnSessions({ kind: "idle" });
+      setOwnSessionAction({ kind: "idle" });
+      setResource((current) => {
+        const capabilities =
+          current.kind === "loading" ? null : current.capabilities;
+        if (error.kind === "revoked" || capabilities === null) {
+          return { kind: "revoked", capabilities };
+        }
+        return { kind: "signed-out", capabilities };
+      });
+      return true;
+    },
+    [],
+  );
+
+  const refreshOwnSessions = useCallback(
+    async (offset = 0, signal?: AbortSignal) => {
+      const requestVersion = ownSessionRequestVersion.current + 1;
+      ownSessionRequestVersion.current = requestVersion;
+      setOwnSessions({ kind: "loading" });
+      try {
+        const page = await listOwnSessions(offset, 20, signal);
+        if (
+          mounted.current &&
+          ownSessionRequestVersion.current === requestVersion
+        ) {
+          setOwnSessions({ kind: "ready", page });
+        }
+      } catch (error) {
+        if (
+          !isAbort(error) &&
+          mounted.current &&
+          ownSessionRequestVersion.current === requestVersion
+        ) {
+          if (!handleOwnSessionUnauthorized(error)) {
+            setOwnSessions(ownSessionResourceFailure(error));
+          }
+        }
+      }
+    },
+    [handleOwnSessionUnauthorized],
+  );
+
+  const executeOwnSessionRevocation = useCallback(
+    async (session: StoredOwnSessionRevocation) => {
+      ownSessionRevocation.current = session;
+      setOwnSessionAction({
+        kind: "revoking",
+        sessionId: session.sessionId,
+      });
+      try {
+        await revokeOwnSession(session.sessionId, session.version);
+        if (!mounted.current) return;
+        ownSessionRevocation.current = null;
+        clearOwnSessionRevocation();
+        setOwnSessionAction({
+          kind: "revoked",
+          message: "La otra sesión fue cerrada.",
+        });
+        const currentOffset =
+          ownSessions.kind === "ready"
+            ? ownSessions.page.items.length === 1 && ownSessions.page.offset > 0
+              ? Math.max(0, ownSessions.page.offset - ownSessions.page.limit)
+              : ownSessions.page.offset
+            : 0;
+        await refreshOwnSessions(currentOffset);
+      } catch (error) {
+        if (isAbort(error) || !mounted.current) return;
+        if (handleOwnSessionUnauthorized(error)) return;
+        const failure = ownSessionActionFailure(error, session);
+        if (failure.kind === "reauthentication-required") {
+          storeOwnSessionRevocation(session);
+        } else if (failure.kind === "stale" || failure.kind === "unavailable") {
+          ownSessionRevocation.current = null;
+          clearOwnSessionRevocation();
+          void refreshOwnSessions(
+            ownSessions.kind === "ready" ? ownSessions.page.offset : 0,
+          );
+        }
+        setOwnSessionAction(failure);
+      }
+    },
+    [handleOwnSessionUnauthorized, ownSessions, refreshOwnSessions],
+  );
+
+  const requestOwnSessionStepUp = useCallback(
+    async (session: StoredOwnSessionRevocation) => {
+      if (resource.kind !== "authenticated") return;
+      ownSessionRevocation.current = session;
+      storeOwnSessionRevocation(session);
+      setOwnSessionAction({
+        kind: "reauthentication-required",
+        session,
+        message: "Verificá tu identidad con MFA para cerrar esta sesión.",
+      });
+      try {
+        const attempt = await startStepUp("manage_sessions");
+        if (developmentProviderAvailable(resource.capabilities)) {
+          const nextSession = await completeDevelopmentStepUp(attempt);
+          if (mounted.current) {
+            setResource({
+              kind: "authenticated",
+              capabilities: resource.capabilities,
+              session: nextSession,
+            });
+            takeOwnSessionRevocation();
+            await executeOwnSessionRevocation(session);
+          }
+          return;
+        }
+        const authorizationUrl = resolveAuthorizationUrl(
+          attempt.authorizationUrl,
+        );
+        if (authorizationUrl === null) {
+          throw new IdentityApiError("error", 502);
+        }
+        window.location.assign(authorizationUrl);
+      } catch (error) {
+        if (
+          !isAbort(error) &&
+          mounted.current &&
+          !handleOwnSessionUnauthorized(error)
+        ) {
+          setOwnSessionAction(ownSessionActionFailure(error, session));
+        }
+      }
+    },
+    [executeOwnSessionRevocation, handleOwnSessionUnauthorized, resource],
+  );
+
+  const handleBeginOwnSessionRevocation = useCallback(
+    (session: OwnSessionSummary) => {
+      if (!session.isCurrent) {
+        setOwnSessionAction({ kind: "confirming", session });
+      }
+    },
+    [],
+  );
+
+  const handleConfirmOwnSessionRevocation = useCallback(() => {
+    if (
+      resource.kind !== "authenticated" ||
+      ownSessionAction.kind !== "confirming"
+    ) {
+      return;
+    }
+    const { session } = ownSessionAction;
+    if (hasSessionManagementAssurance(resource.session)) {
+      void executeOwnSessionRevocation(session);
+    } else {
+      void requestOwnSessionStepUp(session);
+    }
+  }, [
+    executeOwnSessionRevocation,
+    ownSessionAction,
+    requestOwnSessionStepUp,
+    resource,
+  ]);
+
+  const handleResumeOwnSessionRevocation = useCallback(() => {
+    const session = ownSessionRevocation.current;
+    if (session !== null) {
+      void requestOwnSessionStepUp(session);
+    }
+  }, [requestOwnSessionStepUp]);
 
   const handleSyntheticSignIn = useCallback(async () => {
     if (
@@ -1620,6 +1949,45 @@ export function IdentityHub() {
 
   useEffect(() => {
     if (resource.kind !== "authenticated") {
+      if (resource.kind === "signed-out" || resource.kind === "revoked") {
+        clearOwnSessionRevocation();
+      }
+      if (ownSessionContext.current !== null) {
+        ownSessionRequestVersion.current += 1;
+        ownSessionContext.current = null;
+        ownSessionRevocation.current = null;
+        setOwnSessions({ kind: "idle" });
+        setOwnSessionAction({ kind: "idle" });
+      }
+      return;
+    }
+
+    const inventoryContext = ownSessionInventoryContext(resource.session);
+    if (ownSessionContext.current !== inventoryContext) {
+      ownSessionContext.current = inventoryContext;
+      void refreshOwnSessions(0);
+    }
+
+    const storedRevocation = takeOwnSessionRevocation();
+    if (storedRevocation === null) return;
+    ownSessionRevocation.current = storedRevocation;
+    queueMicrotask(() => {
+      if (!mounted.current) return;
+      if (hasSessionManagementAssurance(resource.session)) {
+        void executeOwnSessionRevocation(storedRevocation);
+      } else {
+        storeOwnSessionRevocation(storedRevocation);
+        setOwnSessionAction({
+          kind: "reauthentication-required",
+          session: storedRevocation,
+          message: "Verificá tu identidad con MFA para cerrar esta sesión.",
+        });
+      }
+    });
+  }, [executeOwnSessionRevocation, refreshOwnSessions, resource]);
+
+  useEffect(() => {
+    if (resource.kind !== "authenticated") {
       handleActiveOrganizationChange(null);
       if (invitationToken.current !== null && resource.kind === "signed-out") {
         setOwnerInvitationAcceptance({
@@ -1700,6 +2068,41 @@ export function IdentityHub() {
   return (
     <IdentityView
       notice={notice}
+      ownSessionAction={ownSessionAction}
+      ownSessions={ownSessions}
+      onBeginOwnSessionRevocation={handleBeginOwnSessionRevocation}
+      onCancelOwnSessionRevocation={() => setOwnSessionAction({ kind: "idle" })}
+      onConfirmOwnSessionRevocation={handleConfirmOwnSessionRevocation}
+      onDismissOwnSessionNotice={() => setOwnSessionAction({ kind: "idle" })}
+      onRefreshOwnSessions={() =>
+        void refreshOwnSessions(
+          ownSessions.kind === "ready" ? ownSessions.page.offset : 0,
+        )
+      }
+      onNextOwnSessions={() => {
+        if (ownSessions.kind === "ready") {
+          void refreshOwnSessions(
+            ownSessions.page.offset + ownSessions.page.limit,
+          );
+        }
+      }}
+      onPreviousOwnSessions={() => {
+        if (ownSessions.kind === "ready") {
+          void refreshOwnSessions(
+            Math.max(0, ownSessions.page.offset - ownSessions.page.limit),
+          );
+        }
+      }}
+      onRetryOwnSessionRevocation={() => {
+        const session = ownSessionRevocation.current;
+        if (session === null || resource.kind !== "authenticated") return;
+        if (hasSessionManagementAssurance(resource.session)) {
+          void executeOwnSessionRevocation(session);
+        } else {
+          void requestOwnSessionStepUp(session);
+        }
+      }}
+      onResumeOwnSessionRevocation={handleResumeOwnSessionRevocation}
       onActiveOrganizationChange={handleActiveOrganizationChange}
       onAcceptOwnerInvitation={() => void handleAcceptOwnerInvitation()}
       onCancelOrganization={handleCancelOrganization}

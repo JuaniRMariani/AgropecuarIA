@@ -1665,7 +1665,7 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - [x] Contrastar especialmente `ArchiveFieldDraft`, el siguiente incremento ID-004 sin PII/proveedor, FE-001 y cualquier slice Productive/Catalog realmente habilitado por el runtime actual.
 - [x] Seleccionar por unanimidad `RevokeAllOwnSessionsAndLogoutV1` como único GO; `ArchiveFieldDraft`, deep links/preferencias FE y Productive/Catalog permanecen NO-GO por decisiones o runtime ausentes.
 - [x] Congelar contrato y aceptación de un único sub-slice antes de editar runtime; documentar NO-GO de los demás.
-- [ ] Implementar con ownership disjunto, gates completos, revisión independiente, commit/push con identidad local y sin deploy.
+- [x] Implementar con ownership disjunto, gates completos, revisión independiente, commit/push con identidad local y sin deploy.
 
 ### Micro-DoR y aceptación congelada
 
@@ -1683,4 +1683,5 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - Readiness unánime: `RevokeAllOwnSessionsAndLogoutV1` fue el único GO; Archive, FE residual y Catalog permanecen NO-GO por decisiones/runtime ausentes.
 - Gate integrado preliminar: restore locked y build Release 9 proyectos `0/0`; raíz `381/381`; Identity `146/146`; DB global `18/18`; API own-session `14/14`; Fitness `135/135`; EF `3/3`; Vitest `225/225`; Playwright `10/10`; FND `45/45`; SEC `56/56`; SEC-002 `30/30`; format/lint/typecheck/build/SCA/UTF-8/JSON/secrets/diff PASS.
 - La revisión independiente detectó un Medium contractual: un 401 posterior a respuesta perdida no confirma el cierre global si logout ganó la carrera. Wording, UX/evidencia y test reverso same-current quedaron corregidos; el 401 sólo prueba current inválida y exige reingreso+inventario.
-- Dictamen final: GO integrado-local, 0 Critical, 0 High, 0 Medium y 0 Low. Publicación pendiente; no hubo deploy.
+- Dictamen final: GO integrado-local, 0 Critical, 0 High, 0 Medium y 0 Low.
+- Publicación funcional: `5b123e3` (`feat(identity): close all active sessions`) en `origin/main`; author y committer verificados como `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.

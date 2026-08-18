@@ -40,3 +40,5 @@ Estado: PASS integrado-local; `AGRO-ID-004` permanece `En curso`.
 Publicación funcional: `45a7b91` (`feat(identity): manage own active sessions`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.
 
 Publicación bulk: `36429af` (`feat(identity): close other active sessions`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.
+
+Publicación global: `5b123e3` (`feat(identity): close all active sessions`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.

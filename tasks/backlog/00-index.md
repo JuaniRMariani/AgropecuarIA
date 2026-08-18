@@ -106,7 +106,7 @@ La columna “plan” contiene release, épica, MoSCoW y tamaño. Las dependenci
 | [AGRO-IA-004](EPIC-12-ia-analitica.md#agro-ia-004) | Explicar clima y rotación desde herramientas determinísticas | R6 · EPIC-12 · Must · L | Propuesto | CLI-001–004, FOR-003/004 e IA-003 |
 | [AGRO-IA-005](EPIC-12-ia-analitica.md#agro-ia-005) | Evaluar, monitorear deriva y controlar rollout IA | R6 · EPIC-12 · Must · L | Propuesto | IA-003/004 y panel profesional |
 | [AGRO-IA-006](EPIC-12-ia-analitica.md#agro-ia-006) | Simular escenarios avanzados con cálculo determinístico y aprobación humana | R7 · EPIC-12 · Should · L | Propuesto | IA-001/003/004/005 y perfiles aprobados |
-| [AGRO-FE-001](EPIC-13-frontend-design-system-accesibilidad.md#agro-fe-001) | Entregar shell, navegación y sistema de diseño accesibles | R1 · EPIC-13 · Must · L | Propuesto | contratos de Identidad y decisión de arquitectura frontend |
+| [AGRO-FE-001](EPIC-13-frontend-design-system-accesibilidad.md#agro-fe-001) | Entregar shell, navegación y sistema de diseño accesibles | R1 · EPIC-13 · Must · L | En curso | contratos de Identidad y decisión de arquitectura frontend |
 | [AGRO-FE-002](EPIC-13-frontend-design-system-accesibilidad.md#agro-fe-002) | Estandarizar contratos, formularios, tablas y estados | R1 · EPIC-13 · Must · L | Propuesto | FND-001–003 y FE-001 |
 | [AGRO-FE-003](EPIC-13-frontend-design-system-accesibilidad.md#agro-fe-003) | Construir mapa y experiencias productivas adaptativas | R2–R4 · EPIC-13 · Must · L | Propuesto | FE-001/002 plus domain contracts |
 | [AGRO-FE-004](EPIC-13-frontend-design-system-accesibilidad.md#agro-fe-004) | Certificar PWA online y rendimiento frontend | R2–R6 · EPIC-13 · Must · M | Propuesto | FE-001–003 y DIS-007 |

@@ -100,6 +100,44 @@ afterEach(() => {
 });
 
 describe("FieldManagement", () => {
+  it("reports dirty, pending and clear guards for an organization-scoped create attempt", async () => {
+    let resolveCreate: ((field: CreatedField) => void) | undefined;
+    apiMocks.createField.mockImplementation(
+      () =>
+        new Promise<CreatedField>((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+    const onContextGuardChange = vi.fn();
+    render(
+      <FieldManagement
+        onContextGuardChange={onContextGuardChange}
+        organizations={[organizationA]}
+      />,
+    );
+    await screen.findByText("Todavía no hay campos");
+    expect(onContextGuardChange).toHaveBeenLastCalledWith("clear");
+
+    fireEvent.click(screen.getByRole("button", { name: "Crear campo" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Nombre del campo" }),
+      { target: { value: "Campo Norte" } },
+    );
+    expect(onContextGuardChange).toHaveBeenLastCalledWith("dirty");
+
+    fireEvent.click(screen.getByRole("button", { name: "Crear campo" }));
+    await waitFor(() =>
+      expect(onContextGuardChange).toHaveBeenLastCalledWith("pending"),
+    );
+    if (resolveCreate === undefined) {
+      throw new Error("Create request did not start.");
+    }
+    resolveCreate({ ...fieldA, isReplay: false });
+    await waitFor(() =>
+      expect(onContextGuardChange).toHaveBeenLastCalledWith("clear"),
+    );
+  });
+
   it("creates a duplicate-friendly draft, shows only short IDs and opens its non-spatial ficha", async () => {
     apiMocks.createField.mockResolvedValue({ ...fieldA, isReplay: false });
     render(<FieldManagement organizations={[organizationA]} />);

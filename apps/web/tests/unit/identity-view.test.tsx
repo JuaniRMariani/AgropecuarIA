@@ -1,6 +1,36 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const workspaceMockState = vi.hoisted(() => ({
+  view: "account" as "fields" | "team" | "territory" | "account",
+}));
+
+vi.mock("../../features/workspace/owner-workspace", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("../../features/workspace/owner-workspace")
+    >();
+  return {
+    ...actual,
+    OwnerWorkspaceShell: ({
+      memberships,
+      onboarding,
+      children,
+    }: import("../../features/workspace/owner-workspace").OwnerWorkspaceShellProps) => {
+      const membership = memberships.find(
+        (candidate) => candidate.role.toLowerCase() === "owner",
+      );
+      if (membership === undefined) return onboarding;
+      return children({
+        kind: "active",
+        membership,
+        view: workspaceMockState.view,
+        source: "automatic",
+      });
+    },
+  };
+});
+
 import { IdentityView } from "../../features/identity/identity-view";
 import type {
   IdentityCapabilities,
@@ -46,6 +76,17 @@ const session: IdentitySession = {
   memberships: [],
 };
 
+const accountSession: IdentitySession = {
+  ...session,
+  memberships: [
+    {
+      organizationId: "1266395e-ec88-481e-9a72-81fa2cc2904a",
+      organizationName: "La Esperanza",
+      role: "owner",
+    },
+  ],
+};
+
 afterEach(cleanup);
 
 const invitationProps = {
@@ -86,6 +127,11 @@ function renderView(
   invitationOptions: Partial<typeof invitationProps> = {},
   ownerMembershipOptions: Partial<typeof ownerMembershipProps> = {},
 ) {
+  workspaceMockState.view =
+    Object.keys(invitationOptions).length > 0 ||
+    Object.keys(ownerMembershipOptions).length > 0
+      ? "team"
+      : "account";
   const handlers = {
     onRetry: vi.fn(),
     onLogin: vi.fn(),
@@ -172,19 +218,15 @@ describe("IdentityView", () => {
     expect(handlers.onLogin).toHaveBeenCalledWith("google");
   });
 
-  it("renders only short IDs and an explicit private onboarding CTA", () => {
+  it("renders only short IDs in the private account workspace", () => {
     const { container } = renderView({
       kind: "authenticated",
       capabilities: productionCapabilities,
-      session,
+      session: accountSession,
     });
 
     expect(screen.getByText(/usuario 2E9F14/i)).toBeVisible();
     expect(screen.getByText(/ID 6F0B92/i)).toBeVisible();
-    expect(screen.getByText(/creá tu primera organización/i)).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Crear mi organización" }),
-    ).toBeEnabled();
     expect(container).not.toHaveTextContent(session.userId);
     expect(container).not.toHaveTextContent(
       session.identities[0]?.identityId ?? "missing",
@@ -195,7 +237,7 @@ describe("IdentityView", () => {
     renderView({
       kind: "authenticated",
       capabilities: productionCapabilities,
-      session,
+      session: accountSession,
     });
 
     expect(
@@ -239,6 +281,7 @@ describe("IdentityView", () => {
 
   it("keeps MFA loading inside the assurance card", () => {
     const onStepUp = vi.fn();
+    workspaceMockState.view = "account";
     const { container } = render(
       <IdentityView
         {...invitationProps}
@@ -263,7 +306,7 @@ describe("IdentityView", () => {
         resource={{
           kind: "authenticated",
           capabilities: productionCapabilities,
-          session,
+          session: accountSession,
         }}
       />,
     );
@@ -285,7 +328,7 @@ describe("IdentityView", () => {
     const { handlers } = renderView({
       kind: "authenticated",
       capabilities: productionCapabilities,
-      session,
+      session: accountSession,
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Verificar con MFA" }));
@@ -343,7 +386,7 @@ describe("IdentityView", () => {
       },
     });
 
-    expect(screen.getAllByText("Organización 126639")).toHaveLength(2);
+    expect(screen.getAllByText("Organización 126639")).toHaveLength(1);
     expect(container).not.toHaveTextContent(organizationId);
     fireEvent.click(screen.getByRole("button", { name: "Crear otra" }));
     expect(handlers.onStartOrganization).toHaveBeenCalledOnce();
@@ -372,7 +415,7 @@ describe("IdentityView", () => {
       "aria-busy",
       "true",
     );
-    expect(screen.getByText("Ana Productora")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Tu acceso" })).toBeVisible();
     expect(
       screen.getByRole("button", { name: /creando organización/i }),
     ).toBeDisabled();
@@ -477,7 +520,7 @@ describe("IdentityView", () => {
     expect(
       screen.getByRole("heading", { name: "Invitaciones de co-owner" }),
     ).toBeVisible();
-    expect(screen.getAllByText("Organización 126639")).toHaveLength(3);
+    expect(screen.getAllByText("Organización 126639")).toHaveLength(1);
     expect(screen.getByText("No hay invitaciones")).toBeVisible();
     fireEvent.click(
       screen.getByRole("button", { name: "Verificar y crear enlace" }),

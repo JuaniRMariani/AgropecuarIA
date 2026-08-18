@@ -1520,3 +1520,45 @@ Estado inicial: micro-DoR cerrado con defaults técnicos reversibles; transició
 - La revisión independiente cerró dos Medium antes de publicar: alias split en recovery ahora falla 503 `idempotency.reconciliation_required`, y el rol app sólo conserva SELECT/INSERT sobre rename ledgers con UPDATE real denegado `42501`. Resultado final: 0 Critical, 0 High y 0 Medium pendientes.
 - `AGRO-FND-003` permanece `En curso`; backfills/contract migrations/restore general y otros agregados siguen fuera. No hubo deploy.
 - Publicación funcional: `2ace1f5` (`feat(productive-core): rename non-spatial field drafts`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`.
+
+## Iteración 31 — AGRO-FE-001 OwnerWorkspaceShellV1 (2026-08-18)
+
+Estado inicial: auditoría Product/QA, Security/Data y Architecture convergió en un único sub-slice Ready. Transición `Propuesto → Ready → En curso` sólo para un shell owner sobre contratos existentes; `AGRO-FE-001` permanece `En curso`.
+
+### Plan y decisiones congeladas
+
+- [x] Reutilizar sesión y memberships `owner/active`; no crear roles, endpoints, tablas, eventos, preferencias persistentes ni telemetría nueva.
+- [x] Modelar 0 organizaciones como onboarding; 1 como selección automática; N como selector explícito sin consultar datos tenant hasta elegir.
+- [x] Usar `?org=ABCDEF&view=fields|team|territory|account`. El prefijo corto se resuelve sólo entre memberships activas de la sesión; cero o múltiples coincidencias fallan cerradas. El backend sigue recibiendo el UUID completo.
+- [x] Consultar campos/equipo sólo para la organización activa. Al cambiar, abortar requests anteriores, limpiar ficha/estado del tenant previo y mover foco al heading del workspace.
+- [x] Preservar cualquier intento idempotente ambiguo dentro de su organización. Bloquear cambio durante submit/in-progress/reconciliation y confirmar antes de descartar un borrador editable.
+- [x] Mantener español `es-AR`, UUID visible corto, sin datos sensibles en `localStorage`, sin offline/PWA falso y sin copiar el dominio/autorización al cliente.
+- [x] Fijar gate local reproducible en Chromium desktop y Pixel 7; Firefox/WebKit y certificación manual completa quedan en el padre.
+
+### Aceptación verificable
+
+- [x] Owner con dos organizaciones selecciona A y ve únicamente campos/co-owners de A; B con nombres duplicados no aparece ni recibe requests hasta cambiar contexto.
+- [x] Cambio A→B actualiza URL, heading y vista; aborta respuesta tardía de A y no reintroduce estado anterior.
+- [x] Reload y back/forward restauran un contexto válido; prefijo inexistente, colisionado o membership removida vuelven al selector sin consultar tenant.
+- [x] 0 organizaciones conserva onboarding; 1 se selecciona de forma determinista; sesión revocada limpia inmediatamente datos y contexto visibles.
+- [x] Un draft no enviado exige confirmación accesible al cambiar; una mutación pending/in-progress/reconciliation impide cambiar y conserva key/contexto.
+- [x] Navegación `fields|team|territory|account` usa landmarks, skip-link, `aria-current`, foco visible y anuncios acotados; 390 px no tiene overflow horizontal.
+- [x] Ningún UUID completo se renderiza en selector, URL, tarjetas, modales o mensajes; el locator corto jamás concede autoridad.
+- [x] Axe no reporta violaciones critical/serious y shell/estados siguen utilizables ante loading, offline, 404, 429 y 503.
+
+### Ownership y gates
+
+- [x] Frontend: shell, resolver/contexto URL, navegación, estilos e integración mínima con features existentes.
+- [x] QA: unit/component de 0/1/N, colisión/remoción, URL/back-forward, abort stale, draft/pending, foco/UUID; Playwright desktop/móvil/Axe/390.
+- [x] Principal: micro-DoR/backlog/evidencia, integración, gates, revisión y Git; sin cambios backend/schema/OpenAPI.
+- [x] Ejecutar pnpm frozen/format/lint/typecheck/Vitest/build, Playwright oficial, restore/build/MTP raíz, FND/SEC/SEC-002, SCA, secrets, UTF-8/JSON, parser y diff-check.
+- [x] Revisión independiente con 0 Critical/High/Medium; mantener `AGRO-FE-001` `En curso`.
+- [ ] Commit/push con `JuaniRMariani <juanirmariani@gmail.com>`; verificar author/committer y no desplegar.
+
+### Review final
+
+- Restore/build Release `PASS` (0 warnings/errores); suite raíz MTP `348/348`; Architecture Fitness `135/135` y SEC-002 `26/26` operaciones sin cambios de runtime.
+- Frontend frozen/format/lint/typecheck/build `PASS`; Vitest `179/179`; Playwright oficial `8/8` desktop+móvil con Axe/390 y cleanup hermético.
+- FND `45/45`, SEC `56/56`, NuGet/pnpm audit, UTF-8/JSON/parser/secrets/diff `PASS`.
+- Revisión independiente final `PASS`: 0 Critical, 0 High, 0 Medium. Cinco Medium encontrados durante revisión fueron corregidos y cubiertos antes de publicación.
+- `OwnerWorkspaceShellV1` queda aprobado integrado-local. `AGRO-FE-001` permanece `En curso`; roles no-owner, preferencias, matriz completa de navegadores y certificación WCAG manual siguen fuera. No hubo deploy.

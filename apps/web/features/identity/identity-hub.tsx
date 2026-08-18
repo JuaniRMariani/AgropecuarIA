@@ -655,6 +655,9 @@ export function IdentityHub() {
   >({});
   const [ownerMembershipAction, setOwnerMembershipAction] =
     useState<OwnerMembershipActionState>({ kind: "idle" });
+  const [activeOrganizationId, setActiveOrganizationId] = useState<
+    string | null
+  >(null);
   const organizationAttemptKey = useRef<string | null>(null);
   const invitationToken = useRef<string | null>(null);
   const invitationAction = useRef<StoredOwnerInvitationAction | null>(null);
@@ -662,7 +665,31 @@ export function IdentityHub() {
   const invitationCreateKeys = useRef<Record<string, string>>({});
   const ownerInvitationsAvailable = useRef(false);
   const ownerMembershipRequestVersions = useRef<Record<string, number>>({});
+  const ownerInvitationRequestVersions = useRef<Record<string, number>>({});
+  const activeOrganizationIdRef = useRef<string | null>(null);
   const mounted = useRef(true);
+
+  const handleActiveOrganizationChange = useCallback(
+    (organizationId: string | null) => {
+      const previousOrganizationId = activeOrganizationIdRef.current;
+      if (previousOrganizationId === organizationId) return;
+      if (previousOrganizationId !== null) {
+        ownerMembershipRequestVersions.current[previousOrganizationId] =
+          (ownerMembershipRequestVersions.current[previousOrganizationId] ??
+            0) + 1;
+        ownerInvitationRequestVersions.current[previousOrganizationId] =
+          (ownerInvitationRequestVersions.current[previousOrganizationId] ??
+            0) + 1;
+      }
+      activeOrganizationIdRef.current = organizationId;
+      setActiveOrganizationId(organizationId);
+      setOwnerMemberships({});
+      setOwnerInvitations({});
+      setOwnerMembershipAction({ kind: "idle" });
+      setOwnerInvitationAction({ kind: "idle" });
+    },
+    [],
+  );
 
   useEffect(() => {
     ownerInvitationsAvailable.current =
@@ -1049,8 +1076,14 @@ export function IdentityHub() {
 
   const refreshOwnerInvitations = useCallback(
     async (organizationId: string, signal?: AbortSignal) => {
+      const requestVersion =
+        (ownerInvitationRequestVersions.current[organizationId] ?? 0) + 1;
+      ownerInvitationRequestVersions.current[organizationId] = requestVersion;
       await Promise.resolve();
-      if (signal?.aborted === true) {
+      if (
+        signal?.aborted === true ||
+        activeOrganizationIdRef.current !== organizationId
+      ) {
         return;
       }
       setOwnerInvitations((current) => ({
@@ -1059,14 +1092,25 @@ export function IdentityHub() {
       }));
       try {
         const items = await listOwnerInvitations(organizationId, signal);
-        if (mounted.current) {
+        if (
+          mounted.current &&
+          ownerInvitationRequestVersions.current[organizationId] ===
+            requestVersion &&
+          activeOrganizationIdRef.current === organizationId
+        ) {
           setOwnerInvitations((current) => ({
             ...current,
             [organizationId]: { kind: "ready", items },
           }));
         }
       } catch (error) {
-        if (!isAbort(error) && mounted.current) {
+        if (
+          !isAbort(error) &&
+          mounted.current &&
+          ownerInvitationRequestVersions.current[organizationId] ===
+            requestVersion &&
+          activeOrganizationIdRef.current === organizationId
+        ) {
           const kind =
             error instanceof TypeError && !window.navigator.onLine
               ? "offline"
@@ -1087,7 +1131,10 @@ export function IdentityHub() {
         (ownerMembershipRequestVersions.current[organizationId] ?? 0) + 1;
       ownerMembershipRequestVersions.current[organizationId] = requestVersion;
       await Promise.resolve();
-      if (signal?.aborted === true) {
+      if (
+        signal?.aborted === true ||
+        activeOrganizationIdRef.current !== organizationId
+      ) {
         return;
       }
       setOwnerMemberships((current) => ({
@@ -1102,7 +1149,8 @@ export function IdentityHub() {
         if (
           mounted.current &&
           ownerMembershipRequestVersions.current[organizationId] ===
-            requestVersion
+            requestVersion &&
+          activeOrganizationIdRef.current === organizationId
         ) {
           setOwnerMemberships((current) => ({
             ...current,
@@ -1114,7 +1162,8 @@ export function IdentityHub() {
           !isAbort(error) &&
           mounted.current &&
           ownerMembershipRequestVersions.current[organizationId] ===
-            requestVersion
+            requestVersion &&
+          activeOrganizationIdRef.current === organizationId
         ) {
           let kind: OwnerMembershipResourceState["kind"] = "error";
           if (error instanceof TypeError && !window.navigator.onLine) {
@@ -1194,7 +1243,8 @@ export function IdentityHub() {
           failure.kind === "last-owner" ||
           failure.kind === "stale" ||
           failure.kind === "unavailable" ||
-          failure.kind === "conflict"
+          failure.kind === "conflict" ||
+          failure.kind === "rate-limited"
         ) {
           ownerRemovalAction.current = null;
           clearOwnerRemovalAction();
@@ -1570,6 +1620,7 @@ export function IdentityHub() {
 
   useEffect(() => {
     if (resource.kind !== "authenticated") {
+      handleActiveOrganizationChange(null);
       if (invitationToken.current !== null && resource.kind === "signed-out") {
         setOwnerInvitationAcceptance({
           kind: "reauthentication-required",
@@ -1593,25 +1644,32 @@ export function IdentityHub() {
       if (controller.signal.aborted) {
         return;
       }
-      for (const membership of resource.session.memberships) {
-        if (membership.role.toLowerCase() === "owner") {
-          void refreshOwnerMemberships(
-            membership.organizationId,
+      const activeMembership = resource.session.memberships.find(
+        (membership) =>
+          membership.organizationId === activeOrganizationId &&
+          membership.role.toLowerCase() === "owner",
+      );
+      if (activeMembership !== undefined) {
+        void refreshOwnerMemberships(
+          activeMembership.organizationId,
+          controller.signal,
+        );
+        if (resource.capabilities.ownerInvitationsAvailable) {
+          void refreshOwnerInvitations(
+            activeMembership.organizationId,
             controller.signal,
           );
-          if (resource.capabilities.ownerInvitationsAvailable) {
-            void refreshOwnerInvitations(
-              membership.organizationId,
-              controller.signal,
-            );
-          }
         }
       }
       if (resource.capabilities.ownerInvitationsAvailable) {
         const storedAction = takeOwnerInvitationAction();
         if (storedAction !== null) {
-          invitationAction.current = storedAction;
-          void executeOwnerInvitationAction(storedAction);
+          if (storedAction.organizationId === activeOrganizationId) {
+            invitationAction.current = storedAction;
+            void executeOwnerInvitationAction(storedAction);
+          } else {
+            storeOwnerInvitationAction(storedAction);
+          }
         }
         if (invitationToken.current !== null) {
           void handleAcceptOwnerInvitation();
@@ -1619,8 +1677,12 @@ export function IdentityHub() {
       }
       const storedRemoval = takeOwnerRemovalAction();
       if (storedRemoval !== null) {
-        ownerRemovalAction.current = storedRemoval;
-        void executeOwnerRemoval(storedRemoval);
+        if (storedRemoval.organizationId === activeOrganizationId) {
+          ownerRemovalAction.current = storedRemoval;
+          void executeOwnerRemoval(storedRemoval);
+        } else {
+          storeOwnerRemovalAction(storedRemoval);
+        }
       }
     });
     return () => controller.abort();
@@ -1628,14 +1690,17 @@ export function IdentityHub() {
     executeOwnerInvitationAction,
     executeOwnerRemoval,
     handleAcceptOwnerInvitation,
+    handleActiveOrganizationChange,
     refreshOwnerInvitations,
     refreshOwnerMemberships,
+    activeOrganizationId,
     resource,
   ]);
 
   return (
     <IdentityView
       notice={notice}
+      onActiveOrganizationChange={handleActiveOrganizationChange}
       onAcceptOwnerInvitation={() => void handleAcceptOwnerInvitation()}
       onCancelOrganization={handleCancelOrganization}
       onCreateOrganization={() => void handleCreateOrganization()}

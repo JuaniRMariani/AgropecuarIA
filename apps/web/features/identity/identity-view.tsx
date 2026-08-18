@@ -1,8 +1,15 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { formatShortId } from "../../lib/format-id";
-import { FieldManagement } from "../fields/field-management";
+import {
+  FieldManagement,
+  type FieldContextGuard,
+} from "../fields/field-management";
 import { TerritoryExplorer } from "../territory/territory-explorer";
+import {
+  OwnerWorkspaceShell,
+  type WorkspaceGuard,
+} from "../workspace/owner-workspace";
 
 import type {
   IdentityAction,
@@ -60,6 +67,7 @@ type IdentityViewProps = Readonly<{
   onRetryOwnerRemoval: () => void;
   onResumeOwnerRemoval: () => void;
   onDismissOwnerRemoval: () => void;
+  onActiveOrganizationChange?: (organizationId: string | null) => void;
 }>;
 
 const CONNECTION_LABELS = {
@@ -611,13 +619,13 @@ function OwnerMembershipManagement({
   const retryable =
     action.kind === "offline" ||
     action.kind === "service-unavailable" ||
-    action.kind === "rate-limited" ||
     action.kind === "error";
   const dismissible =
     action.kind === "last-owner" ||
     action.kind === "stale" ||
     action.kind === "unavailable" ||
     action.kind === "conflict" ||
+    action.kind === "rate-limited" ||
     action.kind === "removed";
 
   return (
@@ -1157,6 +1165,7 @@ function CurrentSession({
   onRetryOwnerRemoval,
   onResumeOwnerRemoval,
   onDismissOwnerRemoval,
+  onActiveOrganizationChange,
 }: Readonly<{
   capabilities: IdentityCapabilities;
   session: IdentitySession;
@@ -1189,6 +1198,7 @@ function CurrentSession({
   onRetryOwnerRemoval: IdentityViewProps["onRetryOwnerRemoval"];
   onResumeOwnerRemoval: IdentityViewProps["onResumeOwnerRemoval"];
   onDismissOwnerRemoval: IdentityViewProps["onDismissOwnerRemoval"];
+  onActiveOrganizationChange: (organizationId: string | null) => void;
 }>) {
   const connections = new Set(
     session.identities.map((identity) => identity.connection),
@@ -1197,166 +1207,235 @@ function CurrentSession({
     isConnectionAvailable(capabilities, "email") && !connections.has("email");
   const canLinkGoogle =
     isConnectionAvailable(capabilities, "google") && !connections.has("google");
+  const [fieldContextGuard, setFieldContextGuard] =
+    useState<FieldContextGuard>("clear");
+  const accountPending =
+    organizationCreation.kind === "submitting" ||
+    organizationCreation.kind === "in-progress" ||
+    organizationCreation.kind === "reconciliation-required";
+  const teamPending =
+    ownerInvitationAction.kind === "creating" ||
+    ownerInvitationAction.kind === "revoking" ||
+    ownerInvitationAction.kind === "revealed";
+  const ownerContextPending =
+    ownerMembershipAction.kind === "removing" ||
+    ownerMembershipAction.kind === "reauthentication-required" ||
+    ownerMembershipAction.kind === "service-unavailable" ||
+    ownerMembershipAction.kind === "offline" ||
+    ownerMembershipAction.kind === "error";
+  const teamDirty = ownerMembershipAction.kind === "confirming";
+  const accountDirty =
+    organizationFormOpen && organizationDraft.trim().length > 0;
+  const workspaceGuard: WorkspaceGuard =
+    accountPending || teamPending || fieldContextGuard === "pending"
+      ? "pending"
+      : ownerContextPending
+        ? "context-pending"
+        : accountDirty || teamDirty || fieldContextGuard === "dirty"
+          ? "dirty"
+          : "clear";
+
+  const organizationOnboarding = (
+    <OrganizationOnboarding
+      creation={organizationCreation}
+      draft={organizationDraft}
+      formOpen={organizationFormOpen}
+      onCancel={onCancelOrganization}
+      onCreate={onCreateOrganization}
+      onDraftChange={onOrganizationDraftChange}
+      onStart={onStartOrganization}
+      onReauthenticate={onReauthenticateOrganization}
+      session={session}
+    />
+  );
 
   return (
     <div className="session-stack">
-      <section className="session-card" aria-labelledby="session-title">
-        <div>
-          <p className="section-kicker">Sesión actual</p>
-          <h2 id="session-title">{session.displayName}</h2>
-          <p className="session-email">
-            Usuario {formatShortId(session.userId)}
-          </p>
-        </div>
-        <div className="session-chip">
-          <span aria-hidden="true" />
-          Activa
-        </div>
-      </section>
-
-      <AuthenticationCard
-        capabilities={capabilities}
-        onStepUp={onStepUp}
-        pendingAction={pendingAction}
-        session={session}
-      />
-
-      <section className="identity-card" aria-labelledby="identities-title">
-        <div className="section-heading">
-          <div>
-            <p className="section-kicker">Seguridad de cuenta</p>
-            <h2 id="identities-title">Identidades vinculadas</h2>
-          </div>
-          <span
-            className="count-chip"
-            aria-label={`${session.identities.length} identidades`}
-          >
-            {session.identities.length}
-          </span>
-        </div>
-
-        {session.identities.length > 0 ? (
-          <ul className="identity-list">
-            {session.identities.map((identity) => (
-              <IdentityRow
-                canUnlink={session.identities.length > 1}
-                identity={identity}
-                key={identity.identityId}
-                onUnlink={onUnlink}
-                pendingAction={pendingAction}
+      <OwnerWorkspaceShell
+        guard={workspaceGuard}
+        memberships={session.memberships}
+        onActiveOrganizationChange={onActiveOrganizationChange}
+        onDiscardDraft={() => {
+          onCancelOrganization();
+          if (ownerMembershipAction.kind === "confirming") {
+            onCancelOwnerRemoval();
+          }
+        }}
+        onboarding={organizationOnboarding}
+      >
+        {(workspace) => {
+          const activeSession: IdentitySession = {
+            ...session,
+            memberships: [workspace.membership],
+          };
+          if (workspace.view === "fields") {
+            return (
+              <FieldManagement
+                key={workspace.membership.organizationId}
+                onContextGuardChange={setFieldContextGuard}
+                organizations={[workspace.membership]}
               />
-            ))}
-          </ul>
-        ) : (
-          <div className="empty-state" role="status">
-            <strong>No hay identidades disponibles</strong>
-            <p>
-              La sesión no puede operar hasta recuperar una credencial
-              verificada.
-            </p>
-          </div>
-        )}
+            );
+          }
+          if (workspace.view === "territory") return <TerritoryExplorer />;
+          if (workspace.view === "team") {
+            return (
+              <>
+                <OwnerMembershipManagement
+                  action={ownerMembershipAction}
+                  onBeginRemoval={onBeginOwnerRemoval}
+                  onCancelRemoval={onCancelOwnerRemoval}
+                  onConfirmRemoval={onConfirmOwnerRemoval}
+                  onDismissRemoval={onDismissOwnerRemoval}
+                  onRefresh={onRefreshOwnerMemberships}
+                  onResumeRemoval={onResumeOwnerRemoval}
+                  onRetryRemoval={onRetryOwnerRemoval}
+                  resources={ownerMemberships}
+                  session={activeSession}
+                />
+                {capabilities.ownerInvitationsAvailable ? (
+                  <OwnerInvitationManagement
+                    action={ownerInvitationAction}
+                    onCopy={onCopyOwnerInvitation}
+                    onCreate={onCreateOwnerInvitation}
+                    onRefresh={onRefreshOwnerInvitations}
+                    onResume={onResumeOwnerManagement}
+                    onRevoke={onRevokeOwnerInvitation}
+                    resources={ownerInvitations}
+                    session={activeSession}
+                  />
+                ) : null}
+              </>
+            );
+          }
+          return (
+            <>
+              <section className="session-card" aria-labelledby="session-title">
+                <div>
+                  <p className="section-kicker">Sesión actual</p>
+                  <h2 id="session-title">{session.displayName}</h2>
+                  <p className="session-email">
+                    Usuario {formatShortId(session.userId)}
+                  </p>
+                </div>
+                <div className="session-chip">
+                  <span aria-hidden="true" />
+                  Activa
+                </div>
+              </section>
 
-        {canLinkEmail || canLinkGoogle ? (
-          <div className="link-panel">
-            <div>
-              <p className="section-kicker">Segundo acceso</p>
-              <h3>Vinculá otra identidad</h3>
-              <p>
-                Vas a reautenticar ambas credenciales. Coincidir por correo
-                nunca alcanza.
-              </p>
-            </div>
-            <div className="link-actions">
-              {canLinkEmail ? (
+              <AuthenticationCard
+                capabilities={capabilities}
+                onStepUp={onStepUp}
+                pendingAction={pendingAction}
+                session={session}
+              />
+
+              <section
+                className="identity-card"
+                aria-labelledby="identities-title"
+              >
+                <div className="section-heading">
+                  <div>
+                    <p className="section-kicker">Seguridad de cuenta</p>
+                    <h2 id="identities-title">Identidades vinculadas</h2>
+                  </div>
+                  <span
+                    className="count-chip"
+                    aria-label={`${session.identities.length} identidades`}
+                  >
+                    {session.identities.length}
+                  </span>
+                </div>
+
+                {session.identities.length > 0 ? (
+                  <ul className="identity-list">
+                    {session.identities.map((identity) => (
+                      <IdentityRow
+                        canUnlink={session.identities.length > 1}
+                        identity={identity}
+                        key={identity.identityId}
+                        onUnlink={onUnlink}
+                        pendingAction={pendingAction}
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="empty-state" role="status">
+                    <strong>No hay identidades disponibles</strong>
+                    <p>
+                      La sesión no puede operar hasta recuperar una credencial
+                      verificada.
+                    </p>
+                  </div>
+                )}
+
+                {canLinkEmail || canLinkGoogle ? (
+                  <div className="link-panel">
+                    <div>
+                      <p className="section-kicker">Segundo acceso</p>
+                      <h3>Vinculá otra identidad</h3>
+                      <p>
+                        Vas a reautenticar ambas credenciales. Coincidir por
+                        correo nunca alcanza.
+                      </p>
+                    </div>
+                    <div className="link-actions">
+                      {canLinkEmail ? (
+                        <button
+                          className="button button--secondary"
+                          disabled={pendingAction !== null}
+                          onClick={() => onLink("email")}
+                          type="button"
+                        >
+                          {pendingAction === "link-email" ? <Spinner /> : null}
+                          Vincular correo
+                        </button>
+                      ) : null}
+                      {canLinkGoogle ? (
+                        <button
+                          className="button button--secondary"
+                          disabled={pendingAction !== null}
+                          onClick={() => onLink("google")}
+                          type="button"
+                        >
+                          {pendingAction === "link-google" ? (
+                            <Spinner />
+                          ) : (
+                            <span aria-hidden="true">G</span>
+                          )}
+                          Vincular Google
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              {organizationOnboarding}
+
+              <section className="revoke-card" aria-labelledby="revoke-title">
+                <div>
+                  <h2 id="revoke-title">Cerrar esta sesión</h2>
+                  <p>
+                    Revoca el acceso de este navegador sin afectar tus
+                    identidades vinculadas.
+                  </p>
+                </div>
                 <button
-                  className="button button--secondary"
+                  className="button button--danger-quiet"
                   disabled={pendingAction !== null}
-                  onClick={() => onLink("email")}
+                  onClick={onRevoke}
                   type="button"
                 >
-                  {pendingAction === "link-email" ? <Spinner /> : null}
-                  Vincular correo
+                  {pendingAction === "revoke" ? <Spinner /> : null}
+                  Cerrar sesión
                 </button>
-              ) : null}
-              {canLinkGoogle ? (
-                <button
-                  className="button button--secondary"
-                  disabled={pendingAction !== null}
-                  onClick={() => onLink("google")}
-                  type="button"
-                >
-                  {pendingAction === "link-google" ? (
-                    <Spinner />
-                  ) : (
-                    <span aria-hidden="true">G</span>
-                  )}
-                  Vincular Google
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-      </section>
-
-      <OrganizationOnboarding
-        creation={organizationCreation}
-        draft={organizationDraft}
-        formOpen={organizationFormOpen}
-        onCancel={onCancelOrganization}
-        onCreate={onCreateOrganization}
-        onDraftChange={onOrganizationDraftChange}
-        onStart={onStartOrganization}
-        onReauthenticate={onReauthenticateOrganization}
-        session={session}
-      />
-
-      <FieldManagement organizations={session.memberships} />
-
-      <OwnerMembershipManagement
-        action={ownerMembershipAction}
-        onBeginRemoval={onBeginOwnerRemoval}
-        onCancelRemoval={onCancelOwnerRemoval}
-        onConfirmRemoval={onConfirmOwnerRemoval}
-        onDismissRemoval={onDismissOwnerRemoval}
-        onRefresh={onRefreshOwnerMemberships}
-        onResumeRemoval={onResumeOwnerRemoval}
-        onRetryRemoval={onRetryOwnerRemoval}
-        resources={ownerMemberships}
-        session={session}
-      />
-
-      {capabilities.ownerInvitationsAvailable ? (
-        <OwnerInvitationManagement
-          action={ownerInvitationAction}
-          onCopy={onCopyOwnerInvitation}
-          onCreate={onCreateOwnerInvitation}
-          onRefresh={onRefreshOwnerInvitations}
-          onResume={onResumeOwnerManagement}
-          onRevoke={onRevokeOwnerInvitation}
-          resources={ownerInvitations}
-          session={session}
-        />
-      ) : null}
-
-      <section className="revoke-card" aria-labelledby="revoke-title">
-        <div>
-          <h2 id="revoke-title">Cerrar esta sesión</h2>
-          <p>
-            Revoca el acceso de este navegador sin afectar tus identidades
-            vinculadas.
-          </p>
-        </div>
-        <button
-          className="button button--danger-quiet"
-          disabled={pendingAction !== null}
-          onClick={onRevoke}
-          type="button"
-        >
-          {pendingAction === "revoke" ? <Spinner /> : null}
-          Cerrar sesión
-        </button>
-      </section>
+              </section>
+            </>
+          );
+        }}
+      </OwnerWorkspaceShell>
     </div>
   );
 }
@@ -1446,6 +1525,7 @@ export function IdentityView({
   onRetryOwnerRemoval,
   onResumeOwnerRemoval,
   onDismissOwnerRemoval,
+  onActiveOrganizationChange = () => undefined,
 }: IdentityViewProps) {
   return (
     <main className="identity-page">
@@ -1544,6 +1624,7 @@ export function IdentityView({
                 onRetryOwnerRemoval={onRetryOwnerRemoval}
                 onResumeOwnerRemoval={onResumeOwnerRemoval}
                 onDismissOwnerRemoval={onDismissOwnerRemoval}
+                onActiveOrganizationChange={onActiveOrganizationChange}
                 onResumeOwnerManagement={onResumeOwnerManagement}
                 onRevokeOwnerInvitation={onRevokeOwnerInvitation}
                 organizationCreation={organizationCreation}
@@ -1556,7 +1637,6 @@ export function IdentityView({
                 pendingAction={pendingAction}
                 session={resource.session}
               />
-              <TerritoryExplorer />
             </>
           ) : null}
           {resource.kind === "revoked" ||

@@ -123,6 +123,67 @@ function shortId(value: string): string {
   return value.replaceAll("-", "").slice(0, 6).toUpperCase();
 }
 
+async function waitForWorkspaceState(page: Page): Promise<void> {
+  await expect(
+    page
+      .getByRole("button", { name: "Crear mi organización" })
+      .or(page.getByRole("heading", { name: "Elegir organización" }))
+      .or(page.getByRole("heading", { name: /^Espacio de / })),
+  ).toBeVisible();
+}
+
+async function chooseFirstOrganizationWhenRequired(page: Page): Promise<void> {
+  await waitForWorkspaceState(page);
+  const selector = page.getByRole("heading", { name: "Elegir organización" });
+  if (await selector.isVisible()) {
+    await page
+      .getByRole("listitem")
+      .filter({ hasText: "Organización " })
+      .first()
+      .getByRole("button")
+      .click();
+  }
+}
+
+async function openOrganizationCreator(page: Page): Promise<void> {
+  await waitForWorkspaceState(page);
+  const firstOrganization = page.getByRole("button", {
+    name: "Crear mi organización",
+  });
+  if (await firstOrganization.isVisible()) {
+    await firstOrganization.click();
+    return;
+  }
+
+  await chooseFirstOrganizationWhenRequired(page);
+  await page.getByRole("button", { name: "Cuenta" }).click();
+  await page.getByRole("button", { name: "Crear otra" }).click();
+}
+
+async function selectOrganization(
+  page: Page,
+  organizationId: string,
+): Promise<void> {
+  const prefix = shortId(organizationId);
+  if (new URL(page.url()).searchParams.get("org") === prefix) return;
+
+  const changeOrganization = page.getByRole("button", {
+    name: "Cambiar organización",
+  });
+  if (await changeOrganization.isVisible()) {
+    await changeOrganization.click();
+  }
+  await expect(
+    page.getByRole("heading", { name: "Elegir organización" }),
+  ).toBeVisible();
+  await page
+    .getByRole("listitem")
+    .filter({ hasText: `Organización ${prefix}` })
+    .getByRole("button")
+    .click();
+  await expect(page).toHaveURL(new RegExp(`\\?org=${prefix}&view=fields$`));
+}
+
 test.describe("identity access", () => {
   test.beforeEach(async ({ page }) => {
     trackBrowserErrors(page);
@@ -136,7 +197,7 @@ test.describe("identity access", () => {
     browser,
     page,
   }, testInfo) => {
-    testInfo.setTimeout(60_000);
+    testInfo.setTimeout(90_000);
     await page.goto("/");
     await expectNoAccessibilityViolations(page);
 
@@ -151,26 +212,33 @@ test.describe("identity access", () => {
     await expect(
       page.getByRole("heading", { name: "Tu acceso", exact: true }),
     ).toBeVisible();
-    const startOrganization = page.getByRole("button", {
-      name: /Crear (mi organización|otra)/,
-    });
-    await expect(startOrganization).toBeVisible();
-    await startOrganization.click();
+    const previousOrganizationIds = await loadOrganizationIds(page);
+    await openOrganizationCreator(page);
+    const ownerOrganizationName = `Establecimiento La Esperanza ${testInfo.project.name}`;
     const organizationName = page.getByRole("textbox", {
       name: "Nombre de la organización",
     });
-    await organizationName.fill("Establecimiento La Esperanza");
+    await organizationName.fill(ownerOrganizationName);
     await page.getByRole("button", { name: "Crear organización" }).click();
     await expect(
-      page.getByText("Establecimiento La Esperanza ya está lista y sos owner."),
+      page.getByText(`${ownerOrganizationName} ya está lista y sos owner.`),
     ).toBeVisible();
+    const ownerOrganizationId = await loadNewOrganizationId(
+      page,
+      previousOrganizationIds,
+    );
+    await selectOrganization(page, ownerOrganizationId);
+    await page.getByRole("button", { name: "Cuenta" }).click();
     await expect(
       page.getByRole("heading", { name: "Tus organizaciones" }),
     ).toBeVisible();
-    await expect(page.getByText("owner", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("owner", { exact: true }).first(),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Crear otra" }),
     ).toBeVisible();
+    await page.getByRole("button", { name: "Campos" }).click();
 
     await page.getByRole("button", { name: "Crear campo" }).click();
     const fieldName = page.getByRole("textbox", {
@@ -183,7 +251,7 @@ test.describe("identity access", () => {
     ).toBeVisible();
     await expectNoAccessibilityViolations(page);
 
-    const ownerField = await page.evaluate(async () => {
+    const ownerField = await page.evaluate(async (selectedOrganizationName) => {
       const sessionResponse = await fetch("/api/identity/session", {
         cache: "no-store",
         credentials: "include",
@@ -202,7 +270,7 @@ test.describe("identity access", () => {
           typeof item === "object" &&
           item !== null &&
           "organizationName" in item &&
-          item.organizationName === "Establecimiento La Esperanza",
+          item.organizationName === selectedOrganizationName,
       );
       if (
         typeof membership !== "object" ||
@@ -231,7 +299,7 @@ test.describe("identity access", () => {
         organizationId: membership.organizationId,
         fieldId: fieldsPayload[0].fieldId,
       };
-    });
+    }, ownerOrganizationName);
 
     await page.reload();
     await expect(
@@ -282,6 +350,8 @@ test.describe("identity access", () => {
       page.getByRole("heading", { name: "Campo Sur", level: 4 }),
     ).toBeVisible();
 
+    await page.getByRole("button", { name: "Cuenta" }).click();
+
     const linkGoogle = page.getByRole("button", {
       name: "Vincular Google",
       exact: true,
@@ -317,6 +387,8 @@ test.describe("identity access", () => {
     ).toBeVisible();
     await expect(page.getByText(/custodiados por el proveedor/i)).toBeVisible();
 
+    await page.getByRole("button", { name: "Equipo" }).click();
+
     const createOwnerInvitation = page
       .getByRole("button", { name: "Verificar y crear enlace" })
       .first();
@@ -348,48 +420,52 @@ test.describe("identity access", () => {
     await signInWithExplicitFixture(inviteePage, inviteeFixture);
     await inviteePage.reload();
     await expect(
-      inviteePage.getByText(
-        "Ya sos co-owner de Establecimiento La Esperanza.",
-        {
-          exact: true,
-        },
-      ),
+      inviteePage.getByText(`Ya sos co-owner de ${ownerOrganizationName}.`, {
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(inviteePage).not.toHaveURL(/owner-invitation=/);
+    await inviteePage.getByRole("button", { name: "Equipo" }).click();
     await expect(
-      inviteePage.getByText("owner", { exact: true }).first(),
+      inviteePage
+        .getByRole("region", { name: "Co-owners" })
+        .getByText("Owner", { exact: true })
+        .first(),
     ).toBeVisible();
-    const organizationId = await inviteePage.evaluate(async () => {
-      const response = await fetch("/api/identity/session", {
-        cache: "no-store",
-        credentials: "include",
-      });
-      const payload: unknown = await response.json();
-      if (
-        typeof payload !== "object" ||
-        payload === null ||
-        !("memberships" in payload) ||
-        !Array.isArray(payload.memberships)
-      ) {
-        throw new Error("Invitee session did not expose memberships.");
-      }
-      const membership = payload.memberships.find(
-        (item: unknown) =>
-          typeof item === "object" &&
-          item !== null &&
-          "organizationName" in item &&
-          item.organizationName === "Establecimiento La Esperanza",
-      );
-      if (
-        typeof membership !== "object" ||
-        membership === null ||
-        !("organizationId" in membership) ||
-        typeof membership.organizationId !== "string"
-      ) {
-        throw new Error("Invitee session did not expose the accepted org.");
-      }
-      return membership.organizationId;
-    });
+    const organizationId = await inviteePage.evaluate(
+      async (selectedOrganizationName) => {
+        const response = await fetch("/api/identity/session", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const payload: unknown = await response.json();
+        if (
+          typeof payload !== "object" ||
+          payload === null ||
+          !("memberships" in payload) ||
+          !Array.isArray(payload.memberships)
+        ) {
+          throw new Error("Invitee session did not expose memberships.");
+        }
+        const membership = payload.memberships.find(
+          (item: unknown) =>
+            typeof item === "object" &&
+            item !== null &&
+            "organizationName" in item &&
+            item.organizationName === selectedOrganizationName,
+        );
+        if (
+          typeof membership !== "object" ||
+          membership === null ||
+          !("organizationId" in membership) ||
+          typeof membership.organizationId !== "string"
+        ) {
+          throw new Error("Invitee session did not expose the accepted org.");
+        }
+        return membership.organizationId;
+      },
+      ownerOrganizationName,
+    );
     expect(browserErrors.get(inviteePage) ?? []).toEqual([]);
 
     const attackerContext = await browser.newContext();
@@ -408,23 +484,24 @@ test.describe("identity access", () => {
       attackerPage.getByRole("heading", { name: "Enlace no disponible" }),
     ).toBeVisible();
     const attackerOrganizationIds = await loadOrganizationIds(attackerPage);
-    const attackerCreateOrganization = attackerPage.getByRole("button", {
-      name: /Crear (mi organización|otra)/,
-    });
-    await attackerCreateOrganization.click();
+    await openOrganizationCreator(attackerPage);
+    const attackerOrganizationName = `Organización B ${testInfo.project.name}`;
     await attackerPage
       .getByRole("textbox", { name: "Nombre de la organización" })
-      .fill("Organización B");
+      .fill(attackerOrganizationName);
     await attackerPage
       .getByRole("button", { name: "Crear organización" })
       .click();
     await expect(
-      attackerPage.getByText("Organización B ya está lista y sos owner."),
+      attackerPage.getByText(
+        `${attackerOrganizationName} ya está lista y sos owner.`,
+      ),
     ).toBeVisible();
     const tenantBOrganizationId = await loadNewOrganizationId(
       attackerPage,
       attackerOrganizationIds,
     );
+    await selectOrganization(attackerPage, tenantBOrganizationId);
     const tenantBCard = attackerPage.getByRole("article").filter({
       hasText: `Organización ${shortId(tenantBOrganizationId)}`,
     });
@@ -524,11 +601,9 @@ test.describe("identity access", () => {
     await expectNoAccessibilityViolations(page);
 
     await inviteePage.reload();
+    await waitForWorkspaceState(inviteePage);
     await expect(
-      inviteePage.getByRole("heading", { name: "Tus organizaciones" }),
-    ).toBeVisible();
-    await expect(
-      inviteePage.getByText("Establecimiento La Esperanza", { exact: true }),
+      inviteePage.getByText(ownerOrganizationName, { exact: true }),
     ).toBeHidden();
     const removedInviteeDirectoryStatus = await inviteePage.evaluate(
       async (acceptedOrganizationId) => {
@@ -582,7 +657,7 @@ test.describe("identity access", () => {
 
   test("keeps the critical flow keyboard reachable in a narrow viewport", async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
@@ -602,25 +677,26 @@ test.describe("identity access", () => {
     await expect(sessionHeading).toBeVisible();
 
     const previousOrganizationIds = await loadOrganizationIds(page);
-
+    await openOrganizationCreator(page);
     const createOrganization = page.getByRole("button", {
-      name: /Crear (mi organización|otra)/,
+      name: "Crear organización",
     });
-    await createOrganization.focus();
-    await expect(createOrganization).toBeFocused();
-    await page.keyboard.press("Enter");
+    const mobileOrganizationName = `Campo móvil ${testInfo.project.name}`;
     const organizationName = page.getByRole("textbox", {
       name: "Nombre de la organización",
     });
-    await organizationName.fill("Campo móvil");
+    await expect(organizationName).toBeFocused();
+    await organizationName.fill(mobileOrganizationName);
     await organizationName.press("Enter");
     await expect(
-      page.getByText("Campo móvil ya está lista y sos owner."),
+      page.getByText(`${mobileOrganizationName} ya está lista y sos owner.`),
     ).toBeVisible();
+    await expect(createOrganization).toBeHidden();
     const mobileOrganizationId = await loadNewOrganizationId(
       page,
       previousOrganizationIds,
     );
+    await selectOrganization(page, mobileOrganizationId);
     const mobileOrganizationCard = page.getByRole("article").filter({
       hasText: `Organización ${shortId(mobileOrganizationId)}`,
     });
@@ -657,6 +733,8 @@ test.describe("identity access", () => {
       }),
     ).toBeVisible();
     await expectNoAccessibilityViolations(page);
+
+    await page.getByRole("button", { name: "Cuenta" }).click();
 
     const revoke = page.getByRole("button", { name: "Cerrar sesión" });
     await revoke.focus();

@@ -22,6 +22,8 @@ import {
 
 import type { FieldOrganization, FieldSummary } from "./field-types";
 
+export type FieldContextGuard = "clear" | "dirty" | "pending";
+
 type FieldResourceState =
   | Readonly<{ kind: "loading" }>
   | Readonly<{ kind: "ready"; items: readonly FieldSummary[] }>
@@ -567,7 +569,11 @@ function FieldSpinner() {
 
 export function FieldManagement({
   organizations,
-}: Readonly<{ organizations: readonly FieldOrganization[] }>) {
+  onContextGuardChange,
+}: Readonly<{
+  organizations: readonly FieldOrganization[];
+  onContextGuardChange?: (guard: FieldContextGuard) => void;
+}>) {
   const titleId = useId();
   const formHelpId = useId();
   const ownerOrganizations = useMemo(
@@ -598,6 +604,33 @@ export function FieldManagement({
   const inputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const renameTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
+
+  const contextGuard: FieldContextGuard = useMemo(() => {
+    const creationPending =
+      creation.kind === "submitting" ||
+      creation.kind === "in-progress" ||
+      creation.kind === "reconciliation-required" ||
+      creation.kind === "service-unavailable";
+    const renamePending =
+      rename.kind === "submitting" ||
+      rename.kind === "reloading" ||
+      rename.kind === "in-progress" ||
+      rename.kind === "reconciliation-required" ||
+      rename.kind === "service-unavailable";
+    if (creationPending || renamePending) return "pending";
+
+    const createDraftOpen =
+      formOrganizationId !== null && draft.trim().length > 0;
+    const renameDraftChanged =
+      "attempt" in rename &&
+      rename.attempt.displayName !== rename.attempt.baseDisplayName;
+    return createDraftOpen || renameDraftChanged ? "dirty" : "clear";
+  }, [creation.kind, draft, formOrganizationId, rename]);
+
+  useEffect(() => {
+    onContextGuardChange?.(contextGuard);
+    return () => onContextGuardChange?.("clear");
+  }, [contextGuard, onContextGuardChange]);
 
   const refreshFields = useCallback(
     async (organizationId: string, signal?: AbortSignal) => {
@@ -654,13 +687,15 @@ export function FieldManagement({
     if (restoredAttempt.current || ownerOrganizations.length === 0) return;
     restoredAttempt.current = true;
     const stored = readStoredAttempt();
+    if (stored === null) {
+      clearStoredAttempt();
+      return;
+    }
     if (
-      stored === null ||
       !ownerOrganizations.some(
         (organization) => organization.organizationId === stored.organizationId,
       )
     ) {
-      clearStoredAttempt();
       return;
     }
     attemptKey.current = stored.idempotencyKey;
@@ -826,13 +861,15 @@ export function FieldManagement({
     }
     restoredRenameAttempt.current = true;
     const stored = readStoredRenameAttempt();
+    if (stored === null) {
+      clearStoredRenameAttempt();
+      return;
+    }
     if (
-      stored === null ||
       !ownerOrganizations.some(
         (organization) => organization.organizationId === stored.organizationId,
       )
     ) {
-      clearStoredRenameAttempt();
       return;
     }
 

@@ -31,6 +31,43 @@ async function signIn(page: import("@playwright/test").Page): Promise<void> {
   expect(status).toBe(204);
 }
 
+async function openTerritoryWorkspace(
+  page: import("@playwright/test").Page,
+  projectName: string,
+): Promise<void> {
+  const createFirstOrganization = page.getByRole("button", {
+    name: "Crear mi organización",
+  });
+  const selector = page.getByRole("heading", { name: "Elegir organización" });
+  const activeWorkspace = page.getByRole("heading", { name: /^Espacio de / });
+  await expect(
+    createFirstOrganization.or(selector).or(activeWorkspace),
+  ).toBeVisible();
+
+  if (await createFirstOrganization.isVisible()) {
+    await createFirstOrganization.click();
+    await page
+      .getByRole("textbox", { name: "Nombre de la organización" })
+      .fill(`Territorio E2E ${projectName}`);
+    await page.getByRole("button", { name: "Crear organización" }).click();
+    await expect(
+      page.getByRole("button", { name: "Territorio" }),
+    ).toBeVisible();
+  } else if (await selector.isVisible()) {
+    await page
+      .getByRole("listitem")
+      .filter({ hasText: "Organización " })
+      .first()
+      .getByRole("button")
+      .click();
+  }
+
+  await page.getByRole("button", { name: "Territorio" }).click();
+  await expect(
+    page.getByRole("button", { name: "Territorio" }),
+  ).toHaveAttribute("aria-current", "page");
+}
+
 test("searches the official territory snapshot reactively and by keyboard", async ({
   page,
 }, testInfo) => {
@@ -40,6 +77,7 @@ test("searches the official territory snapshot reactively and by keyboard", asyn
   await page.goto("/");
   await signIn(page);
   await page.reload();
+  await openTerritoryWorkspace(page, testInfo.project.name);
   await page.route("**/api/territory/search?*", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     await route.continue();

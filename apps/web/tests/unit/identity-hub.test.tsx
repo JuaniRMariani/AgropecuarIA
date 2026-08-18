@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -8,6 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { FieldSummary } from "../../features/fields/field-types";
 import type {
   CreatedOwnerInvitation,
   CreatedOrganization,
@@ -18,6 +20,16 @@ import type {
   RemovedOrganizationOwnerMembership,
   StepUpAttempt,
 } from "../../features/identity/identity-types";
+
+const fieldApiMocks = vi.hoisted(() => ({
+  listFields:
+    vi.fn<
+      (
+        organizationId: string,
+        signal?: AbortSignal,
+      ) => Promise<readonly FieldSummary[]>
+    >(),
+}));
 
 const apiMocks = vi.hoisted(() => ({
   acceptOwnerInvitation:
@@ -70,6 +82,12 @@ vi.mock("../../features/identity/identity-api", async (importOriginal) => {
       typeof import("../../features/identity/identity-api")
     >();
   return { ...actual, ...apiMocks };
+});
+
+vi.mock("../../features/fields/field-api", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../features/fields/field-api")>();
+  return { ...actual, ...fieldApiMocks };
 });
 
 import {
@@ -129,7 +147,27 @@ beforeEach(() => {
   apiMocks.loadSession.mockResolvedValue(session);
   apiMocks.listOrganizationOwnerMemberships.mockResolvedValue([]);
   apiMocks.identityLoginUrl.mockReturnValue("#reauthenticate");
+  fieldApiMocks.listFields.mockResolvedValue([]);
 });
+
+function deferred<T>(): Readonly<{
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+}> {
+  let resolvePromise: ((value: T) => void) | undefined;
+  const promise = new Promise<T>((resolve) => {
+    resolvePromise = resolve;
+  });
+  return {
+    promise,
+    resolve(value) {
+      if (resolvePromise === undefined) {
+        throw new Error("Deferred promise was not initialized.");
+      }
+      resolvePromise(value);
+    },
+  };
+}
 
 afterEach(() => {
   cleanup();
@@ -154,6 +192,161 @@ async function openAndSubmitOrganization(): Promise<void> {
     expect(apiMocks.createOrganization).toHaveBeenCalledOnce(),
   );
 }
+
+describe("IdentityHub owner workspace scoping", () => {
+  const organizationAId = "1266395e-ec88-481e-9a72-81fa2cc2904a";
+  const organizationBId = "64eb2297-6603-4fc9-b2b0-a582a7bf1992";
+  const multiOrganizationSession: IdentitySession = {
+    ...session,
+    memberships: [
+      {
+        organizationId: organizationAId,
+        organizationName: "Establecimiento Gemelo",
+        role: "owner",
+      },
+      {
+        organizationId: organizationBId,
+        organizationName: "Establecimiento Gemelo",
+        role: "owner",
+      },
+    ],
+  };
+
+  it("loads fields, owner memberships and invitations only for the active organization", async () => {
+    globalThis.history.replaceState({}, "", "/?org=126639&view=fields");
+    apiMocks.loadCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      ownerInvitationsAvailable: true,
+    });
+    apiMocks.loadSession.mockResolvedValueOnce(multiOrganizationSession);
+
+    render(<IdentityHub />);
+
+    await waitFor(() => {
+      expect(fieldApiMocks.listFields).toHaveBeenCalledWith(
+        organizationAId,
+        expect.any(AbortSignal),
+      );
+      expect(apiMocks.listOrganizationOwnerMemberships).toHaveBeenCalledWith(
+        organizationAId,
+        expect.any(AbortSignal),
+      );
+      expect(apiMocks.listOwnerInvitations).toHaveBeenCalledWith(
+        organizationAId,
+        expect.any(AbortSignal),
+      );
+    });
+    expect(fieldApiMocks.listFields).not.toHaveBeenCalledWith(
+      organizationBId,
+      expect.anything(),
+    );
+    expect(apiMocks.listOrganizationOwnerMemberships).not.toHaveBeenCalledWith(
+      organizationBId,
+      expect.anything(),
+    );
+    expect(apiMocks.listOwnerInvitations).not.toHaveBeenCalledWith(
+      organizationBId,
+      expect.anything(),
+    );
+  });
+
+  it("aborts A and rejects its late field and team responses after switching to B", async () => {
+    const fieldsA = deferred<readonly FieldSummary[]>();
+    const membershipsA =
+      deferred<readonly OrganizationOwnerMembershipSummary[]>();
+    const invitationsA = deferred<readonly []>();
+    const fieldA: FieldSummary = {
+      fieldId: "aaaaaa11-3ee8-4e43-adf8-083975f8fa77",
+      organizationId: organizationAId,
+      displayName: "Lote Central",
+      type: "field",
+      status: "draft",
+      spatialStatus: "not_configured",
+      createdAtUtc: "2026-08-18T18:00:00Z",
+      version: "5a5ed442-141f-4fd4-a8e8-52598a5d7426",
+    };
+    const fieldB: FieldSummary = {
+      ...fieldA,
+      fieldId: "bbbbbb77-3ee8-4e43-adf8-083975f8fa77",
+      organizationId: organizationBId,
+    };
+    const ownerA: OrganizationOwnerMembershipSummary = {
+      membershipId: "aaaaaa39-8d8a-49e7-95b7-84fa0660236a",
+      organizationId: organizationAId,
+      displayName: "Owner tardío de A",
+      isCurrentUser: false,
+      role: "owner",
+      status: "active",
+      authorizationVersion: 1,
+      createdAtUtc: "2026-08-18T18:00:00Z",
+      removedAtUtc: null,
+      version: "aaaaaa42-141f-4fd4-a8e8-52598a5d7426",
+    };
+    const ownerB: OrganizationOwnerMembershipSummary = {
+      ...ownerA,
+      membershipId: "bbbbbb39-8d8a-49e7-95b7-84fa0660236a",
+      organizationId: organizationBId,
+      displayName: "Owner vigente de B",
+      version: "bbbbbb42-141f-4fd4-a8e8-52598a5d7426",
+    };
+    globalThis.history.replaceState({}, "", "/?org=126639&view=fields");
+    apiMocks.loadCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      ownerInvitationsAvailable: true,
+    });
+    apiMocks.loadSession.mockResolvedValueOnce(multiOrganizationSession);
+    fieldApiMocks.listFields.mockImplementation((organizationId) =>
+      organizationId === organizationAId
+        ? fieldsA.promise
+        : Promise.resolve([fieldB]),
+    );
+    apiMocks.listOrganizationOwnerMemberships.mockImplementation(
+      (organizationId) =>
+        organizationId === organizationAId
+          ? membershipsA.promise
+          : Promise.resolve([ownerB]),
+    );
+    apiMocks.listOwnerInvitations.mockImplementation((organizationId) =>
+      organizationId === organizationAId
+        ? invitationsA.promise
+        : Promise.resolve([]),
+    );
+
+    render(<IdentityHub />);
+    await waitFor(() =>
+      expect(fieldApiMocks.listFields).toHaveBeenCalledWith(
+        organizationAId,
+        expect.any(AbortSignal),
+      ),
+    );
+
+    act(() => {
+      globalThis.history.pushState({}, "", "/?org=64EB22&view=fields");
+      globalThis.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(await screen.findByText("Campo BBBBBB")).toBeVisible();
+    const fieldsASignal = fieldApiMocks.listFields.mock.calls.find(
+      ([organizationId]) => organizationId === organizationAId,
+    )?.[1];
+    expect(fieldsASignal?.aborted).toBe(true);
+
+    act(() => {
+      fieldsA.resolve([fieldA]);
+      membershipsA.resolve([ownerA]);
+      invitationsA.resolve([]);
+    });
+    await waitFor(() =>
+      expect(screen.queryByText("Campo AAAAAA")).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Equipo" }));
+    expect(await screen.findByText("Owner vigente de B")).toBeVisible();
+    expect(screen.queryByText("Owner tardío de A")).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(organizationAId);
+    expect(document.body).not.toHaveTextContent(organizationBId);
+  });
+});
 
 describe("IdentityHub organization attempts", () => {
   it("creates a visible-ASCII key from exactly 128 CSPRNG bits", async () => {
@@ -193,7 +386,7 @@ describe("IdentityHub organization attempts", () => {
     );
 
     expect(apiMocks.createOrganization.mock.calls[1]?.[1]).toBe(firstKey);
-    expect(await screen.findAllByText("Organización 126639")).toHaveLength(2);
+    expect(await screen.findAllByText("Organización 126639")).toHaveLength(1);
     expect(
       screen
         .getByText("La Esperanza ya está lista y sos owner.")
@@ -273,6 +466,10 @@ describe("IdentityHub organization attempts", () => {
 });
 
 describe("IdentityHub owner removal", () => {
+  beforeEach(() => {
+    globalThis.history.replaceState({}, "", "/?org=126639&view=team");
+  });
+
   it("requires purpose-bound step-up and removes another owner with the frozen concurrency contract", async () => {
     const organizationId = "1266395e-ec88-481e-9a72-81fa2cc2904a";
     const currentMembership: OrganizationOwnerMembershipSummary = {
@@ -405,9 +602,19 @@ describe("IdentityHub owner removal", () => {
       new IdentityApiError("provider-down", 503, "service.unavailable"),
       "El servicio no está disponible temporalmente",
     ],
+    [
+      "429",
+      new IdentityApiError("rate-limited", 429, "request.rate_limited"),
+      "demasiados intentos",
+    ],
+    ["offline", new TypeError("Failed to fetch"), "Sin conexi"],
   ])(
     "maps a %s removal response to an actionable UI state",
     async (_, error, copy) => {
+      const status = error instanceof IdentityApiError ? error.status : 0;
+      if (error instanceof TypeError) {
+        vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+      }
       const organizationId = "1266395e-ec88-481e-9a72-81fa2cc2904a";
       const currentMembership: OrganizationOwnerMembershipSummary = {
         membershipId: "2634c6ee-8d8a-49e7-95b7-84fa0660236a",
@@ -439,6 +646,15 @@ describe("IdentityHub owner removal", () => {
         },
         memberships: [
           { organizationId, organizationName: "La Esperanza", role: "owner" },
+          ...(status === 503 || status === 429 || error instanceof TypeError
+            ? [
+                {
+                  organizationId: "64eb2297-6603-4fc9-b2b0-a582a7bf1992",
+                  organizationName: "El Ombu",
+                  role: "owner",
+                },
+              ]
+            : []),
         ],
       });
       apiMocks.listOrganizationOwnerMemberships.mockResolvedValueOnce([
@@ -463,8 +679,33 @@ describe("IdentityHub owner removal", () => {
       const persistedAction = globalThis.sessionStorage.getItem(
         "agropecuaria.identity.owner-removal-action.v1",
       );
-      if (error.status === 503) {
+      if (status === 503 || error instanceof TypeError) {
         expect(persistedAction).toContain(otherMembership.membershipId);
+        fireEvent.click(screen.getByRole("button", { name: "Campos" }));
+        expect(await screen.findByText("Tus campos")).toBeVisible();
+        expect(
+          globalThis.sessionStorage.getItem(
+            "agropecuaria.identity.owner-removal-action.v1",
+          ),
+        ).toBe(persistedAction);
+        fireEvent.click(
+          screen.getByRole("button", { name: /Cambiar organi/i }),
+        );
+        expect(screen.getByText(/Hay una operaci/i)).toBeInTheDocument();
+        expect(
+          screen.getByRole("heading", { name: "Espacio de La Esperanza" }),
+        ).toBeVisible();
+        expect(
+          globalThis.sessionStorage.getItem(
+            "agropecuaria.identity.owner-removal-action.v1",
+          ),
+        ).toBe(persistedAction);
+      } else if (status === 429) {
+        expect(persistedAction).toBeNull();
+        fireEvent.click(
+          screen.getByRole("button", { name: /Cambiar organi/i }),
+        );
+        expect(await screen.findByText(/Elegir organi/i)).toBeVisible();
       } else {
         expect(persistedAction).toBeNull();
       }
@@ -569,6 +810,10 @@ describe("IdentityHub owner invitation bearer handling", () => {
 });
 
 describe("IdentityHub owner invitation management", () => {
+  beforeEach(() => {
+    globalThis.history.replaceState({}, "", "/?org=126639&view=team");
+  });
+
   it("performs a purpose-bound step-up before revealing an owner link", async () => {
     const organizationId = "1266395e-ec88-481e-9a72-81fa2cc2904a";
     const ownerSession: IdentitySession = {
@@ -600,7 +845,7 @@ describe("IdentityHub owner invitation management", () => {
     apiMocks.loadSession.mockResolvedValueOnce(ownerSession);
     apiMocks.startStepUp.mockResolvedValueOnce(stepUp);
     apiMocks.completeDevelopmentStepUp.mockResolvedValueOnce(strongSession);
-    apiMocks.createOwnerInvitation.mockResolvedValueOnce({
+    apiMocks.createOwnerInvitation.mockResolvedValue({
       invitation: {
         invitationId: "3766395e-ec88-481e-9a72-81fa2cc2904a",
         organizationId,

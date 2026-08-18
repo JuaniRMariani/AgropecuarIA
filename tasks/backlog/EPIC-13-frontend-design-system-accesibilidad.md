@@ -6,6 +6,7 @@ Objetivo: experiencia Next.js/React coherente, responsiva, PWA online, WCAG 2.2 
 
 ## AGRO-FE-001 — Entregar shell, navegación y sistema de diseño accesibles
 
+- **Estado:** En curso. El sub-slice local `OwnerWorkspaceShellV1` organiza únicamente superficies owner ya existentes; roles adicionales, preferencias persistentes, matriz completa de navegadores y certificación WCAG del padre continúan pendientes.
 - **Release, épica, prioridad y tamaño:** R1 · EPIC-13 · Must · L.
 - **Owner y colaboradores:** Frontend/Diseño de Producto; Identidad, QA y Accesibilidad.
 - **Resultado/valor esperado:** navegación por organización/campo/rol y componentes consistentes.

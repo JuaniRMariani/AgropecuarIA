@@ -1512,10 +1512,11 @@ Estado inicial: micro-DoR cerrado con defaults técnicos reversibles; transició
 - [x] Principal: contrato compartido, composición/config, eventos/maps/evidencia, integración, gates y Git.
 - [x] Ejecutar restore locked, build Release, MTP raíz/dirigidos, format, EF pending/N-N-1/rollback, pnpm frozen/format/lint/typecheck/Vitest/build, Playwright, FND/SEC/SEC-002, SCA, secrets, UTF-8/JSON y diff-check.
 - [x] Revisión independiente con 0 Critical/High/Medium; mantener `AGRO-FND-003` `En curso`.
-- [ ] Commit/push con `JuaniRMariani <juanirmariani@gmail.com>`; verificar author/committer y no desplegar.
+- [x] Commit/push con `JuaniRMariani <juanirmariani@gmail.com>`; verificar author/committer y no desplegar.
 
 ### Review final
 
 - PASS integrado-local: restore locked; build Release 9 proyectos `0/0`; MTP raíz `348/348`; Productive Core/PostgreSQL `56/56`; no-DB/API `37/37`; Architecture Fitness `135/135`; Vitest `153/153`; Playwright oficial `6/6`; FND `45/45`; SEC `56/56`; SEC-002 `26/26`; EF `3/3`, format, SCA, secretos, UTF-8/JSON, parser y diff-check verdes.
 - La revisión independiente cerró dos Medium antes de publicar: alias split en recovery ahora falla 503 `idempotency.reconciliation_required`, y el rol app sólo conserva SELECT/INSERT sobre rename ledgers con UPDATE real denegado `42501`. Resultado final: 0 Critical, 0 High y 0 Medium pendientes.
 - `AGRO-FND-003` permanece `En curso`; backfills/contract migrations/restore general y otros agregados siguen fuera. No hubo deploy.
+- Publicación funcional: `2ace1f5` (`feat(productive-core): rename non-spatial field drafts`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`.

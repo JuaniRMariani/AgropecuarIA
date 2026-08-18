@@ -25,6 +25,7 @@ Fecha: 2026-08-18. Estado: `En curso`. Resultado: PASS integrado-local para `Ren
 ## Revisión
 
 - PASS independiente con 0 Critical, 0 High y 0 Medium pendientes. La revisión detectó y cerró antes de publicar dos Medium: alias split durante recovery ahora produce 503 de reconciliación, y el rol app perdió UPDATE sobre rename ledgers; PostgreSQL demuestra `42501`.
+- Publicación funcional verificada: `2ace1f5` en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.
 
 ## Riesgos residuales
 

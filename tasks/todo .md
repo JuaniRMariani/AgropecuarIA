@@ -1410,7 +1410,7 @@ Outcome observable: el owner A lista los co-owners activos de Org A y remueve a 
 - [x] Frontend/QA: tipos/cliente/UI, Vitest y E2E bajo ownership exclusivo.
 - [x] Ejecutar restore locked, build Release, MTP raíz/dirigidos, format, EF pending/migración N/N-1/rollback, pnpm frozen/format/lint/typecheck/Vitest/build, Playwright, FND/SEC/SEC-002, SCA, secrets, UTF-8/JSON y diff-check.
 - [x] Revisión independiente sin hallazgos críticos/altos/medios; mantener `AGRO-ID-003` `En curso`.
-- [ ] Publicar sólo con autor local `JuaniRMariani <juanirmariani@gmail.com>`, verificar `git show --format=fuller -1` y no desplegar.
+- [x] Publicar sólo con autor local `JuaniRMariani <juanirmariani@gmail.com>`, verificar `git show --format=fuller -1` y no desplegar (`79a0b09`).
 
 ### Baseline
 

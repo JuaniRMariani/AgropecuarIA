@@ -1,7 +1,15 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { formatShortId } from "../../lib/format-id";
 import type { MembershipSummary } from "../identity/identity-types";
@@ -16,6 +24,21 @@ export const WORKSPACE_VIEWS = [
 export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number];
 export type WorkspaceGuard = "clear" | "dirty" | "pending" | "context-pending";
 
+export type WorkspaceFieldLocator =
+  | Readonly<{ kind: "none" }>
+  | Readonly<{ kind: "requested"; prefix: string }>
+  | Readonly<{ kind: "invalid"; reason: "format" | "view" }>;
+
+export type WorkspaceFieldIntent =
+  | Readonly<{ kind: "select"; prefix: string }>
+  | Readonly<{ kind: "clear" }>
+  | Readonly<{
+      kind: "reject";
+      prefix: string;
+      reason: "unknown" | "ambiguous" | "unavailable" | "signed-out";
+    }>
+  | Readonly<{ kind: "restore"; prefix: string }>;
+
 type OwnerMembership = MembershipSummary;
 
 export type WorkspaceLocation =
@@ -29,6 +52,7 @@ export type WorkspaceLocation =
       kind: "active";
       membership: OwnerMembership;
       view: WorkspaceView;
+      field?: WorkspaceFieldLocator;
       source: "url" | "automatic";
     }>;
 
@@ -45,6 +69,19 @@ export type OwnerWorkspaceShellProps = Readonly<{
 
 const SHORT_ID_PATTERN = /^[0-9A-F]{6}$/;
 const WORKSPACE_HISTORY_STATE_KEY = "agropecuariaOwnerWorkspaceV1";
+const NO_WORKSPACE_FIELD: WorkspaceFieldLocator = { kind: "none" };
+const rejectDetachedFieldIntent = (): boolean => false;
+const WorkspaceFieldNavigationContext = createContext<
+  ((intent: WorkspaceFieldIntent) => boolean) | null
+>(null);
+
+export function useWorkspaceFieldNavigation(): (
+  intent: WorkspaceFieldIntent,
+) => boolean {
+  return (
+    useContext(WorkspaceFieldNavigationContext) ?? rejectDetachedFieldIntent
+  );
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -78,6 +115,37 @@ function isWorkspaceView(value: string | null): value is WorkspaceView {
   return WORKSPACE_VIEWS.some((view) => view === value);
 }
 
+function resolveFieldLocator(
+  params: URLSearchParams,
+  view: WorkspaceView,
+): WorkspaceFieldLocator {
+  const requestedPrefix = params.get("field");
+  if (requestedPrefix === null) return { kind: "none" };
+  if (view !== "fields") return { kind: "invalid", reason: "view" };
+  const normalized = requestedPrefix.toUpperCase();
+  return SHORT_ID_PATTERN.test(normalized)
+    ? { kind: "requested", prefix: normalized }
+    : { kind: "invalid", reason: "format" };
+}
+
+function fieldLocatorKey(locator: WorkspaceFieldLocator): string {
+  switch (locator.kind) {
+    case "none":
+      return "none";
+    case "requested":
+      return `requested:${locator.prefix}`;
+    case "invalid":
+      return `invalid:${locator.reason}`;
+  }
+}
+
+function invalidFieldAnnouncement(locator: WorkspaceFieldLocator): string {
+  if (locator.kind !== "invalid") return "";
+  return locator.reason === "view"
+    ? "El enlace de campo sólo se puede abrir desde la vista Campos. Conservamos el contexto vigente."
+    : "El código corto del campo no es válido. Mostramos la lista vigente sin consultar una ficha.";
+}
+
 function ownerMemberships(
   memberships: readonly MembershipSummary[],
 ): readonly OwnerMembership[] {
@@ -97,12 +165,13 @@ export function resolveWorkspaceLocation(
   const requestedPrefix = params.get("org")?.toUpperCase() ?? null;
   const requestedView = params.get("view");
   const view = isWorkspaceView(requestedView) ? requestedView : "fields";
+  const field = resolveFieldLocator(params, view);
 
   if (requestedPrefix === null && owners.length === 1) {
     const membership = owners[0];
     return membership === undefined
       ? { kind: "onboarding" }
-      : { kind: "active", membership, view, source: "automatic" };
+      : { kind: "active", membership, view, field, source: "automatic" };
   }
 
   if (requestedPrefix === null || !SHORT_ID_PATTERN.test(requestedPrefix)) {
@@ -128,18 +197,22 @@ export function resolveWorkspaceLocation(
   const membership = matches[0];
   return membership === undefined
     ? { kind: "selector", reason: "unknown", memberships: owners }
-    : { kind: "active", membership, view, source: "url" };
+    : { kind: "active", membership, view, field, source: "url" };
 }
 
 export function buildWorkspaceUrl(
   pathname: string,
   membership: MembershipSummary,
   view: WorkspaceView,
+  field: WorkspaceFieldLocator = { kind: "none" },
 ): string {
   const params = new URLSearchParams({
     org: formatShortId(membership.organizationId),
     view,
   });
+  if (view === "fields" && field.kind === "requested") {
+    params.set("field", field.prefix);
+  }
   return `${pathname}?${params.toString()}`;
 }
 
@@ -190,7 +263,11 @@ export function OwnerWorkspaceShell({
   );
 
   const commitLocation = useCallback(
-    (next: WorkspaceLocation, mode: "push" | "replace" | "none") => {
+    (
+      next: WorkspaceLocation,
+      mode: "push" | "replace" | "none",
+      nextAnnouncement?: string,
+    ) => {
       if (mode !== "none") {
         const url =
           next.kind === "active"
@@ -198,6 +275,7 @@ export function OwnerWorkspaceShell({
                 globalThis.location.pathname,
                 next.membership,
                 next.view,
+                next.field ?? NO_WORKSPACE_FIELD,
               )
             : globalThis.location.pathname;
         const currentPosition =
@@ -214,14 +292,16 @@ export function OwnerWorkspaceShell({
         }
         historyPositionRef.current = nextPosition;
       }
-      setAnnouncement("");
+      if (nextAnnouncement !== undefined) {
+        setAnnouncement(nextAnnouncement);
+      }
       setLocation(next);
     },
     [],
   );
 
   const canLeaveCurrentContext = useCallback(
-    (change: "context" | "view"): boolean => {
+    (change: "context" | "view" | "field"): boolean => {
       if (
         guard === "pending" ||
         (guard === "context-pending" && change === "context")
@@ -257,6 +337,10 @@ export function OwnerWorkspaceShell({
           (next.kind === "selector" && next.reason !== "choose")
           ? "replace"
           : "none",
+        next.kind === "active"
+          ? invalidFieldAnnouncement(next.field ?? NO_WORKSPACE_FIELD) ||
+              undefined
+          : undefined,
       );
     });
     return () => {
@@ -300,8 +384,20 @@ export function OwnerWorkspaceShell({
         location?.kind === "active" &&
         next.kind === "active" &&
         location.view !== next.view;
-      const change = contextChanges ? "context" : "view";
-      if ((contextChanges || viewChanges) && !canLeaveCurrentContext(change)) {
+      const fieldChanges =
+        location?.kind === "active" &&
+        next.kind === "active" &&
+        fieldLocatorKey(location.field ?? NO_WORKSPACE_FIELD) !==
+          fieldLocatorKey(next.field ?? NO_WORKSPACE_FIELD);
+      const change = contextChanges
+        ? "context"
+        : viewChanges
+          ? "view"
+          : "field";
+      if (
+        (contextChanges || viewChanges || fieldChanges) &&
+        !canLeaveCurrentContext(change)
+      ) {
         const currentPosition = historyPositionRef.current;
         if (
           currentPosition !== null &&
@@ -325,6 +421,9 @@ export function OwnerWorkspaceShell({
           (next.kind === "selector" && next.reason !== "choose")
           ? "replace"
           : "none",
+        next.kind === "active"
+          ? invalidFieldAnnouncement(next.field ?? NO_WORKSPACE_FIELD)
+          : "",
       );
     };
     globalThis.addEventListener("popstate", handlePopState);
@@ -354,6 +453,82 @@ export function OwnerWorkspaceShell({
   const activeOwners = useMemo(
     () => ownerMemberships(memberships),
     [memberships],
+  );
+
+  const handleFieldIntent = useCallback(
+    (intent: WorkspaceFieldIntent): boolean => {
+      if (location?.kind !== "active") return false;
+      const currentField = location.field ?? NO_WORKSPACE_FIELD;
+      switch (intent.kind) {
+        case "select": {
+          const prefix = intent.prefix.toUpperCase();
+          if (!SHORT_ID_PATTERN.test(prefix)) return false;
+          if (
+            location.view === "fields" &&
+            currentField.kind === "requested" &&
+            currentField.prefix === prefix
+          ) {
+            return true;
+          }
+          if (!canLeaveCurrentContext("field")) return false;
+          commitLocation(
+            {
+              ...location,
+              view: "fields",
+              field: { kind: "requested", prefix },
+              source: "url",
+            },
+            "push",
+            "",
+          );
+          return true;
+        }
+        case "clear":
+          if (currentField.kind === "none") return true;
+          if (!canLeaveCurrentContext("field")) return false;
+          commitLocation(
+            { ...location, field: { kind: "none" }, source: "url" },
+            "push",
+            "",
+          );
+          return true;
+        case "reject":
+          if (
+            currentField.kind !== "requested" ||
+            currentField.prefix !== intent.prefix
+          ) {
+            return false;
+          }
+          commitLocation(
+            { ...location, field: { kind: "none" }, source: "url" },
+            "replace",
+            intent.reason === "ambiguous"
+              ? "Ese código corto coincide con más de un campo. Mostramos la lista sin abrir una ficha."
+              : intent.reason === "signed-out"
+                ? "La sesión ya no está disponible. Cerramos la ficha solicitada."
+                : intent.reason === "unavailable"
+                  ? "Ese campo ya no está disponible. Mostramos la lista vigente."
+                  : "Ese campo no está disponible en la organización activa. Mostramos la lista vigente.",
+          );
+          return true;
+        case "restore": {
+          const prefix = intent.prefix.toUpperCase();
+          if (!SHORT_ID_PATTERN.test(prefix)) return false;
+          commitLocation(
+            {
+              ...location,
+              view: "fields",
+              field: { kind: "requested", prefix },
+              source: "url",
+            },
+            "replace",
+            "",
+          );
+          return true;
+        }
+      }
+    },
+    [canLeaveCurrentContext, commitLocation, location],
   );
 
   if (location === null) {
@@ -387,8 +562,15 @@ export function OwnerWorkspaceShell({
   const chooseMembership = (membership: MembershipSummary) => {
     if (!canLeaveCurrentContext("context")) return;
     commitLocation(
-      { kind: "active", membership, view: "fields", source: "url" },
+      {
+        kind: "active",
+        membership,
+        view: "fields",
+        field: { kind: "none" },
+        source: "url",
+      },
       "push",
+      "",
     );
   };
 
@@ -436,7 +618,11 @@ export function OwnerWorkspaceShell({
 
   const navigate = (view: WorkspaceView) => {
     if (view === location.view || !canLeaveCurrentContext("view")) return;
-    commitLocation({ ...location, view, source: "url" }, "push");
+    commitLocation(
+      { ...location, view, field: { kind: "none" }, source: "url" },
+      "push",
+      "",
+    );
   };
 
   return (
@@ -470,6 +656,7 @@ export function OwnerWorkspaceShell({
                   memberships: activeOwners,
                 },
                 "push",
+                "",
               );
             }}
             type="button"
@@ -504,7 +691,9 @@ export function OwnerWorkspaceShell({
         id="workspace-content"
         tabIndex={-1}
       >
-        {children(location)}
+        <WorkspaceFieldNavigationContext.Provider value={handleFieldIntent}>
+          {children(location)}
+        </WorkspaceFieldNavigationContext.Provider>
       </div>
     </section>
   );

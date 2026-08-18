@@ -16,6 +16,14 @@ Fecha: 2026-08-18. Estado: aceptado para desarrollo local integrado; `AGRO-FE-00
 - Reload y navegación back/forward restauran únicamente locators válidos. Las entradas propias llevan una posición acotada en `history.state`; si un guard rechaza un `popstate`, el shell compensa con `history.go` sin reescribir ni perder la entrada destino. Membership removida, sesión revocada o URL ambigua limpian el contenido anterior y vuelven a un estado neutral.
 - Ningún UUID completo se renderiza en URL, selector, tarjetas, diálogos o mensajes.
 
+## Deep link de ficha de campo
+
+- La URL canónica extiende el contexto con `?org=ABCDEF&view=fields&field=123ABC`. `field` es un locator hexadecimal de seis caracteres; nunca contiene el UUID completo ni concede autoridad.
+- Fields resuelve el prefijo exclusivamente contra la lista completa ya autorizada de la organización activa. Una coincidencia permite usar internamente el UUID completo obtenido de esa respuesta; cero o varias coincidencias fallan cerradas y no disparan GET detail.
+- `field` sólo es válido con `view=fields`. Cambiar vista u organización, perder membership o sesión, o confirmar un 404 limpia ficha y locator. Errores transitorios de lista/detail conservan el locator para retry sin adivinar inexistencia.
+- Abrir y cerrar ficha crean historia navegable; reload y back/forward restauran locators válidos. Requests tardíos de otra organización o campo se abortan o invalidan por generación.
+- El deep link no usa storage, no agrega telemetría, y no cambia API, DB, RLS, eventos ni compatibilidad N/N-1. Un cliente anterior ignora el query aditivo y conserva la lista.
+
 ## Formularios e intentos ambiguos
 
 - Un borrador no enviado requiere confirmación accesible antes de cambiar de organización.

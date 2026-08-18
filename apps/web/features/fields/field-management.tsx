@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -23,6 +24,31 @@ import {
 import type { FieldOrganization, FieldSummary } from "./field-types";
 
 export type FieldContextGuard = "clear" | "dirty" | "pending";
+
+export type FieldDeepLink =
+  | Readonly<{ kind: "none" }>
+  | Readonly<{ kind: "requested"; prefix: string }>
+  | Readonly<{ kind: "invalid"; reason: "format" | "view" }>;
+
+export type FieldDeepLinkIntent =
+  | Readonly<{ kind: "select"; prefix: string }>
+  | Readonly<{ kind: "clear" }>
+  | Readonly<{
+      kind: "reject";
+      prefix: string;
+      reason: "unknown" | "ambiguous" | "unavailable" | "signed-out";
+    }>
+  | Readonly<{ kind: "restore"; prefix: string }>;
+
+export type FieldManagementProps = Readonly<{
+  organizations: readonly FieldOrganization[];
+  deepLink?: FieldDeepLink;
+  onContextGuardChange?: (guard: FieldContextGuard) => void;
+  onDeepLinkIntent?: (intent: FieldDeepLinkIntent) => boolean;
+}>;
+
+const NO_FIELD_DEEP_LINK: FieldDeepLink = { kind: "none" };
+const acceptLocalFieldIntent = (): boolean => true;
 
 type FieldResourceState =
   | Readonly<{ kind: "loading" }>
@@ -75,6 +101,13 @@ type FieldDetailState =
       fieldId: string;
       message: string;
     }>;
+
+type FieldDetailRequest = Readonly<{
+  controller: AbortController;
+  organizationId: string;
+  fieldId: string;
+  generation: number;
+}>;
 
 type FieldRenameAttempt = Readonly<{
   organizationId: string;
@@ -563,19 +596,39 @@ function detailFailure(error: unknown): string {
   return "No pudimos abrir la ficha del campo.";
 }
 
+function deepLinkKey(deepLink: FieldDeepLink): string {
+  switch (deepLink.kind) {
+    case "none":
+      return "none";
+    case "requested":
+      return `requested:${deepLink.prefix}`;
+    case "invalid":
+      return `invalid:${deepLink.reason}`;
+  }
+}
+
+function invalidDeepLinkMessage(deepLink: FieldDeepLink): string | null {
+  if (deepLink.kind !== "invalid") return null;
+  return deepLink.reason === "view"
+    ? "Abrí el enlace del campo desde la vista Campos. Conservamos la organización activa."
+    : "El código corto del campo no es válido. Mostramos la lista sin consultar una ficha.";
+}
+
 function FieldSpinner() {
   return <span aria-hidden="true" className="spinner" />;
 }
 
-export function FieldManagement({
-  organizations,
-  onContextGuardChange,
-}: Readonly<{
-  organizations: readonly FieldOrganization[];
-  onContextGuardChange?: (guard: FieldContextGuard) => void;
-}>) {
+export function FieldManagement(props: FieldManagementProps) {
+  const {
+    organizations,
+    deepLink = NO_FIELD_DEEP_LINK,
+    onContextGuardChange,
+  } = props;
+  const deepLinkControlled = props.onDeepLinkIntent !== undefined;
+  const onDeepLinkIntent = props.onDeepLinkIntent ?? acceptLocalFieldIntent;
   const titleId = useId();
   const formHelpId = useId();
+  const domId = useId();
   const ownerOrganizations = useMemo(
     () =>
       organizations.filter(
@@ -583,6 +636,9 @@ export function FieldManagement({
       ),
     [organizations],
   );
+  const ownerOrganizationIdsKey = ownerOrganizations
+    .map((organization) => organization.organizationId)
+    .join(",");
   const [resources, setResources] = useState<
     Readonly<Record<string, FieldResourceState>>
   >({});
@@ -603,7 +659,20 @@ export function FieldManagement({
   const restoreRenameFocusToFieldId = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const detailRef = useRef<HTMLElement>(null);
+  const detailRequestRef = useRef<FieldDetailRequest | null>(null);
+  const detailRequestGenerationRef = useRef(0);
+  const detailOrganizationKeyRef = useRef(ownerOrganizationIdsKey);
+  const focusedDetailIdRef = useRef<string | null>(null);
+  const rejectedDeepLinkRef = useRef<string | null>(null);
+  const previousDeepLinkKeyRef = useRef(deepLinkKey(deepLink));
+  const restoringDeepLinkPrefixRef = useRef<string | null>(null);
+  const closedDeepLinkPrefixRef = useRef<string | null>(null);
+  const restoreDetailFocusToFieldIdRef = useRef<string | null>(null);
+  const restoreDetailFocusElementRef = useRef<HTMLButtonElement | null>(null);
+  const detailTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
   const renameTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
+  const [deepLinkNotice, setDeepLinkNotice] = useState<string | null>(null);
 
   const contextGuard: FieldContextGuard = useMemo(() => {
     const creationPending =
@@ -677,11 +746,13 @@ export function FieldManagement({
 
   useEffect(() => {
     const controller = new AbortController();
-    for (const organization of ownerOrganizations) {
-      void refreshFields(organization.organizationId, controller.signal);
+    for (const organizationId of ownerOrganizationIdsKey.split(",")) {
+      if (organizationId.length > 0) {
+        void refreshFields(organizationId, controller.signal);
+      }
     }
     return () => controller.abort();
-  }, [ownerOrganizations, refreshFields]);
+  }, [ownerOrganizationIdsKey, refreshFields]);
 
   useEffect(() => {
     if (restoredAttempt.current || ownerOrganizations.length === 0) return;
@@ -829,19 +900,55 @@ export function FieldManagement({
     }
   }, [creation.kind, draft, formOrganizationId]);
 
+  useLayoutEffect(() => {
+    if (detailOrganizationKeyRef.current === ownerOrganizationIdsKey) return;
+    detailOrganizationKeyRef.current = ownerOrganizationIdsKey;
+    detailRequestGenerationRef.current += 1;
+    detailRequestRef.current?.controller.abort();
+    detailRequestRef.current = null;
+    focusedDetailIdRef.current = null;
+  }, [ownerOrganizationIdsKey]);
+
   const openDetail = useCallback(
     async (organizationId: string, fieldId: string) => {
+      detailRequestRef.current?.controller.abort();
+      const controller = new AbortController();
+      const request: FieldDetailRequest = {
+        controller,
+        organizationId,
+        fieldId,
+        generation: detailRequestGenerationRef.current + 1,
+      };
+      detailRequestGenerationRef.current = request.generation;
+      detailRequestRef.current = request;
+      const isCurrentRequest = (): boolean => {
+        const current = detailRequestRef.current;
+        return (
+          current !== null &&
+          current.generation === request.generation &&
+          current.organizationId === request.organizationId &&
+          current.fieldId === request.fieldId
+        );
+      };
       setDetails((current) => ({
         ...current,
         [organizationId]: { kind: "loading", fieldId },
       }));
       try {
-        const field = await getField(organizationId, fieldId);
+        const field = await getField(
+          organizationId,
+          fieldId,
+          controller.signal,
+        );
+        if (!isCurrentRequest()) return;
         setDetails((current) => ({
           ...current,
           [organizationId]: { kind: "ready", field },
         }));
       } catch (error) {
+        if (isAbortError(error) || !isCurrentRequest()) {
+          return;
+        }
         setDetails((current) => ({
           ...current,
           [organizationId]: {
@@ -850,7 +957,32 @@ export function FieldManagement({
             message: detailFailure(error),
           },
         }));
+        if (
+          deepLink.kind === "requested" &&
+          error instanceof FieldApiError &&
+          (error.kind === "unavailable" || error.kind === "signed-out")
+        ) {
+          setDeepLinkNotice(detailFailure(error));
+          onDeepLinkIntent({
+            kind: "reject",
+            prefix: deepLink.prefix,
+            reason: error.kind === "signed-out" ? "signed-out" : "unavailable",
+          });
+        }
+      } finally {
+        if (isCurrentRequest()) {
+          detailRequestRef.current = null;
+        }
       }
+    },
+    [deepLink, onDeepLinkIntent],
+  );
+
+  useEffect(
+    () => () => {
+      detailRequestRef.current?.controller.abort();
+      detailRequestGenerationRef.current += 1;
+      detailRequestRef.current = null;
     },
     [],
   );
@@ -890,8 +1022,11 @@ export function FieldManagement({
       message:
         "Retomamos el cambio pendiente. Reintentá para confirmar el resultado sin repetirlo.",
     });
+    const restoredPrefix = formatShortId(stored.fieldId);
+    restoringDeepLinkPrefixRef.current = restoredPrefix;
+    onDeepLinkIntent({ kind: "restore", prefix: restoredPrefix });
     void openDetail(stored.organizationId, stored.fieldId);
-  }, [openDetail, ownerOrganizations]);
+  }, [onDeepLinkIntent, openDetail, ownerOrganizations]);
 
   useEffect(() => {
     if ("attempt" in rename) {
@@ -1060,6 +1195,17 @@ export function FieldManagement({
 
   const closeDetail = useCallback(
     (organizationId: string) => {
+      const detail = details[organizationId];
+      const closingFieldId =
+        detail?.kind === "ready"
+          ? detail.field.fieldId
+          : detail?.kind === "loading" || detail?.kind === "error"
+            ? detail.fieldId
+            : null;
+      const closingTrigger =
+        closingFieldId === null
+          ? null
+          : (detailTriggerRefs.current.get(closingFieldId) ?? null);
       const renameForOrganization =
         ("attempt" in rename &&
           rename.attempt.organizationId === organizationId) ||
@@ -1070,6 +1216,15 @@ export function FieldManagement({
       ) {
         return;
       }
+      if (!onDeepLinkIntent({ kind: "clear" })) return;
+      detailRequestRef.current?.controller.abort();
+      detailRequestGenerationRef.current += 1;
+      detailRequestRef.current = null;
+      restoreDetailFocusToFieldIdRef.current = closingFieldId;
+      restoreDetailFocusElementRef.current = closingTrigger;
+      closedDeepLinkPrefixRef.current =
+        deepLink.kind === "requested" ? deepLink.prefix : null;
+      setDeepLinkNotice(null);
       if (renameForOrganization) {
         clearStoredRenameAttempt();
         setRename({ kind: "idle" });
@@ -1079,13 +1234,190 @@ export function FieldManagement({
         [organizationId]: { kind: "closed" },
       }));
     },
-    [rename],
+    [deepLink, details, onDeepLinkIntent, rename],
   );
+
+  const selectField = useCallback(
+    (field: FieldSummary) => {
+      setDeepLinkNotice(null);
+      closedDeepLinkPrefixRef.current = null;
+      if (!deepLinkControlled) {
+        void openDetail(field.organizationId, field.fieldId);
+        return;
+      }
+      onDeepLinkIntent({
+        kind: "select",
+        prefix: formatShortId(field.fieldId),
+      });
+    },
+    [deepLinkControlled, onDeepLinkIntent, openDetail],
+  );
+
+  useEffect(() => {
+    const nextKey = deepLinkKey(deepLink);
+    const previousKey = previousDeepLinkKeyRef.current;
+    if (nextKey === previousKey) return;
+    previousDeepLinkKeyRef.current = nextKey;
+    rejectedDeepLinkRef.current = null;
+    closedDeepLinkPrefixRef.current = null;
+    detailRequestRef.current?.controller.abort();
+    detailRequestGenerationRef.current += 1;
+    detailRequestRef.current = null;
+
+    const restoringPrefix = restoringDeepLinkPrefixRef.current;
+    const isRestoring =
+      deepLink.kind === "requested" && deepLink.prefix === restoringPrefix;
+    if (isRestoring) {
+      restoringDeepLinkPrefixRef.current = null;
+      return;
+    }
+
+    clearStoredAttempt();
+    clearStoredRenameAttempt();
+    attemptKey.current = null;
+    setDraft("");
+    setFormOrganizationId(null);
+    setCreation({ kind: "idle" });
+    setRename({ kind: "idle" });
+    if (deepLink.kind !== "requested") {
+      if (deepLink.kind === "none" && previousKey.startsWith("requested:")) {
+        const organization =
+          ownerOrganizations.length === 1 ? ownerOrganizations[0] : undefined;
+        const detail =
+          organization === undefined
+            ? undefined
+            : details[organization.organizationId];
+        const fieldId =
+          detail?.kind === "ready"
+            ? detail.field.fieldId
+            : detail?.kind === "loading" || detail?.kind === "error"
+              ? detail.fieldId
+              : null;
+        if (fieldId !== null) {
+          restoreDetailFocusToFieldIdRef.current = fieldId;
+          restoreDetailFocusElementRef.current =
+            detailTriggerRefs.current.get(fieldId) ?? null;
+        }
+      }
+      focusedDetailIdRef.current = null;
+      setDetails((current) => {
+        const next = { ...current };
+        for (const organization of ownerOrganizations) {
+          next[organization.organizationId] = { kind: "closed" };
+        }
+        return next;
+      });
+    }
+  }, [deepLink, details, ownerOrganizations]);
+
+  useEffect(() => {
+    if (deepLink.kind !== "requested" || contextGuard === "pending") return;
+    if (closedDeepLinkPrefixRef.current === deepLink.prefix) return;
+    const organization =
+      ownerOrganizations.length === 1 ? ownerOrganizations[0] : undefined;
+    if (organization === undefined) return;
+    const resource = resources[organization.organizationId];
+    if (resource?.kind === "signed-out" || resource?.kind === "unavailable") {
+      const terminalListReason = resource.kind;
+      const rejectionKey = `${organization.organizationId}:${deepLink.prefix}:list:${terminalListReason}`;
+      if (rejectedDeepLinkRef.current === rejectionKey) return;
+      rejectedDeepLinkRef.current = rejectionKey;
+      setDeepLinkNotice(resource.message);
+      onDeepLinkIntent({
+        kind: "reject",
+        prefix: deepLink.prefix,
+        reason: terminalListReason,
+      });
+      return;
+    }
+    if (resource?.kind !== "ready") return;
+
+    const matches = resource.items.filter(
+      (field) => formatShortId(field.fieldId) === deepLink.prefix,
+    );
+    if (matches.length !== 1) {
+      const reason = matches.length === 0 ? "unknown" : "ambiguous";
+      const rejectionKey = `${organization.organizationId}:${deepLink.prefix}:${reason}`;
+      if (rejectedDeepLinkRef.current === rejectionKey) return;
+      rejectedDeepLinkRef.current = rejectionKey;
+      setDeepLinkNotice(
+        reason === "ambiguous"
+          ? "Ese código corto coincide con más de un campo. Elegí la ficha desde la lista."
+          : "Ese campo ya no está disponible en esta organización. Mostramos la lista vigente.",
+      );
+      onDeepLinkIntent({
+        kind: "reject",
+        prefix: deepLink.prefix,
+        reason,
+      });
+      return;
+    }
+
+    rejectedDeepLinkRef.current = null;
+    setDeepLinkNotice(null);
+    const field = matches[0];
+    if (field === undefined) return;
+    const detail = details[organization.organizationId];
+    const sameField =
+      (detail?.kind === "loading" && detail.fieldId === field.fieldId) ||
+      (detail?.kind === "ready" && detail.field.fieldId === field.fieldId) ||
+      (detail?.kind === "error" && detail.fieldId === field.fieldId);
+    if (!sameField) {
+      void openDetail(organization.organizationId, field.fieldId);
+    }
+  }, [
+    contextGuard,
+    deepLink,
+    details,
+    onDeepLinkIntent,
+    openDetail,
+    ownerOrganizations,
+    resources,
+  ]);
+
+  useEffect(() => {
+    const organization =
+      ownerOrganizations.length === 1 ? ownerOrganizations[0] : undefined;
+    if (organization === undefined) return;
+    const detail = details[organization.organizationId];
+    if (detail?.kind !== "ready") return;
+    if (focusedDetailIdRef.current === detail.field.fieldId) return;
+    focusedDetailIdRef.current = detail.field.fieldId;
+    detailRef.current?.focus();
+  }, [details, ownerOrganizations]);
+
+  useEffect(() => {
+    const fieldId = restoreDetailFocusToFieldIdRef.current;
+    if (fieldId === null) return;
+    const detailStillOpen = Object.values(details).some(
+      (detail) =>
+        (detail.kind === "ready" && detail.field.fieldId === fieldId) ||
+        ((detail.kind === "loading" || detail.kind === "error") &&
+          detail.fieldId === fieldId),
+    );
+    if (detailStillOpen) return;
+    const fieldListReady = Object.values(resources).some(
+      (resource) =>
+        resource.kind === "ready" &&
+        resource.items.some((field) => field.fieldId === fieldId),
+    );
+    if (!fieldListReady) return;
+    const rememberedTrigger = restoreDetailFocusElementRef.current;
+    const trigger =
+      detailTriggerRefs.current.get(fieldId) ??
+      (rememberedTrigger?.isConnected === true ? rememberedTrigger : undefined);
+    if (trigger === undefined) return;
+    restoreDetailFocusToFieldIdRef.current = null;
+    restoreDetailFocusElementRef.current = null;
+    trigger.focus();
+  }, [details, resources]);
 
   if (ownerOrganizations.length === 0) return null;
 
   const creationRetryLabel =
     creation.kind === "conflict" ? "Iniciar nuevo intento" : "Reintentar";
+  const visibleDeepLinkNotice =
+    invalidDeepLinkMessage(deepLink) ?? deepLinkNotice;
 
   return (
     <section
@@ -1103,8 +1435,19 @@ export function FieldManagement({
         </div>
       </div>
 
+      {visibleDeepLinkNotice !== null ? (
+        <div className="inline-notice" role="status">
+          <p>{visibleDeepLinkNotice}</p>
+        </div>
+      ) : null}
+
       <div className="field-organizations">
-        {ownerOrganizations.map((organization) => {
+        {ownerOrganizations.map((organization, organizationIndex) => {
+          const organizationDomId = `${domId}-organization-${organizationIndex}`;
+          const createNameId = `${organizationDomId}-field-name`;
+          const detailTitleId = `${organizationDomId}-detail-title`;
+          const renameNameId = `${organizationDomId}-rename-name`;
+          const renameHelpId = `${organizationDomId}-rename-help`;
           const resource = resources[organization.organizationId] ?? {
             kind: "loading",
           };
@@ -1162,11 +1505,7 @@ export function FieldManagement({
                   }}
                 >
                   <div className="form-field">
-                    <label
-                      htmlFor={`field-name-${organization.organizationId}`}
-                    >
-                      Nombre del campo
-                    </label>
+                    <label htmlFor={createNameId}>Nombre del campo</label>
                     <input
                       aria-describedby={formHelpId}
                       aria-invalid={
@@ -1174,7 +1513,7 @@ export function FieldManagement({
                         creation.kind === "validation"
                       }
                       disabled={submitting}
-                      id={`field-name-${organization.organizationId}`}
+                      id={createNameId}
                       onChange={(event) => changeDraft(event.target.value)}
                       ref={inputRef}
                       value={draft}
@@ -1285,12 +1624,17 @@ export function FieldManagement({
                         <button
                           aria-label={`Abrir ficha de ${field.displayName}, campo ${formatShortId(field.fieldId)}`}
                           className="button button--quiet"
-                          onClick={() =>
-                            void openDetail(
-                              organization.organizationId,
-                              field.fieldId,
-                            )
-                          }
+                          onClick={() => selectField(field)}
+                          ref={(element) => {
+                            if (element === null) {
+                              detailTriggerRefs.current.delete(field.fieldId);
+                            } else {
+                              detailTriggerRefs.current.set(
+                                field.fieldId,
+                                element,
+                              );
+                            }
+                          }}
                           type="button"
                         >
                           Abrir ficha
@@ -1338,7 +1682,7 @@ export function FieldManagement({
               ) : null}
               {detail.kind === "ready" ? (
                 <section
-                  aria-labelledby={`field-detail-${detail.field.fieldId}`}
+                  aria-labelledby={detailTitleId}
                   className="field-detail"
                   onKeyDown={(event) => {
                     if (
@@ -1353,14 +1697,13 @@ export function FieldManagement({
                       closeDetail(organization.organizationId);
                     }
                   }}
+                  ref={detailRef}
                   tabIndex={-1}
                 >
                   <div className="field-detail__heading">
                     <div>
                       <p className="section-kicker">Ficha del campo</p>
-                      <h4 id={`field-detail-${detail.field.fieldId}`}>
-                        {detail.field.displayName}
-                      </h4>
+                      <h4 id={detailTitleId}>{detail.field.displayName}</h4>
                       <p>Campo {formatShortId(detail.field.fieldId)}</p>
                     </div>
                     {renameAttemptState === null ||
@@ -1411,25 +1754,25 @@ export function FieldManagement({
                       }}
                     >
                       <div className="form-field">
-                        <label htmlFor={`field-rename-${detail.field.fieldId}`}>
+                        <label htmlFor={renameNameId}>
                           Nuevo nombre del campo
                         </label>
                         <input
-                          aria-describedby={`field-rename-help-${detail.field.fieldId}`}
+                          aria-describedby={renameHelpId}
                           aria-invalid={
                             renameAttemptState.kind === "validation"
                           }
                           disabled={
                             renameBusy || renameAttemptState.kind === "stale"
                           }
-                          id={`field-rename-${detail.field.fieldId}`}
+                          id={renameNameId}
                           onChange={(event) =>
                             changeRenameDraft(event.target.value)
                           }
                           ref={renameInputRef}
                           value={renameAttemptState.attempt.displayName}
                         />
-                        <small id={`field-rename-help-${detail.field.fieldId}`}>
+                        <small id={renameHelpId}>
                           Entre 2 y 120 caracteres Unicode, sin controles.
                         </small>
                         {renameAttemptState.attempt.displayName !==

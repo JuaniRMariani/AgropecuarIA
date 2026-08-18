@@ -18,6 +18,44 @@ function shortId(value: string): string {
   return value.replaceAll("-", "").slice(0, 6).toUpperCase();
 }
 
+async function expectNoFullUuidInDom(page: Page): Promise<void> {
+  const leaks = await page.locator("main").evaluate((root) => {
+    const uuidPattern =
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+    const excludedSelector = "script, style, template";
+    const findings: string[] = [];
+    const elements = [root, ...root.querySelectorAll("*")];
+
+    for (const element of elements) {
+      if (element.matches(excludedSelector)) continue;
+      for (const attribute of element.attributes) {
+        if (uuidPattern.test(attribute.value)) {
+          findings.push(
+            `attribute:${element.tagName.toLowerCase()}:${attribute.name}`,
+          );
+        }
+      }
+    }
+
+    const textNodes = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node = textNodes.nextNode();
+    while (node !== null) {
+      const parent = node.parentElement;
+      if (
+        parent !== null &&
+        parent.closest(excludedSelector) === null &&
+        uuidPattern.test(node.nodeValue ?? "")
+      ) {
+        findings.push(`text:${parent.tagName.toLowerCase()}`);
+      }
+      node = textNodes.nextNode();
+    }
+
+    return findings;
+  });
+  expect(leaks).toEqual([]);
+}
+
 async function antiforgeryToken(page: Page): Promise<string> {
   return page.evaluate(async () => {
     const response = await fetch("/api/identity/antiforgery", {
@@ -240,6 +278,74 @@ test.describe("owner workspace", () => {
       ),
     ).toBe(false);
 
+    const openFieldA = page.getByRole("button", {
+      name: `Abrir ficha de ${fieldA.displayName}, campo ${shortId(fieldA.fieldId)}`,
+    });
+    await openFieldA.click();
+    await expect(page).toHaveURL(
+      new RegExp(
+        `\\?org=${shortId(organizationA.organizationId)}&view=fields&field=${shortId(fieldA.fieldId)}$`,
+      ),
+    );
+    const fieldADetail = page.locator(".field-detail").filter({
+      has: page.getByRole("heading", { name: fieldA.displayName, level: 4 }),
+    });
+    await expect(fieldADetail).toBeFocused();
+    await expectNoFullUuidInDom(page);
+
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: fieldA.displayName, level: 4 }),
+    ).toBeVisible();
+    await expect(fieldADetail).toBeFocused();
+    await fieldADetail.press("Escape");
+    await expect(page).toHaveURL(
+      new RegExp(
+        `\\?org=${shortId(organizationA.organizationId)}&view=fields$`,
+      ),
+    );
+    await expect(openFieldA).toBeFocused();
+
+    await page.goBack();
+    await expect(
+      page.getByRole("heading", { name: fieldA.displayName, level: 4 }),
+    ).toBeVisible();
+    await page.goForward();
+    await expect(openFieldA).toBeFocused();
+
+    const foreignDetailPath = `/organizations/${organizationA.organizationId}/fields/${fieldB.fieldId}`;
+    await page.goto(
+      `/?org=${shortId(organizationA.organizationId)}&view=fields&field=${shortId(fieldB.fieldId)}`,
+    );
+    await expect(page).toHaveURL(
+      new RegExp(
+        `\\?org=${shortId(organizationA.organizationId)}&view=fields$`,
+      ),
+    );
+    await expect(
+      page
+        .locator(".inline-notice")
+        .getByText(/no est. disponible en esta organizaci.n/i),
+    ).toBeVisible();
+    expect(tenantRequests.some((url) => url.includes(foreignDetailPath))).toBe(
+      false,
+    );
+
+    await page.goto(
+      `/?org=${shortId(organizationA.organizationId)}&view=fields&field=${fieldA.fieldId}`,
+    );
+    await expect(page).toHaveURL(
+      new RegExp(
+        `\\?org=${shortId(organizationA.organizationId)}&view=fields$`,
+      ),
+    );
+    await expect(
+      page
+        .locator(".inline-notice")
+        .getByText(/c.digo corto del campo no es v.lido/i),
+    ).toBeVisible();
+    await expectNoFullUuidInDom(page);
+
     await page.getByRole("button", { name: "Cambiar organización" }).click();
     const organizationBChoice = page.getByRole("listitem").filter({
       hasText: `Organización ${shortId(organizationB.organizationId)}`,
@@ -262,6 +368,7 @@ test.describe("owner workspace", () => {
     await expect(page.locator("body")).not.toContainText(
       organizationB.organizationId,
     );
+    await expectNoFullUuidInDom(page);
 
     await page.getByRole("button", { name: "Equipo" }).click();
     await expect(page.getByRole("button", { name: "Equipo" })).toHaveAttribute(
@@ -294,6 +401,89 @@ test.describe("owner workspace", () => {
       () => document.documentElement.scrollWidth > window.innerWidth,
     );
     expect(hasHorizontalOverflow).toBe(false);
+    await expectNoSeriousAccessibilityViolations(page);
+  });
+
+  test("fails closed for a colliding field prefix without requesting detail", async ({
+    page,
+  }, testInfo) => {
+    testInfo.setTimeout(90_000);
+    if (testInfo.project.name === "mobile") {
+      await page.setViewportSize({ width: 390, height: 844 });
+    }
+
+    await page.goto("/");
+    await signIn(page);
+    const organization = await createOrganization(
+      page,
+      `Establecimiento colision ${Date.now()}`,
+    );
+    const collidingFields = [
+      {
+        fieldId: "abcdef11-1111-4111-8111-111111111111",
+        organizationId: organization.organizationId,
+        displayName: "Campo Alfa",
+        type: "field",
+        status: "draft",
+        spatialStatus: "not_configured",
+        createdAtUtc: "2026-08-18T18:00:00Z",
+        version: "11111111-2222-4333-8444-555555555555",
+      },
+      {
+        fieldId: "abcdef22-2222-4222-8222-222222222222",
+        organizationId: organization.organizationId,
+        displayName: "Campo Beta",
+        type: "field",
+        status: "draft",
+        spatialStatus: "not_configured",
+        createdAtUtc: "2026-08-18T18:01:00Z",
+        version: "66666666-7777-4888-8999-aaaaaaaaaaaa",
+      },
+    ] as const;
+    const detailRequests: string[] = [];
+    page.on("request", (request) => {
+      if (/\/fields\/[0-9a-f-]{36}$/i.test(request.url())) {
+        detailRequests.push(request.url());
+      }
+    });
+    await page.route(
+      `**/api/organizations/${organization.organizationId}/fields`,
+      async (route) => {
+        if (route.request().method() !== "GET") {
+          await route.continue();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(collidingFields),
+        });
+      },
+    );
+
+    await page.goto(
+      `/?org=${shortId(organization.organizationId)}&view=fields&field=abcdef`,
+    );
+
+    await expect(page).toHaveURL(
+      new RegExp(`\\?org=${shortId(organization.organizationId)}&view=fields$`),
+    );
+    await expect(
+      page.locator(".inline-notice").getByText(/coincide con m.s de un campo/i),
+    ).toBeVisible();
+    expect(detailRequests).toEqual([]);
+    await expect(page.locator("body")).not.toContainText(
+      collidingFields[0].fieldId,
+    );
+    await expect(page.locator("body")).not.toContainText(
+      collidingFields[1].fieldId,
+    );
+    await expectNoFullUuidInDom(page);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      ),
+    ).toBe(false);
     await expectNoSeriousAccessibilityViolations(page);
   });
 });

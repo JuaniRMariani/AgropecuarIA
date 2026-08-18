@@ -3,6 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const workspaceMockState = vi.hoisted(() => ({
   view: "account" as "fields" | "team" | "territory" | "account",
+  field: { kind: "none" } as
+    | Readonly<{ kind: "none" }>
+    | Readonly<{ kind: "requested"; prefix: string }>
+    | Readonly<{ kind: "invalid"; reason: "format" | "view" }>,
+  onFieldIntent: vi.fn(() => true),
 }));
 
 vi.mock("../../features/workspace/owner-workspace", async (importOriginal) => {
@@ -12,6 +17,7 @@ vi.mock("../../features/workspace/owner-workspace", async (importOriginal) => {
     >();
   return {
     ...actual,
+    useWorkspaceFieldNavigation: () => workspaceMockState.onFieldIntent,
     OwnerWorkspaceShell: ({
       memberships,
       onboarding,
@@ -25,11 +31,32 @@ vi.mock("../../features/workspace/owner-workspace", async (importOriginal) => {
         kind: "active",
         membership,
         view: workspaceMockState.view,
+        field: workspaceMockState.field,
         source: "automatic",
       });
     },
   };
 });
+
+vi.mock("../../features/fields/field-management", () => ({
+  FieldManagement: ({
+    deepLink,
+    onDeepLinkIntent,
+  }: import("../../features/fields/field-management").FieldManagementProps) => (
+    <section data-testid="field-management-bridge">
+      <p>
+        {deepLink?.kind ?? "none"}
+        {deepLink?.kind === "requested" ? `:${deepLink.prefix}` : ""}
+      </p>
+      <button
+        onClick={() => onDeepLinkIntent?.({ kind: "select", prefix: "A1B2C3" })}
+        type="button"
+      >
+        Intentar otro campo
+      </button>
+    </section>
+  ),
+}));
 
 import { IdentityView } from "../../features/identity/identity-view";
 import type {
@@ -89,7 +116,12 @@ const accountSession: IdentitySession = {
   ],
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  workspaceMockState.view = "account";
+  workspaceMockState.field = { kind: "none" };
+  workspaceMockState.onFieldIntent.mockClear();
+});
 
 const invitationProps = {
   ownerInvitations: {},
@@ -141,6 +173,7 @@ function renderView(
     draft?: string;
     formOpen?: boolean;
     creation?: OrganizationCreationState;
+    view?: "fields" | "team" | "territory" | "account";
   }> = {},
   invitationOptions: Partial<typeof invitationProps> = {},
   ownerMembershipOptions: Partial<typeof ownerMembershipProps> = {},
@@ -150,10 +183,11 @@ function renderView(
   }> = {},
 ) {
   workspaceMockState.view =
-    Object.keys(invitationOptions).length > 0 ||
+    organizationOptions.view ??
+    (Object.keys(invitationOptions).length > 0 ||
     Object.keys(ownerMembershipOptions).length > 0
       ? "team"
-      : "account";
+      : "account");
   const handlers = {
     onRetry: vi.fn(),
     onLogin: vi.fn(),
@@ -843,6 +877,33 @@ describe("IdentityView", () => {
     expect(container).not.toHaveTextContent(organizationId);
     fireEvent.click(screen.getByRole("button", { name: "Crear otra" }));
     expect(handlers.onStartOrganization).toHaveBeenCalledOnce();
+  });
+
+  it("forwards the workspace field locator and navigation bridge without exposing a UUID", () => {
+    workspaceMockState.field = { kind: "requested", prefix: "F0185B" };
+    const { container } = renderView(
+      {
+        kind: "authenticated",
+        capabilities: productionCapabilities,
+        session: accountSession,
+      },
+      { kind: "none" },
+      { view: "fields" },
+    );
+
+    expect(screen.getByTestId("field-management-bridge")).toHaveTextContent(
+      "requested:F0185B",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Intentar otro campo" }),
+    );
+    expect(workspaceMockState.onFieldIntent).toHaveBeenCalledWith({
+      kind: "select",
+      prefix: "A1B2C3",
+    });
+    expect(container).not.toHaveTextContent(
+      accountSession.memberships[0]?.organizationId ?? "",
+    );
   });
 
   it("limits the loader to onboarding and preserves the shell", () => {

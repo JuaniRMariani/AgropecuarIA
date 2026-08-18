@@ -1685,3 +1685,34 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - La revisión independiente detectó un Medium contractual: un 401 posterior a respuesta perdida no confirma el cierre global si logout ganó la carrera. Wording, UX/evidencia y test reverso same-current quedaron corregidos; el 401 sólo prueba current inválida y exige reingreso+inventario.
 - Dictamen final: GO integrado-local, 0 Critical, 0 High, 0 Medium y 0 Low.
 - Publicación funcional: `5b123e3` (`feat(identity): close all active sessions`) en `origin/main`; author y committer verificados como `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.
+
+## Iteración 35 — selección del próximo sub-slice Ready (2026-08-18)
+
+### Plan
+
+- [x] Auditar en paralelo Product/QA, Security/Data y Architecture sobre el backlog R1 vigente después de `RevokeAllOwnSessionsAndLogoutV1`.
+- [x] Exigir ranking único con un solo candidato GO, micro-DoR, valor sponsor, dependencias satisfechas, límites y gates; no inventar consumidor, proveedor, rol, retención ni metadata personal.
+- [x] Reconsiderar `ArchiveFieldDraft`, deep-link/contexto FE, residuos honestos de ID-004 y cualquier vertical Productive/Catalog realmente habilitado por el runtime actual.
+- [x] Seleccionar por unanimidad `OwnerFieldDeepLinkV1` como único GO frontend-only; Archive, residuos ID-004 y Productive/Catalog permanecen NO-GO.
+- [x] Congelar contrato y aceptación antes de editar runtime; registrar NO-GO de los demás candidatos.
+- [x] Implementar con ownership disjunto, gates completos y revisión independiente.
+- [ ] Publicar con identidad local `JuaniRMariani`, verificar el remoto y no hacer deploy.
+
+### Micro-DoR y aceptación congelada
+
+- [x] URL canónica `?org=ABCDEF&view=fields&field=123ABC`; `field` es prefijo hexadecimal de seis caracteres, nunca UUID completo ni autoridad.
+- [x] Resolver `field` sólo contra la lista completa ya autorizada de la organización activa. Una coincidencia usa internamente su UUID completo; cero o colisión fallan cerrados y no ejecutan GET detail.
+- [x] `field` sólo es válido en `view=fields`; cambiar vista/organización, membership removida, 401 o 404 limpian ficha y locator. Fallo de lista/offline/429/503 conserva locator para retry sin adivinar.
+- [x] Abrir/cerrar ficha usa historial real; reload y back/forward restauran estado. URL inválida confirmada se canonicaliza sin contaminar historia.
+- [x] Rename dirty confirma antes de cambiar/cerrar; pending/reconciliation bloquean el intento sin trasladar draft/key. Requests tardíos org A→B o field 1→2 se abortan o invalidan por generación.
+- [x] Foco entra al heading de ficha y vuelve al disparador/listado al cerrar; anuncio acotado, Axe y 390 px sin overflow. El locator no persiste UUID ni agrega storage, y ningún UUID completo aparece en DOM, URL, errores o telemetría; los reintentos preexistentes conservan sus IDs internos en `sessionStorage` según su contrato one-shot.
+- [x] Cero cambios backend, OpenAPI, DB, grants/RLS, evento, consumer, retención o telemetría. Clientes N-1 ignoran el query aditivo.
+- [x] Cubrir 0/1/N orgs, prefijo inválido/desconocido/colisionado/cross-tenant, lista/detail tardíos, reload/back/forward/open/close/Escape, guards, foco/Axe/390 y regresión frontend completa.
+
+### Review
+
+- Readiness unánime: `OwnerFieldDeepLinkV1` es el único GO reversible y frontend-only. Archive, Catalog/Productive y residuos ID-004 permanecen NO-GO por decisiones o runtime ausentes.
+- Implementación frontend-only: locator corto canónico, resolución contra la lista autorizada del tenant activo, history/guards/foco y requests detail ligados a organización/campo/generación. No cambió backend, OpenAPI, DB, grants/RLS, eventos, telemetría ni retención.
+- Gates finales: build Release 9 proyectos `0/0`; raíz MTP `381/381`; EF `3/3`; Vitest `252/252`; Playwright oficial `12/12`; FND `45/45`; SEC `56/56`; format/lint/typecheck/Next build/SCA/UTF-8/secrets/diff `PASS`.
+- Revisión independiente final: `PASS`, 0 Critical, 0 High, 0 Medium y 0 Low abiertos. Se cerraron antes de publicar la pérdida de foco por popstate, el reemplazo del éxito de creación, la carrera detail A→B con prefijo compartido y UUID completos en atributos DOM.
+- Publicación funcional: pendiente del commit/push con `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.

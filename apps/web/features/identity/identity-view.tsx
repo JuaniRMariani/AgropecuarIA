@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { formatShortId } from "../../lib/format-id";
 import {
@@ -8,7 +8,9 @@ import {
 import { TerritoryExplorer } from "../territory/territory-explorer";
 import {
   OwnerWorkspaceShell,
+  type ActiveWorkspace,
   type WorkspaceGuard,
+  useWorkspaceFieldNavigation,
 } from "../workspace/owner-workspace";
 
 import type {
@@ -1550,6 +1552,28 @@ function OwnSessionManagement({
   );
 }
 
+function ActiveFieldManagement({
+  workspace,
+  onContextGuardChange,
+}: Readonly<{
+  workspace: ActiveWorkspace;
+  onContextGuardChange: (guard: FieldContextGuard) => void;
+}>) {
+  const onFieldIntent = useWorkspaceFieldNavigation();
+  const organizations = useMemo(
+    () => [workspace.membership],
+    [workspace.membership],
+  );
+  return (
+    <FieldManagement
+      deepLink={workspace.field ?? { kind: "none" }}
+      onContextGuardChange={onContextGuardChange}
+      onDeepLinkIntent={onFieldIntent}
+      organizations={organizations}
+    />
+  );
+}
+
 function CurrentSession({
   capabilities,
   session,
@@ -1714,10 +1738,10 @@ function CurrentSession({
           };
           if (workspace.view === "fields") {
             return (
-              <FieldManagement
+              <ActiveFieldManagement
                 key={workspace.membership.organizationId}
                 onContextGuardChange={setFieldContextGuard}
-                organizations={[workspace.membership]}
+                workspace={workspace}
               />
             );
           }

@@ -1,8 +1,8 @@
 # AGRO-FE-001 — OwnerWorkspaceShellV1
 
-Este incremento organiza las superficies owner ya disponibles bajo un único contexto de organización. No agrega autorización, dominio, endpoints, tablas, eventos ni preferencias persistentes.
+Estos incrementos organizan las superficies owner ya disponibles bajo un único contexto de organización y agregan un deep link privacy-safe hacia la ficha de campo draft. No agregan autorización, dominio, endpoints, tablas, eventos ni preferencias persistentes.
 
-`AGRO-FE-001` permanece `En curso`: roles adicionales, navegación por campo, sistema de diseño general, matriz completa de navegadores y certificación WCAG manual quedan en el padre.
+`AGRO-FE-001` permanece `En curso`: roles adicionales, preferencias, sistema de diseño general, matriz completa de navegadores y certificación WCAG manual quedan en el padre.
 
 Artefactos:
 

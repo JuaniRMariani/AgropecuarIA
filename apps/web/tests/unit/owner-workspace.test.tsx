@@ -13,6 +13,9 @@ import {
   buildWorkspaceUrl,
   OwnerWorkspaceShell,
   resolveWorkspaceLocation,
+  useWorkspaceFieldNavigation,
+  type ActiveWorkspace,
+  type WorkspaceFieldIntent,
 } from "../../features/workspace/owner-workspace";
 
 const organizationA: MembershipSummary = {
@@ -72,6 +75,51 @@ describe("resolveWorkspaceLocation", () => {
     expect(buildWorkspaceUrl("/", organizationA, "team")).toBe(
       "/?org=126639&view=team",
     );
+  });
+
+  it.each([
+    ["legacy", "?org=126639&view=fields", { kind: "none" }],
+    [
+      "canonical",
+      "?org=126639&view=fields&field=f0185b",
+      { kind: "requested", prefix: "F0185B" },
+    ],
+    [
+      "invalid",
+      "?org=126639&view=fields&field=F0185",
+      { kind: "invalid", reason: "format" },
+    ],
+    [
+      "wrong view",
+      "?org=126639&view=team&field=F0185B",
+      { kind: "invalid", reason: "view" },
+    ],
+  ] as const)(
+    "resolves a %s field locator without treating it as authority",
+    (_, search, field) => {
+      expect(resolveWorkspaceLocation([organizationA], search)).toMatchObject({
+        kind: "active",
+        field,
+      });
+    },
+  );
+
+  it("builds legacy and field URLs with short canonical locators only", () => {
+    expect(buildWorkspaceUrl("/", organizationA, "fields")).toBe(
+      "/?org=126639&view=fields",
+    );
+    expect(
+      buildWorkspaceUrl("/", organizationA, "fields", {
+        kind: "requested",
+        prefix: "F0185B",
+      }),
+    ).toBe("/?org=126639&view=fields&field=F0185B");
+    expect(
+      buildWorkspaceUrl("/", organizationA, "account", {
+        kind: "requested",
+        prefix: "F0185B",
+      }),
+    ).toBe("/?org=126639&view=account");
   });
 
   it.each([
@@ -160,6 +208,65 @@ function shellWithGuard(
   );
 }
 
+function FieldIntentControls({
+  workspace,
+}: Readonly<{ workspace: ActiveWorkspace }>) {
+  const onFieldIntent = useWorkspaceFieldNavigation();
+  const send = (intent: WorkspaceFieldIntent) => () => onFieldIntent(intent);
+  return (
+    <article>
+      <p>
+        Campo solicitado: {workspace.field?.kind ?? "none"}
+        {workspace.field?.kind === "requested"
+          ? ` ${workspace.field.prefix}`
+          : ""}
+      </p>
+      <button
+        onClick={send({ kind: "select", prefix: "F0185B" })}
+        type="button"
+      >
+        Abrir campo uno
+      </button>
+      <button
+        onClick={send({ kind: "select", prefix: "A1B2C3" })}
+        type="button"
+      >
+        Abrir campo dos
+      </button>
+      <button onClick={send({ kind: "clear" })} type="button">
+        Cerrar campo
+      </button>
+      <button
+        onClick={send({
+          kind: "reject",
+          prefix: "F0185B",
+          reason: "ambiguous",
+        })}
+        type="button"
+      >
+        Rechazar campo
+      </button>
+    </article>
+  );
+}
+
+function fieldIntentShell(
+  guard: "clear" | "dirty" | "pending" | "context-pending" = "clear",
+  onDiscardDraft = vi.fn(),
+) {
+  return (
+    <OwnerWorkspaceShell
+      guard={guard}
+      memberships={[organizationA]}
+      onActiveOrganizationChange={vi.fn()}
+      onDiscardDraft={onDiscardDraft}
+      onboarding={<p>Alta inicial</p>}
+    >
+      {(workspace) => <FieldIntentControls workspace={workspace} />}
+    </OwnerWorkspaceShell>
+  );
+}
+
 describe("OwnerWorkspaceShell", () => {
   it("renders onboarding for zero owner memberships and never opens tenant content", async () => {
     const activeOrganization = vi.fn();
@@ -224,6 +331,114 @@ describe("OwnerWorkspaceShell", () => {
         organizationA.organizationId,
       ),
     );
+  });
+
+  it("canonicalizes field URLs and keeps invalid locators out of tenant requests", async () => {
+    globalThis.history.replaceState(
+      {},
+      "",
+      "/?org=126639&view=fields&field=f0185b",
+    );
+    render(fieldIntentShell());
+
+    expect(
+      await screen.findByText("Campo solicitado: requested F0185B"),
+    ).toBeVisible();
+    expect(globalThis.location.search).toBe(
+      "?org=126639&view=fields&field=F0185B",
+    );
+    expect(document.body).not.toHaveTextContent(organizationA.organizationId);
+
+    cleanup();
+    globalThis.history.replaceState(
+      {},
+      "",
+      `/?org=126639&view=fields&field=${organizationA.organizationId}`,
+    );
+    render(fieldIntentShell());
+
+    expect(await screen.findByText("Campo solicitado: invalid")).toBeVisible();
+    expect(globalThis.location.search).toBe("?org=126639&view=fields");
+    expect(
+      screen.getByText(/c.digo corto del campo no es v.lido/i),
+    ).toBeVisible();
+  });
+
+  it("opens, closes and restores field locators through real history", async () => {
+    globalThis.history.replaceState({}, "", "/?org=126639&view=fields");
+    render(fieldIntentShell());
+    await screen.findByText("Campo solicitado: none");
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir campo uno" }));
+    expect(
+      await screen.findByText("Campo solicitado: requested F0185B"),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir campo dos" }));
+    expect(
+      await screen.findByText("Campo solicitado: requested A1B2C3"),
+    ).toBeVisible();
+
+    act(() => globalThis.history.back());
+    expect(
+      await screen.findByText("Campo solicitado: requested F0185B"),
+    ).toBeVisible();
+    act(() => globalThis.history.back());
+    expect(await screen.findByText("Campo solicitado: none")).toBeVisible();
+    act(() => globalThis.history.forward());
+    expect(
+      await screen.findByText("Campo solicitado: requested F0185B"),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar campo" }));
+    expect(await screen.findByText("Campo solicitado: none")).toBeVisible();
+    expect(globalThis.location.search).toBe("?org=126639&view=fields");
+  });
+
+  it("replaces a rejected collision with a neutral announcement", async () => {
+    globalThis.history.replaceState(
+      {},
+      "",
+      "/?org=126639&view=fields&field=F0185B",
+    );
+    render(fieldIntentShell());
+    await screen.findByText("Campo solicitado: requested F0185B");
+
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar campo" }));
+
+    expect(await screen.findByText("Campo solicitado: none")).toBeVisible();
+    expect(globalThis.location.search).toBe("?org=126639&view=fields");
+    expect(screen.getByText(/coincide con m.s de un campo/i)).toBeVisible();
+  });
+
+  it("guards field changes while dirty or pending without losing the current locator", async () => {
+    globalThis.history.replaceState(
+      {},
+      "",
+      "/?org=126639&view=fields&field=F0185B",
+    );
+    const confirmation = vi
+      .spyOn(globalThis, "confirm")
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    const onDiscardDraft = vi.fn();
+    const { rerender } = render(fieldIntentShell("dirty", onDiscardDraft));
+    await screen.findByText("Campo solicitado: requested F0185B");
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir campo dos" }));
+    expect(confirmation).toHaveBeenCalledOnce();
+    expect(globalThis.location.search).toContain("field=F0185B");
+    expect(onDiscardDraft).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir campo dos" }));
+    expect(
+      await screen.findByText("Campo solicitado: requested A1B2C3"),
+    ).toBeVisible();
+    expect(onDiscardDraft).toHaveBeenCalledOnce();
+
+    rerender(fieldIntentShell("pending", onDiscardDraft));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir campo uno" }));
+    expect(screen.getByText(/Hay una operaci.n pendiente/i)).toBeVisible();
+    expect(globalThis.location.search).toContain("field=A1B2C3");
   });
 
   it("restores view and organization from back/forward navigation", async () => {

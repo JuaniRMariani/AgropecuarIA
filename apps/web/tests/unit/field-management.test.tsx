@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -24,7 +25,13 @@ const apiMocks = vi.hoisted(() => ({
       ) => Promise<CreatedField>
     >(),
   getField:
-    vi.fn<(organizationId: string, fieldId: string) => Promise<FieldSummary>>(),
+    vi.fn<
+      (
+        organizationId: string,
+        fieldId: string,
+        signal?: AbortSignal,
+      ) => Promise<FieldSummary>
+    >(),
   listFields:
     vi.fn<
       (
@@ -53,7 +60,11 @@ vi.mock("../../features/fields/field-api", async (importOriginal) => {
 });
 
 import { FieldApiError } from "../../features/fields/field-api";
-import { FieldManagement } from "../../features/fields/field-management";
+import {
+  FieldManagement,
+  type FieldDeepLink,
+  type FieldDeepLinkIntent,
+} from "../../features/fields/field-management";
 
 const organizationA = {
   organizationId: "1266395e-ec88-481e-9a72-81fa2cc2904a",
@@ -75,6 +86,18 @@ const fieldA: FieldSummary = {
   createdAtUtc: "2026-08-18T18:00:00Z",
   version: "5a5ed442-141f-4fd4-a8e8-52598a5d7426",
 };
+const fieldB: FieldSummary = {
+  ...fieldA,
+  fieldId: "a1b2c3d4-5ee8-4e43-adf8-083975f8fa77",
+  displayName: "Campo Sur",
+  version: "6b6ed442-141f-4fd4-a8e8-52598a5d7426",
+};
+const foreignField: FieldSummary = {
+  ...fieldA,
+  fieldId: "b2c3d4e5-6ff9-4e43-adf8-083975f8fa77",
+  organizationId: organizationB.organizationId,
+  displayName: "Campo Ajeno",
+};
 const renamedVersion = "bb8da0de-af15-42f1-87a6-40583dff5abe";
 const renamedFieldA: RenamedField = {
   ...fieldA,
@@ -83,6 +106,43 @@ const renamedFieldA: RenamedField = {
   isReplay: false,
   revision: 2,
 };
+
+const FULL_UUID_PATTERN =
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+function expectNoFullUuidInDom(): void {
+  expect(document.body.outerHTML.match(FULL_UUID_PATTERN) ?? []).toEqual([]);
+}
+
+function ControlledFieldManagement({
+  initialDeepLink,
+  onIntent,
+}: Readonly<{
+  initialDeepLink: FieldDeepLink;
+  onIntent?: (intent: FieldDeepLinkIntent) => void;
+}>) {
+  const [deepLink, setDeepLink] = useState(initialDeepLink);
+  const handleIntent = (intent: FieldDeepLinkIntent): boolean => {
+    onIntent?.(intent);
+    switch (intent.kind) {
+      case "select":
+      case "restore":
+        setDeepLink({ kind: "requested", prefix: intent.prefix });
+        return true;
+      case "clear":
+      case "reject":
+        setDeepLink({ kind: "none" });
+        return true;
+    }
+  };
+  return (
+    <FieldManagement
+      deepLink={deepLink}
+      onDeepLinkIntent={handleIntent}
+      organizations={[organizationA]}
+    />
+  );
+}
 
 beforeEach(() => {
   globalThis.sessionStorage.clear();
@@ -138,9 +198,16 @@ describe("FieldManagement", () => {
     );
   });
 
-  it("creates a duplicate-friendly draft, shows only short IDs and opens its non-spatial ficha", async () => {
+  it("keeps create success and its local detail visible without mutating the field locator", async () => {
     apiMocks.createField.mockResolvedValue({ ...fieldA, isReplay: false });
-    render(<FieldManagement organizations={[organizationA]} />);
+    const onDeepLinkIntent = vi.fn(() => true);
+    render(
+      <FieldManagement
+        deepLink={{ kind: "none" }}
+        onDeepLinkIntent={onDeepLinkIntent}
+        organizations={[organizationA]}
+      />,
+    );
 
     expect(await screen.findByText("Todavía no hay campos")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Crear campo" }));
@@ -159,11 +226,13 @@ describe("FieldManagement", () => {
       screen.getByText(/quedó como borrador sin geometría/i),
     ).toBeVisible();
     expect(screen.getAllByText("Campo F0185B")).toHaveLength(2);
-    expect(screen.queryByText(fieldA.fieldId)).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Campo Norte", level: 4 }),
     ).toBeVisible();
-    expect(screen.getByText("Sin geometría", { selector: "dd" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Editar nombre" })).toBeVisible();
+    expect(apiMocks.getField).not.toHaveBeenCalled();
+    expect(onDeepLinkIntent).not.toHaveBeenCalled();
+    expectNoFullUuidInDom();
   });
 
   it("submits 120 astral scalars and rejects the 121st without an HTML UTF-16 limit", async () => {
@@ -447,6 +516,7 @@ describe("FieldManagement", () => {
     expect(apiMocks.getField).toHaveBeenCalledWith(
       organizationA.organizationId,
       fieldA.fieldId,
+      expect.any(AbortSignal),
     );
     const detail = screen.getByText("Ficha del campo").closest("section");
     if (detail === null) {
@@ -456,6 +526,412 @@ describe("FieldManagement", () => {
     expect(
       screen.queryByRole("heading", { name: "Campo Norte", level: 4 }),
     ).not.toBeInTheDocument();
+  });
+
+  it("opens a canonical deep link, focuses its ficha and closes through the controlled intent", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    const onDeepLinkIntent = vi.fn<(intent: FieldDeepLinkIntent) => void>();
+    render(
+      <ControlledFieldManagement
+        initialDeepLink={{ kind: "requested", prefix: "F0185B" }}
+        onIntent={onDeepLinkIntent}
+      />,
+    );
+
+    const heading = await screen.findByRole("heading", {
+      name: "Campo Norte",
+      level: 4,
+    });
+    const detail = heading.closest("section");
+    if (detail === null)
+      throw new Error("Expected the deep-linked field detail.");
+    expect(detail).toHaveFocus();
+    expectNoFullUuidInDom();
+    expect(apiMocks.getField).toHaveBeenCalledWith(
+      organizationA.organizationId,
+      fieldA.fieldId,
+      expect.any(AbortSignal),
+    );
+
+    fireEvent.keyDown(detail, { key: "Escape" });
+
+    expect(onDeepLinkIntent).toHaveBeenCalledWith({ kind: "clear" });
+    expect(
+      screen.queryByRole("heading", { name: "Campo Norte", level: 4 }),
+    ).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", {
+        name: "Abrir ficha de Campo Norte, campo F0185B",
+      }),
+    ).toHaveFocus();
+  });
+
+  it("emits a short select intent before issuing any controlled detail request", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    const onDeepLinkIntent = vi.fn(() => true);
+    render(
+      <FieldManagement
+        deepLink={{ kind: "none" }}
+        onDeepLinkIntent={onDeepLinkIntent}
+        organizations={[organizationA]}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Abrir ficha de Campo Norte, campo F0185B",
+      }),
+    );
+
+    expect(onDeepLinkIntent).toHaveBeenCalledWith({
+      kind: "select",
+      prefix: "F0185B",
+    });
+    expect(apiMocks.getField).not.toHaveBeenCalled();
+  });
+
+  it("restores focus when browser history removes the active field locator", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    const onDeepLinkIntent = vi.fn(() => true);
+    const { rerender } = render(
+      <FieldManagement
+        deepLink={{ kind: "requested", prefix: "F0185B" }}
+        onDeepLinkIntent={onDeepLinkIntent}
+        organizations={[organizationA]}
+      />,
+    );
+    const heading = await screen.findByRole("heading", {
+      name: "Campo Norte",
+      level: 4,
+    });
+    expect(heading.closest("section")).toHaveFocus();
+
+    rerender(
+      <FieldManagement
+        deepLink={{ kind: "none" }}
+        onDeepLinkIntent={onDeepLinkIntent}
+        organizations={[organizationA]}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Abrir ficha de Campo Norte, campo F0185B",
+      }),
+    ).toHaveFocus();
+    expect(
+      screen.queryByRole("heading", { name: "Campo Norte", level: 4 }),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["unknown", [fieldA], "FFFFFF", "unknown"],
+    [
+      "collision",
+      [
+        fieldA,
+        {
+          ...fieldA,
+          fieldId: "f0185baa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          displayName: "Campo colisionado",
+        },
+      ],
+      "F0185B",
+      "ambiguous",
+    ],
+    ["cross-tenant", [fieldA], "B2C3D4", "unknown"],
+  ] as const)(
+    "rejects a %s locator against the authorized list without requesting detail",
+    async (_, items, prefix, reason) => {
+      apiMocks.listFields.mockResolvedValue(items);
+      const onDeepLinkIntent = vi.fn(() => true);
+      render(
+        <FieldManagement
+          deepLink={{ kind: "requested", prefix }}
+          onDeepLinkIntent={onDeepLinkIntent}
+          organizations={[organizationA]}
+        />,
+      );
+
+      await waitFor(() =>
+        expect(onDeepLinkIntent).toHaveBeenCalledWith({
+          kind: "reject",
+          prefix,
+          reason,
+        }),
+      );
+      expect(apiMocks.getField).not.toHaveBeenCalled();
+      expect(document.body).not.toHaveTextContent(foreignField.fieldId);
+    },
+  );
+
+  it("renders an invalid field locator without consulting detail", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    const onDeepLinkIntent = vi.fn(() => true);
+    render(
+      <FieldManagement
+        deepLink={{ kind: "invalid", reason: "format" }}
+        onDeepLinkIntent={onDeepLinkIntent}
+        organizations={[organizationA]}
+      />,
+    );
+
+    expect(
+      await screen.findByText(/c.digo corto del campo no es v.lido/i),
+    ).toBeVisible();
+    expect(apiMocks.getField).not.toHaveBeenCalled();
+    expect(onDeepLinkIntent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["offline", new TypeError("Failed to fetch")],
+    ["rate-limited", new FieldApiError("rate-limited", 429)],
+    ["service-unavailable", new FieldApiError("service-unavailable", 503)],
+  ])(
+    "preserves a requested locator when the list is %s",
+    async (_, failure) => {
+      apiMocks.listFields.mockRejectedValue(failure);
+      const onDeepLinkIntent = vi.fn(() => true);
+      render(
+        <FieldManagement
+          deepLink={{ kind: "requested", prefix: "F0185B" }}
+          onDeepLinkIntent={onDeepLinkIntent}
+          organizations={[organizationA]}
+        />,
+      );
+
+      expect(await screen.findByRole("alert")).toBeVisible();
+      expect(apiMocks.getField).not.toHaveBeenCalled();
+      expect(onDeepLinkIntent).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["signed-out", new FieldApiError("signed-out", 401), "signed-out"],
+    ["unavailable", new FieldApiError("unavailable", 404), "unavailable"],
+  ] as const)(
+    "clears a requested locator when the authorized list becomes %s",
+    async (_, failure, reason) => {
+      apiMocks.listFields.mockRejectedValue(failure);
+      const onDeepLinkIntent = vi.fn(() => true);
+      render(
+        <FieldManagement
+          deepLink={{ kind: "requested", prefix: "F0185B" }}
+          onDeepLinkIntent={onDeepLinkIntent}
+          organizations={[organizationA]}
+        />,
+      );
+
+      await waitFor(() =>
+        expect(onDeepLinkIntent).toHaveBeenCalledWith({
+          kind: "reject",
+          prefix: "F0185B",
+          reason,
+        }),
+      );
+      expect(apiMocks.getField).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["signed-out", new FieldApiError("signed-out", 401), "signed-out"],
+    ["unavailable", new FieldApiError("unavailable", 404), "unavailable"],
+  ] as const)(
+    "clears a requested locator when detail becomes %s",
+    async (_, failure, reason) => {
+      apiMocks.listFields.mockResolvedValue([fieldA]);
+      apiMocks.getField.mockRejectedValue(failure);
+      const onDeepLinkIntent = vi.fn(() => true);
+      render(
+        <FieldManagement
+          deepLink={{ kind: "requested", prefix: "F0185B" }}
+          onDeepLinkIntent={onDeepLinkIntent}
+          organizations={[organizationA]}
+        />,
+      );
+
+      await waitFor(() =>
+        expect(onDeepLinkIntent).toHaveBeenCalledWith({
+          kind: "reject",
+          prefix: "F0185B",
+          reason,
+        }),
+      );
+      expect(apiMocks.getField).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("ignores a late field-one detail after field two becomes current", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA, fieldB]);
+    let resolveFieldA: ((field: FieldSummary) => void) | undefined;
+    let resolveFieldB: ((field: FieldSummary) => void) | undefined;
+    const detailSignals: AbortSignal[] = [];
+    apiMocks.getField.mockImplementation((_organizationId, fieldId, signal) => {
+      if (signal !== undefined) detailSignals.push(signal);
+      return new Promise<FieldSummary>((resolve) => {
+        if (fieldId === fieldA.fieldId) resolveFieldA = resolve;
+        else resolveFieldB = resolve;
+      });
+    });
+    const onDeepLinkIntent = vi.fn(() => true);
+    const { rerender } = render(
+      <FieldManagement
+        deepLink={{ kind: "requested", prefix: "F0185B" }}
+        onDeepLinkIntent={onDeepLinkIntent}
+        organizations={[organizationA]}
+      />,
+    );
+    await waitFor(() => expect(apiMocks.getField).toHaveBeenCalledOnce());
+
+    rerender(
+      <FieldManagement
+        deepLink={{ kind: "requested", prefix: "A1B2C3" }}
+        onDeepLinkIntent={onDeepLinkIntent}
+        organizations={[organizationA]}
+      />,
+    );
+    await waitFor(() => expect(apiMocks.getField).toHaveBeenCalledTimes(2));
+    expect(detailSignals[0]?.aborted).toBe(true);
+
+    resolveFieldB?.(fieldB);
+    expect(
+      await screen.findByRole("heading", { name: "Campo Sur", level: 4 }),
+    ).toBeVisible();
+    resolveFieldA?.(fieldA);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Campo Norte", level: 4 }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Campo Sur", level: 4 }),
+    ).toBeVisible();
+  });
+
+  it("aborts organization A and never renders it after switching to B", async () => {
+    let resolveOrganizationA:
+      ((fields: readonly FieldSummary[]) => void) | undefined;
+    let resolveOrganizationB:
+      ((fields: readonly FieldSummary[]) => void) | undefined;
+    const listSignals = new Map<string, AbortSignal>();
+    apiMocks.listFields.mockImplementation((organizationId, signal) => {
+      if (signal !== undefined) listSignals.set(organizationId, signal);
+      return new Promise<readonly FieldSummary[]>((resolve) => {
+        if (organizationId === organizationA.organizationId) {
+          resolveOrganizationA = resolve;
+        } else {
+          resolveOrganizationB = resolve;
+        }
+      });
+    });
+    apiMocks.getField.mockResolvedValue(foreignField);
+    const onDeepLinkIntent = vi.fn(() => true);
+    const { rerender } = render(
+      <FieldManagement
+        deepLink={{ kind: "requested", prefix: "F0185B" }}
+        onDeepLinkIntent={onDeepLinkIntent}
+        organizations={[organizationA]}
+      />,
+    );
+    await waitFor(() => expect(apiMocks.listFields).toHaveBeenCalledOnce());
+
+    rerender(
+      <FieldManagement
+        deepLink={{ kind: "requested", prefix: "B2C3D4" }}
+        onDeepLinkIntent={onDeepLinkIntent}
+        organizations={[organizationB]}
+      />,
+    );
+    await waitFor(() => expect(apiMocks.listFields).toHaveBeenCalledTimes(2));
+    expect(listSignals.get(organizationA.organizationId)?.aborted).toBe(true);
+
+    resolveOrganizationB?.([foreignField]);
+    expect(
+      await screen.findByRole("heading", { name: "Campo Ajeno", level: 4 }),
+    ).toBeVisible();
+    resolveOrganizationA?.([fieldA]);
+    await waitFor(() =>
+      expect(screen.queryByText("Campo Norte")).not.toBeInTheDocument(),
+    );
+    expect(apiMocks.getField).toHaveBeenLastCalledWith(
+      organizationB.organizationId,
+      foreignField.fieldId,
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("ignores a terminal detail from organization A after organization B takes the same prefix", async () => {
+    const fieldWithSamePrefixInB: FieldSummary = {
+      ...fieldA,
+      fieldId: "f0185baa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      organizationId: organizationB.organizationId,
+      displayName: "Campo vigente en B",
+      version: "7c7ed442-141f-4fd4-a8e8-52598a5d7426",
+    };
+    let rejectOrganizationA: ((reason: FieldApiError) => void) | undefined;
+    let resolveOrganizationBList:
+      ((fields: readonly FieldSummary[]) => void) | undefined;
+    apiMocks.listFields.mockImplementation((organizationId) => {
+      if (organizationId === organizationA.organizationId) {
+        return Promise.resolve([fieldA]);
+      }
+      return new Promise<readonly FieldSummary[]>((resolve) => {
+        resolveOrganizationBList = resolve;
+      });
+    });
+    apiMocks.getField.mockImplementation((organizationId) => {
+      if (organizationId === organizationA.organizationId) {
+        return new Promise<FieldSummary>((_resolve, reject) => {
+          rejectOrganizationA = reject;
+        });
+      }
+      return Promise.resolve(fieldWithSamePrefixInB);
+    });
+    const onDeepLinkIntent = vi.fn(() => true);
+    const { rerender } = render(
+      <FieldManagement
+        deepLink={{ kind: "requested", prefix: "F0185B" }}
+        onDeepLinkIntent={onDeepLinkIntent}
+        organizations={[organizationA]}
+      />,
+    );
+    await waitFor(() => expect(apiMocks.getField).toHaveBeenCalledOnce());
+
+    rerender(
+      <FieldManagement
+        deepLink={{ kind: "requested", prefix: "F0185B" }}
+        onDeepLinkIntent={onDeepLinkIntent}
+        organizations={[organizationB]}
+      />,
+    );
+    await waitFor(() =>
+      expect(apiMocks.listFields).toHaveBeenCalledWith(
+        organizationB.organizationId,
+        expect.any(AbortSignal),
+      ),
+    );
+    rejectOrganizationA?.(
+      new FieldApiError("unavailable", 404, "productive.field_not_found"),
+    );
+    await waitFor(() => expect(onDeepLinkIntent).not.toHaveBeenCalled());
+
+    resolveOrganizationBList?.([fieldWithSamePrefixInB]);
+    expect(
+      await screen.findByRole("heading", {
+        name: "Campo vigente en B",
+        level: 4,
+      }),
+    ).toBeVisible();
+    expect(apiMocks.getField).toHaveBeenLastCalledWith(
+      organizationB.organizationId,
+      fieldWithSamePrefixInB.fieldId,
+      expect.any(AbortSignal),
+    );
+    expect(onDeepLinkIntent).not.toHaveBeenCalled();
+    expect(screen.queryByText("Campo Norte")).not.toBeInTheDocument();
+    expectNoFullUuidInDom();
   });
 
   it("renames only after confirmation and keeps the short field ID", async () => {
@@ -685,10 +1161,23 @@ describe("FieldManagement", () => {
     const originalKey = apiMocks.renameField.mock.calls[0]?.[0].idempotencyKey;
 
     cleanup();
-    render(<FieldManagement organizations={[organizationA]} />);
+    const onContextGuardChange = vi.fn();
+    const onDeepLinkIntent = vi.fn(() => true);
+    render(
+      <FieldManagement
+        onContextGuardChange={onContextGuardChange}
+        onDeepLinkIntent={onDeepLinkIntent}
+        organizations={[organizationA]}
+      />,
+    );
     expect(
       await screen.findByText(/retomamos el cambio pendiente/i),
     ).toBeVisible();
+    expect(onDeepLinkIntent).toHaveBeenCalledWith({
+      kind: "restore",
+      prefix: "F0185B",
+    });
+    expect(onContextGuardChange).toHaveBeenLastCalledWith("pending");
     expect(
       screen.getByRole("textbox", { name: "Nuevo nombre del campo" }),
     ).toHaveValue("Campo Sur");

@@ -1553,7 +1553,7 @@ Estado inicial: auditoría Product/QA, Security/Data y Architecture convergió e
 - [x] Principal: micro-DoR/backlog/evidencia, integración, gates, revisión y Git; sin cambios backend/schema/OpenAPI.
 - [x] Ejecutar pnpm frozen/format/lint/typecheck/Vitest/build, Playwright oficial, restore/build/MTP raíz, FND/SEC/SEC-002, SCA, secrets, UTF-8/JSON, parser y diff-check.
 - [x] Revisión independiente con 0 Critical/High/Medium; mantener `AGRO-FE-001` `En curso`.
-- [ ] Commit/push con `JuaniRMariani <juanirmariani@gmail.com>`; verificar author/committer y no desplegar.
+- [x] Commit/push con `JuaniRMariani <juanirmariani@gmail.com>`; verificar author/committer y no desplegar.
 
 ### Review final
 
@@ -1561,4 +1561,5 @@ Estado inicial: auditoría Product/QA, Security/Data y Architecture convergió e
 - Frontend frozen/format/lint/typecheck/build `PASS`; Vitest `179/179`; Playwright oficial `8/8` desktop+móvil con Axe/390 y cleanup hermético.
 - FND `45/45`, SEC `56/56`, NuGet/pnpm audit, UTF-8/JSON/parser/secrets/diff `PASS`.
 - Revisión independiente final `PASS`: 0 Critical, 0 High, 0 Medium. Cinco Medium encontrados durante revisión fueron corregidos y cubiertos antes de publicación.
+- Publicación funcional: `0a170e0` (`feat(frontend): add owner workspace shell`) en `origin/main`; author y committer verificados como `JuaniRMariani <juanirmariani@gmail.com>`.
 - `OwnerWorkspaceShellV1` queda aprobado integrado-local. `AGRO-FE-001` permanece `En curso`; roles no-owner, preferencias, matriz completa de navegadores y certificación WCAG manual siguen fuera. No hubo deploy.

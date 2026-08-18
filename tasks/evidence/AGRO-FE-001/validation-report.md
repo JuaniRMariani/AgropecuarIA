@@ -24,6 +24,7 @@ Estado: `PASS` para `OwnerWorkspaceShellV1` integrado-local. `AGRO-FE-001` perma
 - Revisión independiente final: `PASS`, 0 Critical, 0 High y 0 Medium abiertos.
 - Se detectaron y cerraron antes de publicar cinco hallazgos Medium: compensación Back/Forward sin destruir history, reflow de nombres largos, limpieza de anuncios stale, preservación tenant-safe de la key ante remoción ambigua y separación entre `429` terminal y outcomes ambiguos que sólo bloquean cambiar de organización.
 - No se modificaron backend, schemas, OpenAPI, migraciones, eventos ni políticas de autorización; no hubo deploy.
+- Publicación funcional: `0a170e0` (`feat(frontend): add owner workspace shell`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`.
 
 ## Riesgos residuales
 

@@ -223,17 +223,23 @@ export type OwnSessionResourceState =
   | Readonly<{ kind: "unavailable" }>
   | Readonly<{ kind: "error" }>;
 
+export type OwnSessionRevocationIntent =
+  | Readonly<{ kind: "single"; session: OwnSessionSummary }>
+  | Readonly<{ kind: "all-others" }>;
+
 export type OwnSessionActionState =
   | Readonly<{ kind: "idle" }>
-  | Readonly<{ kind: "confirming"; session: OwnSessionSummary }>
-  | Readonly<{ kind: "revoking"; sessionId: string }>
+  | Readonly<{ kind: "confirming"; intent: OwnSessionRevocationIntent }>
+  | Readonly<{ kind: "revoking"; intent: OwnSessionRevocationIntent }>
   | Readonly<{
       kind: "reauthentication-required";
-      session: OwnSessionSummary;
+      intent: OwnSessionRevocationIntent;
       message: string;
     }>
   | Readonly<{ kind: "stale"; message: string }>
   | Readonly<{ kind: "unavailable"; message: string }>
+  | Readonly<{ kind: "rate-limited"; message: string }>
+  | Readonly<{ kind: "service-unavailable"; message: string }>
   | Readonly<{ kind: "offline"; message: string }>
   | Readonly<{ kind: "error"; message: string }>
   | Readonly<{ kind: "revoked"; message: string }>;

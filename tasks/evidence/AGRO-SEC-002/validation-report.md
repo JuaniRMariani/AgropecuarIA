@@ -81,3 +81,14 @@ El registro vigente cubre exactamente `28/28` operaciones HTTP y agrega `identit
 - Restore locked, build Release `0/0`, format, NuGet/pnpm audit, UTF-8/JSON, parser, secretos y diff-check: PASS.
 
 Resultado vigente: PASS integrado-local. `AGRO-SEC-002` permanece `En curso`; revoke-all, device inventory, notificaciones, retención/purge, propagación distribuida, Auth0/edge/collector y deploy compartido siguen fuera.
+
+## Refresh: cierre atómico de las demás sesiones propias — 2026-08-18
+
+El registro vigente cubre exactamente `29/29` operaciones HTTP y agrega `identity.sessions.revoke-others`.
+
+- `DELETE /api/identity/sessions/others` es platform-scoped, exige cookie+CSRF y assurance exacta `manage_sessions`; no recibe body, IDs, tenant, `If-Match` ni count y preserva current.
+- PostgreSQL deriva actor/current/authorizationVersion desde contexto transaction-local. Las funciones individual y bulk comparten el mismo advisory transaction lock por actor y revalidan current con row lock antes del target; app sólo recibe `EXECUTE`, mientras job/discovery/public no reciben acceso de tabla ni ejecución indebida.
+- Cada target efectivo rota `Version`, fija un timestamp común y obtiene un journal `session_revoked` en la misma transacción. Cero targets/replay devuelve 204; bulk×bulk, bulk×individual y la carrera cross-current A→B/B→A no duplican transición ni dejan ambas current revocadas; fallo de journal o cancelación revierte todo.
+- Suite raíz `371/371`; Identity `136/136`; DB own-session `12/12`; API own-session `10/10`; Architecture Fitness `135/135`; Vitest `217/217`; Playwright `10/10`; FND `45/45`; SEC `56/56`; EF `3/3`; build/format/SCA/JSON/diff PASS.
+
+Resultado vigente: PASS integrado-local. `AGRO-SEC-002` y `AGRO-ID-004` permanecen `En curso`; no se aprueba dispositivo, notificación, sesión ajena, evento/consumer, retención/purge ni deploy compartido.

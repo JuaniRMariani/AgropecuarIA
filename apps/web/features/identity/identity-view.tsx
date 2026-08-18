@@ -73,6 +73,7 @@ type IdentityViewProps = Readonly<{
   onDismissOwnerRemoval: () => void;
   ownSessions: OwnSessionResourceState;
   ownSessionAction: OwnSessionActionState;
+  onBeginAllOtherOwnSessionRevocation: () => void;
   onBeginOwnSessionRevocation: (session: OwnSessionSummary) => void;
   onCancelOwnSessionRevocation: () => void;
   onConfirmOwnSessionRevocation: () => void;
@@ -1157,6 +1158,7 @@ function OwnerInvitationAcceptance({
 function OwnSessionManagement({
   resources,
   action,
+  onBeginAllOtherRevocation,
   onBeginRevocation,
   onCancelRevocation,
   onConfirmRevocation,
@@ -1169,6 +1171,7 @@ function OwnSessionManagement({
 }: Readonly<{
   resources: IdentityViewProps["ownSessions"];
   action: IdentityViewProps["ownSessionAction"];
+  onBeginAllOtherRevocation: IdentityViewProps["onBeginAllOtherOwnSessionRevocation"];
   onBeginRevocation: IdentityViewProps["onBeginOwnSessionRevocation"];
   onCancelRevocation: IdentityViewProps["onCancelOwnSessionRevocation"];
   onConfirmRevocation: IdentityViewProps["onConfirmOwnSessionRevocation"];
@@ -1199,13 +1202,20 @@ function OwnSessionManagement({
     }
   }, [action.kind]);
 
-  const retryable = action.kind === "offline" || action.kind === "error";
+  const retryable =
+    action.kind === "rate-limited" ||
+    action.kind === "service-unavailable" ||
+    action.kind === "offline" ||
+    action.kind === "error";
   const dismissible =
     action.kind === "stale" ||
     action.kind === "unavailable" ||
     action.kind === "revoked";
-  const confirmingSession =
-    action.kind === "confirming" ? action.session : null;
+  const confirmingIntent = action.kind === "confirming" ? action.intent : null;
+  const actionLocked =
+    action.kind === "confirming" ||
+    action.kind === "revoking" ||
+    action.kind === "reauthentication-required";
 
   return (
     <section
@@ -1224,21 +1234,42 @@ function OwnSessionManagement({
             mostramos un identificador corto y las fechas de vigencia.
           </p>
         </div>
-        <button
-          className="button button--quiet"
-          disabled={resources.kind === "loading" || action.kind === "revoking"}
-          onClick={onRefresh}
-          type="button"
-        >
-          Actualizar
-        </button>
+        <div className="own-session-management__actions">
+          <button
+            className="button button--danger-quiet"
+            disabled={
+              resources.kind !== "ready" ||
+              resources.page.total <= 1 ||
+              actionLocked
+            }
+            onClick={(event) => {
+              triggerRef.current = event.currentTarget;
+              onBeginAllOtherRevocation();
+            }}
+            type="button"
+          >
+            Cerrar las otras sesiones
+          </button>
+          <button
+            className="button button--quiet"
+            disabled={resources.kind === "loading" || actionLocked}
+            onClick={onRefresh}
+            type="button"
+          >
+            Actualizar
+          </button>
+        </div>
       </div>
 
       <div aria-live="polite" className="own-session-action">
         {action.kind === "revoking" ? (
           <div className="inline-notice" role="status">
             <Spinner />
-            <p>Cerrando la sesión de forma segura…</p>
+            <p>
+              {action.intent.kind === "all-others"
+                ? "Cerrando las otras sesiones de forma segura…"
+                : "Cerrando la sesión de forma segura…"}
+            </p>
           </div>
         ) : null}
         {action.kind === "reauthentication-required" ? (
@@ -1319,7 +1350,8 @@ function OwnSessionManagement({
               const shortId = formatShortId(item.sessionId);
               const busy =
                 action.kind === "revoking" &&
-                action.sessionId === item.sessionId;
+                action.intent.kind === "single" &&
+                action.intent.session.sessionId === item.sessionId;
               return (
                 <li className="own-session-row" key={item.sessionId}>
                   <div className="own-session-meta">
@@ -1352,7 +1384,7 @@ function OwnSessionManagement({
                     <button
                       aria-label={`Cerrar sesión ${shortId}`}
                       className="button button--danger-quiet"
-                      disabled={busy || action.kind === "revoking"}
+                      disabled={busy || actionLocked}
                       onClick={(event) => {
                         triggerRef.current = event.currentTarget;
                         onBeginRevocation(item);
@@ -1404,7 +1436,7 @@ function OwnSessionManagement({
         </nav>
       ) : null}
 
-      {confirmingSession !== null ? (
+      {confirmingIntent !== null ? (
         <div
           aria-describedby={confirmationDescriptionId}
           aria-labelledby={confirmationTitleId}
@@ -1418,11 +1450,14 @@ function OwnSessionManagement({
           role="alertdialog"
         >
           <h3 id={confirmationTitleId}>
-            ¿Cerrar la sesión {formatShortId(confirmingSession.sessionId)}?
+            {confirmingIntent.kind === "all-others"
+              ? "¿Cerrar las otras sesiones?"
+              : `¿Cerrar la sesión ${formatShortId(confirmingIntent.session.sessionId)}?`}
           </h3>
           <p id={confirmationDescriptionId}>
-            Ese acceso dejará de funcionar en su próxima solicitud. Tu sesión
-            actual permanecerá abierta.
+            {confirmingIntent.kind === "all-others"
+              ? "Todos los demás accesos abiertos dejarán de funcionar en su próxima solicitud. Esta sesión actual permanecerá abierta."
+              : "Ese acceso dejará de funcionar en su próxima solicitud. Tu sesión actual permanecerá abierta."}
           </p>
           <div className="own-session-confirmation__actions">
             <button
@@ -1438,8 +1473,9 @@ function OwnSessionManagement({
               onClick={onConfirmRevocation}
               type="button"
             >
-              Confirmar cierre de sesión{" "}
-              {formatShortId(confirmingSession.sessionId)}
+              {confirmingIntent.kind === "all-others"
+                ? "Confirmar cierre de las otras sesiones"
+                : `Confirmar cierre de sesión ${formatShortId(confirmingIntent.session.sessionId)}`}
             </button>
           </div>
         </div>
@@ -1482,6 +1518,7 @@ function CurrentSession({
   onDismissOwnerRemoval,
   ownSessions,
   ownSessionAction,
+  onBeginAllOtherOwnSessionRevocation,
   onBeginOwnSessionRevocation,
   onCancelOwnSessionRevocation,
   onConfirmOwnSessionRevocation,
@@ -1526,6 +1563,7 @@ function CurrentSession({
   onDismissOwnerRemoval: IdentityViewProps["onDismissOwnerRemoval"];
   ownSessions: IdentityViewProps["ownSessions"];
   ownSessionAction: IdentityViewProps["ownSessionAction"];
+  onBeginAllOtherOwnSessionRevocation: IdentityViewProps["onBeginAllOtherOwnSessionRevocation"];
   onBeginOwnSessionRevocation: IdentityViewProps["onBeginOwnSessionRevocation"];
   onCancelOwnSessionRevocation: IdentityViewProps["onCancelOwnSessionRevocation"];
   onConfirmOwnSessionRevocation: IdentityViewProps["onConfirmOwnSessionRevocation"];
@@ -1549,7 +1587,8 @@ function CurrentSession({
   const accountPending =
     organizationCreation.kind === "submitting" ||
     organizationCreation.kind === "in-progress" ||
-    organizationCreation.kind === "reconciliation-required";
+    organizationCreation.kind === "reconciliation-required" ||
+    ownSessionAction.kind === "revoking";
   const teamPending =
     ownerInvitationAction.kind === "creating" ||
     ownerInvitationAction.kind === "revoking" ||
@@ -1753,6 +1792,7 @@ function CurrentSession({
 
               <OwnSessionManagement
                 action={ownSessionAction}
+                onBeginAllOtherRevocation={onBeginAllOtherOwnSessionRevocation}
                 onBeginRevocation={onBeginOwnSessionRevocation}
                 onCancelRevocation={onCancelOwnSessionRevocation}
                 onConfirmRevocation={onConfirmOwnSessionRevocation}
@@ -1878,6 +1918,7 @@ export function IdentityView({
   onDismissOwnerRemoval,
   ownSessions,
   ownSessionAction,
+  onBeginAllOtherOwnSessionRevocation,
   onBeginOwnSessionRevocation,
   onCancelOwnSessionRevocation,
   onConfirmOwnSessionRevocation,
@@ -1988,6 +2029,9 @@ export function IdentityView({
                 onDismissOwnerRemoval={onDismissOwnerRemoval}
                 ownSessions={ownSessions}
                 ownSessionAction={ownSessionAction}
+                onBeginAllOtherOwnSessionRevocation={
+                  onBeginAllOtherOwnSessionRevocation
+                }
                 onBeginOwnSessionRevocation={onBeginOwnSessionRevocation}
                 onCancelOwnSessionRevocation={onCancelOwnSessionRevocation}
                 onConfirmOwnSessionRevocation={onConfirmOwnSessionRevocation}

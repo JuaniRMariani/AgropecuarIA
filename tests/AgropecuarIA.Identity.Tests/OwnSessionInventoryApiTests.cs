@@ -216,6 +216,14 @@ public sealed class OwnSessionInventoryApiTests
                     idempotencyKey: null),
                 HttpStatusCode.Forbidden,
                 "identity.strong_authentication_required");
+            await AssertProblemAsync(
+                await actor.DeleteWithConcurrencyAsync(
+                    "/api/identity/sessions/others",
+                    antiforgery,
+                    ifMatch: null,
+                    idempotencyKey: null),
+                HttpStatusCode.Forbidden,
+                "identity.strong_authentication_required");
 
             SessionPersistenceState state = await ReadSessionPersistenceStateAsync(
                 scenario.ConnectionString,
@@ -269,6 +277,145 @@ public sealed class OwnSessionInventoryApiTests
         using HttpResponseMessage targetStillAuthenticated = await target.GetAsync(
             "/api/identity/session");
         Assert.AreEqual(HttpStatusCode.OK, targetStillAuthenticated.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task RevokeAllOthersIsAtomicIdempotentAndKeepsCurrentAndForeignSessions()
+    {
+        await using IdentityApiScenario scenario = await IdentityApiScenario.CreateAsync();
+        using BrowserSession actor = scenario.CreateBrowser();
+        using BrowserSession firstTarget = scenario.CreateBrowser();
+        using BrowserSession secondTarget = scenario.CreateBrowser();
+        using BrowserSession foreign = scenario.CreateBrowser();
+        string antiforgery = await IdentityApiTestActions.SignInAsync(actor, "email-owner");
+        await IdentityApiTestActions.SignInAsync(firstTarget, "email-owner");
+        await IdentityApiTestActions.SignInAsync(secondTarget, "email-owner");
+        await IdentityApiTestActions.SignInAsync(foreign, "identity-owned-by-another-user");
+        OwnSession firstTargetSession = await GetCurrentSessionAsync(firstTarget);
+        OwnSession secondTargetSession = await GetCurrentSessionAsync(secondTarget);
+        OwnSession foreignSession = await GetCurrentSessionAsync(foreign);
+
+        using (HttpResponseMessage missingCsrf = await actor.DeleteWithConcurrencyAsync(
+            "/api/identity/sessions/others",
+            antiforgeryToken: null,
+            ifMatch: null,
+            idempotencyKey: null))
+        {
+            Assert.AreEqual(HttpStatusCode.BadRequest, missingCsrf.StatusCode);
+        }
+
+        await AssertProblemAsync(
+            await actor.DeleteWithConcurrencyAsync(
+                "/api/identity/sessions/others",
+                antiforgery,
+                ifMatch: null,
+                idempotencyKey: null),
+            HttpStatusCode.Forbidden,
+            "identity.strong_authentication_required");
+
+        antiforgery = await CompleteManageSessionsStepUpAsync(actor, antiforgery);
+        using (HttpResponseMessage revoked = await actor.DeleteWithConcurrencyAsync(
+            "/api/identity/sessions/others",
+            antiforgery,
+            ifMatch: null,
+            idempotencyKey: null))
+        {
+            Assert.AreEqual(HttpStatusCode.NoContent, revoked.StatusCode);
+            Assert.AreEqual(string.Empty, await revoked.Content.ReadAsStringAsync());
+        }
+
+        using (HttpResponseMessage replay = await actor.DeleteWithConcurrencyAsync(
+            "/api/identity/sessions/others",
+            antiforgery,
+            ifMatch: null,
+            idempotencyKey: null))
+        {
+            Assert.AreEqual(HttpStatusCode.NoContent, replay.StatusCode);
+            Assert.AreEqual(string.Empty, await replay.Content.ReadAsStringAsync());
+        }
+
+        using HttpResponseMessage actorStillAuthenticated = await actor.GetAsync(
+            "/api/identity/session");
+        Assert.AreEqual(HttpStatusCode.OK, actorStillAuthenticated.StatusCode);
+        using HttpResponseMessage firstTargetRevoked = await firstTarget.GetAsync(
+            "/api/identity/session");
+        Assert.AreEqual(HttpStatusCode.Unauthorized, firstTargetRevoked.StatusCode);
+        using HttpResponseMessage secondTargetRevoked = await secondTarget.GetAsync(
+            "/api/identity/session");
+        Assert.AreEqual(HttpStatusCode.Unauthorized, secondTargetRevoked.StatusCode);
+        using HttpResponseMessage foreignStillAuthenticated = await foreign.GetAsync(
+            "/api/identity/session");
+        Assert.AreEqual(HttpStatusCode.OK, foreignStillAuthenticated.StatusCode);
+
+        using JsonDocument inventory = await GetInventoryAsync(actor, offset: 0, limit: 50);
+        Assert.AreEqual(1L, inventory.RootElement.GetProperty("total").GetInt64());
+        Assert.IsTrue(inventory.RootElement.GetProperty("items")[0]
+            .GetProperty("isCurrent")
+            .GetBoolean());
+        Assert.AreEqual(
+            1L,
+            await CountSuccessfulRevocationsAsync(
+                scenario.ConnectionString,
+                firstTargetSession.SessionId));
+        Assert.AreEqual(
+            1L,
+            await CountSuccessfulRevocationsAsync(
+                scenario.ConnectionString,
+                secondTargetSession.SessionId));
+        Assert.AreEqual(
+            0L,
+            await CountSuccessfulRevocationsAsync(
+                scenario.ConnectionString,
+                foreignSession.SessionId));
+    }
+
+    [TestMethod]
+    public async Task BulkAuditJournalFailureReturnsUnavailableAndRollsBackEverySession()
+    {
+        await using IdentityApiScenario scenario = await IdentityApiScenario.CreateAsync();
+        using BrowserSession actor = scenario.CreateBrowser();
+        using BrowserSession firstTarget = scenario.CreateBrowser();
+        using BrowserSession secondTarget = scenario.CreateBrowser();
+        string antiforgery = await IdentityApiTestActions.SignInAsync(actor, "email-owner");
+        await IdentityApiTestActions.SignInAsync(firstTarget, "email-owner");
+        await IdentityApiTestActions.SignInAsync(secondTarget, "email-owner");
+        OwnSession firstTargetSession = await GetCurrentSessionAsync(firstTarget);
+        OwnSession secondTargetSession = await GetCurrentSessionAsync(secondTarget);
+        antiforgery = await CompleteManageSessionsStepUpAsync(actor, antiforgery);
+
+        await InstallFailingRevocationJournalTriggerAsync(scenario.ConnectionString);
+        try
+        {
+            await AssertProblemAsync(
+                await actor.DeleteWithConcurrencyAsync(
+                    "/api/identity/sessions/others",
+                    antiforgery,
+                    ifMatch: null,
+                    idempotencyKey: null),
+                HttpStatusCode.ServiceUnavailable,
+                "identity.session_management_unavailable");
+        }
+        finally
+        {
+            await RemoveFailingRevocationJournalTriggerAsync(scenario.ConnectionString);
+        }
+
+        foreach ((BrowserSession target, OwnSession original) in new[]
+        {
+            (firstTarget, firstTargetSession),
+            (secondTarget, secondTargetSession),
+        })
+        {
+            SessionPersistenceState state = await ReadSessionPersistenceStateAsync(
+                scenario.ConnectionString,
+                original.SessionId);
+            Assert.IsNull(state.RevokedAtUtc, "Every target revocation must roll back.");
+            Assert.AreEqual(original.Version, state.Version);
+            Assert.AreEqual(0L, state.SuccessfulJournalCount);
+            using HttpResponseMessage stillAuthenticated = await target.GetAsync(
+                "/api/identity/session");
+            Assert.AreEqual(HttpStatusCode.OK, stillAuthenticated.StatusCode);
+        }
     }
 
     [TestMethod]

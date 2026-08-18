@@ -280,6 +280,21 @@ public static class IdentityEndpoints
             return Results.NoContent();
         }).RequireAuthorization();
 
+        identity.MapDelete("/sessions/others", async (
+            HttpContext context,
+            IAntiforgery antiforgery,
+            IdentityApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            await antiforgery.ValidateRequestAsync(context);
+            AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
+            await service.RevokeAllOtherOwnSessionsAsync(
+                current,
+                RequestContext(context, current),
+                cancellationToken);
+            return Results.NoContent();
+        }).RequireAuthorization();
+
         identity.MapDelete("/sessions/{sessionId:guid}", async (
             Guid sessionId,
             HttpContext context,

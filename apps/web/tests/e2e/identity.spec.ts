@@ -814,7 +814,7 @@ test.describe("identity access", () => {
     expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(390);
   });
 
-  test("lists and revokes another own session without exposing private metadata", async ({
+  test("lists, revokes, and closes all other own sessions without exposing private metadata", async ({
     browser,
     page,
   }, testInfo) => {
@@ -900,6 +900,100 @@ test.describe("identity access", () => {
     });
     expect(currentStatus).toBe(200);
 
+    const bulkContextA = await browser.newContext();
+    const bulkPageA = await bulkContextA.newPage();
+    await bulkPageA.goto("/");
+    await signInWithExplicitFixture(bulkPageA, profiles.sessionFixture);
+    await bulkPageA.reload();
+    await expect(
+      bulkPageA.getByRole("heading", { name: "Tu acceso", exact: true }),
+    ).toBeVisible();
+
+    const bulkContextB = await browser.newContext();
+    const bulkPageB = await bulkContextB.newPage();
+    await bulkPageB.goto("/");
+    await signInWithExplicitFixture(bulkPageB, profiles.sessionFixture);
+    await bulkPageB.reload();
+    await expect(
+      bulkPageB.getByRole("heading", { name: "Tu acceso", exact: true }),
+    ).toBeVisible();
+
+    const sessionRegion = page.getByRole("region", {
+      name: "Sesiones abiertas",
+    });
+    await sessionRegion.getByRole("button", { name: "Actualizar" }).click();
+    const closeAllOthers = sessionRegion.getByRole("button", {
+      name: "Cerrar las otras sesiones",
+    });
+    await expect(closeAllOthers).toBeEnabled();
+    await closeAllOthers.focus();
+    await page.keyboard.press("Enter");
+    let bulkConfirmation = sessionRegion.getByRole("alertdialog", {
+      name: "¿Cerrar las otras sesiones?",
+    });
+    await expect(bulkConfirmation).toBeVisible();
+    await expect(
+      bulkConfirmation.getByText(/Esta sesión actual permanecerá abierta/i),
+    ).toBeVisible();
+    await expect(
+      bulkConfirmation.getByRole("button", { name: "Cancelar" }),
+    ).toBeFocused();
+    await expectNoAccessibilityViolations(page);
+    await page.keyboard.press("Escape");
+    await expect(bulkConfirmation).toBeHidden();
+    await expect(closeAllOthers).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    bulkConfirmation = sessionRegion.getByRole("alertdialog", {
+      name: "¿Cerrar las otras sesiones?",
+    });
+    await bulkConfirmation
+      .getByRole("button", {
+        name: "Confirmar cierre de las otras sesiones",
+      })
+      .click();
+    await expect(
+      sessionRegion.getByText(
+        "Las otras sesiones fueron cerradas. Esta sesión sigue abierta.",
+      ),
+    ).toBeVisible();
+    await expect(closeAllOthers).toBeDisabled();
+
+    const bulkRevokedStatuses = await Promise.all([
+      bulkPageA.evaluate(async () => {
+        const response = await fetch("/api/identity/session", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        return response.status;
+      }),
+      bulkPageB.evaluate(async () => {
+        const response = await fetch("/api/identity/session", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        return response.status;
+      }),
+    ]);
+    expect(bulkRevokedStatuses).toEqual([401, 401]);
+    expect(
+      await page.evaluate(async () => {
+        const response = await fetch("/api/identity/session", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        return response.status;
+      }),
+    ).toBe(200);
+
+    const refreshedAccountText = await page.locator("main").innerText();
+    expect(refreshedAccountText).not.toMatch(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+    );
+    expect(refreshedAccountText).not.toMatch(
+      /user[- ]?agent|ip address|token hash/i,
+    );
+
     await page.setViewportSize({ width: 390, height: 844 });
     expect(
       await page.evaluate(
@@ -907,6 +1001,8 @@ test.describe("identity access", () => {
       ),
     ).toBe(false);
     await expectNoAccessibilityViolations(page);
+    await bulkContextA.close();
+    await bulkContextB.close();
     await otherContext.close();
   });
 });

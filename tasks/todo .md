@@ -1616,3 +1616,41 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - Revisión independiente: GO con 0 Critical, 0 High y 0 Medium. Cinco Medium fueron corregidos y cubiertos antes de publicación.
 - `AGRO-ID-004` permanece `En curso`; dispositivos/fingerprints, revoke-all, notificaciones, propagación distribuida, SLO, retención/purge y deploy siguen fuera.
 - Publicación funcional: `45a7b91` (`feat(identity): manage own active sessions`) en `origin/main`; author y committer verificados como `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.
+
+## Iteración 33 — selección del próximo sub-slice Ready (2026-08-18)
+
+### Plan
+
+- [x] Auditar Product/QA, Security/Data y Architecture sobre tres candidatos: `ArchiveFieldDraft` conservador, cierre de todas las demás sesiones propias y primer delivery FND con consumidor real.
+- [x] Contrastar valor sponsor, DoR, semántica de ciclo de vida/capacidad, autoridad, privacidad, dependencias y compatibilidad N/N-1 sin absorber otra tarea.
+- [x] Seleccionar `RevokeAllOtherOwnSessionsV1` como único sub-slice Ready de `AGRO-ID-004`; el padre permanece `En curso`.
+- [x] Mantener `ArchiveFieldDraft` en NO-GO hasta congelar cuota, visibilidad, restore/terminalidad y compatibilidad N/N-1; mantener FND-002 en NO-GO hasta que exista un consumidor real aprobado.
+- [x] Congelar `DELETE /api/identity/sessions/others`: comando platform-scoped, sin body, lista de IDs, organización, `If-Match` ni conteo de respuesta; cookie + CSRF + step-up exacto `manage_sessions`; `204` idempotente.
+- [x] Definir el corte lineal en la transacción: revocar sólo sesiones propias activas, no expiradas y distintas de la actual que existan al ejecutar el `UPDATE`; una sesión confirmada después queda fuera.
+- [x] Conservar la sesión actual y rotar `Version`/fijar `RevokedAtUtc` por target. Emitir journal local exactamente una vez por sesión realmente modificada, todo en la misma transacción; sin evento, outbox, email, notificación, dispositivo, IP, UA o fingerprint.
+- [x] Implementar contrato/backend, función DB/grants mínimos y UI Cuenta con ownership disjunto.
+- [x] Probar 0/1/N, replay, bulk×bulk y bulk×individual, sesión actual intacta, otros usuarios/expiradas/revocadas intactos, purpose confusion, actor stale, CSRF, fallo de journal, cancelación/pool y cookies revocadas ante Identity y Productive.
+- [ ] Ejecutar gates completos, revisión independiente, commit/push con `JuaniRMariani` y sin deploy.
+
+### Replan tras revisión independiente
+
+- [x] Compartir el mismo advisory transaction lock por actor entre revocación individual y bulk antes de revalidar current/target.
+- [x] Probar la carrera cross-current exacta A→B individual contra B→A bulk; nunca pueden quedar ambas sesiones revocadas.
+- [x] Sacar el refresh bulk del code fence histórico de SEC-001 y mantener los conteos 28/28 como evidencia histórica, no vigente.
+- [x] Repetir build, Identity/DB/API, raíz, format, validadores y revisión independiente antes de publicar.
+
+### Aceptación congelada
+
+- [x] A con sesiones B/C propias cierra las otras en una sola acción; A sigue en 200 y B/C fallan 401 inmediatamente en Identity y Productive Core.
+- [x] Cero targets y repetición devuelven 204 sin journal adicional; dos comandos concurrentes y la carrera con revocación individual no duplican transición ni auditoría.
+- [x] Una sesión de otro usuario y cualquier login confirmado después del corte permanecen válidos y no son observables en la respuesta.
+- [x] Fallo de cualquier journal revierte todas las revocaciones del comando; la credencial app sólo recibe `EXECUTE` sobre una función estrecha y no obtiene acceso general a `sessions`, `users` ni `TokenHash`.
+- [x] UI separa “Cerrar las otras sesiones” de logout, sólo habilita con `total > 1`, explica que la actual seguirá abierta, confirma con foco/Escape, refresca inventario tras 204 y no muestra UUID completo.
+- [x] 401 invalida el estado global; 403 reanuda step-up; pending evita doble submit local; 429/503/offline conservan contexto sin afirmar que no apareció una sesión concurrente.
+- [x] OpenAPI/runtime/SEC-002/evidencia coinciden y los gates desktop/móvil/Axe/390 pasan.
+
+### Review
+
+- Readiness unánime. Build Release `0/0`; raíz `371/371`; Identity `136/136`; DB own-session `12/12`; API own-session `10/10`; Fitness `135/135`; EF `3/3`; Vitest `217/217`; Playwright `10/10`; FND `45/45`; SEC `56/56`; SEC-002 `29/29`; SCA/UTF-8/JSON/parser/secrets/diff PASS.
+- La revisión independiente detectó una carrera cross-current Medium antes de publicar. El lock actor compartido, la revalidación current `FOR UPDATE` y una prueba determinista con waiter observado en `pg_locks` la cerraron. Dictamen final: GO, 0 Critical, 0 High, 0 Medium.
+- Publicación pendiente; `AGRO-ID-004` permanece `En curso` y no hubo deploy.

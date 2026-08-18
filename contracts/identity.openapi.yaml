@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgropecuarIA Identity API
-  version: 1.4.0
+  version: 1.5.0
 paths:
   /api/identity/capabilities:
     get:
@@ -49,6 +49,21 @@ paths:
               schema: { $ref: '#/components/schemas/OwnSessionPage' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/SessionManagementUnavailable' }
+  /api/identity/sessions/others:
+    delete:
+      summary: Revoke every other active session owned by the authenticated user
+      description: Requires purpose-bound manage_sessions strong assurance. The current session is never revoked. Repeating the operation when no other active own sessions remain safely returns success without another journal entry. No session identifiers or counts are returned.
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/AntiforgeryHeader'
+      responses:
+        '204': { description: Every other active own session is revoked, or none remain }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/SessionManagementUnavailable' }
   /api/identity/sessions/{sessionId}:

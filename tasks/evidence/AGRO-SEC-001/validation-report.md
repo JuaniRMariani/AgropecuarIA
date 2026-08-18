@@ -328,4 +328,11 @@ SEC-002 / EF model drift / SCA
 PASS — 28/28 operations · 3/3 contexts · 9/9 NuGet projects and pnpm with no known vulnerabilities.
 ```
 
-`AGRO-SEC-001` permanece `En curso`. Dispositivos/fingerprints, cierre global, notificaciones, retención/purge, propagación distribuida, Auth0/edge/collector y deploy compartido permanecen `NO-GO`.
+## Refresh actual: cierre de todas las demás sesiones propias — 2026-08-18
+
+- RS-001 incorpora `DELETE /api/identity/sessions/others`; OpenAPI/runtime/surface register y SEC-002 coinciden en `29/29` operaciones.
+- RS-003 incorpora la migración SQL-only `20260818230000_AddRevokeAllOtherOwnSessions`: función bulk execute-only y reemplazo compatible de la individual para compartir lock por actor, revalidar current antes de targets y cerrar la carrera cross-current A→B/B→A; `Down` restaura N-1 y los journals por target permanecen atómicos.
+- TM-002 registra inventario y revocación individual/bulk sin device metadata, IDs/count en respuesta, evento, email ni consumidor nuevo.
+- Gates vigentes: raíz `371/371`, Identity `136/136`, own-session DB `12/12`, API `10/10`, Fitness `135/135`, Vitest `217/217`, Playwright `10/10`, FND `45/45`, SEC `56/56`, EF `3/3`, SCA sin vulnerabilidades conocidas.
+
+PASS integrado-local. `AGRO-SEC-001` permanece `En curso`; el cierre bulk no aprueba Auth0/edge/hosting compartido, notificaciones, dispositivos, cierre de current en lote, retención/purge ni producción.

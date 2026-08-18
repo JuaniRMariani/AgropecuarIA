@@ -128,6 +128,27 @@ public sealed class IdentityTelemetryTests
             '|',
             recorded.SelectMany(tags => tags.Values)).Contains(
                 untrusted,
+            StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void BulkSessionRevocationTelemetryIsBoundedAndContainsNoTargetIdentifier()
+    {
+        const string targetIdentifier = "d2719f32-42fc-4a73-8267-a8b8400eb31a";
+        IReadOnlyDictionary<string, object?>[] recorded = CaptureMeasurements(telemetry =>
+        {
+            telemetry.Record("session_revoke_all_others", "succeeded");
+            telemetry.Record(targetIdentifier, targetIdentifier);
+        });
+
+        Assert.AreEqual("session_revoke_all_others", recorded[0]["identity.operation"]);
+        Assert.AreEqual("succeeded", recorded[0]["identity.outcome"]);
+        Assert.AreEqual("other", recorded[1]["identity.operation"]);
+        Assert.AreEqual("other", recorded[1]["identity.outcome"]);
+        Assert.IsFalse(string.Join(
+            '|',
+            recorded.SelectMany(tags => tags.Values)).Contains(
+                targetIdentifier,
                 StringComparison.Ordinal));
     }
 

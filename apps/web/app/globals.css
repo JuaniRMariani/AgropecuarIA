@@ -1210,6 +1210,7 @@ input:focus-visible {
 .own-session-state,
 .own-session-row,
 .own-session-title,
+.own-session-management__actions,
 .own-session-pages,
 .own-session-pages > div,
 .own-session-confirmation__actions {
@@ -1257,6 +1258,12 @@ input:focus-visible {
 
 .own-session-title {
   flex-wrap: wrap;
+  gap: 8px;
+}
+
+.own-session-management__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -2242,6 +2249,7 @@ input:focus-visible {
   }
 
   .own-session-management__heading,
+  .own-session-management__actions,
   .own-session-state,
   .own-session-row,
   .own-session-pages,
@@ -2251,6 +2259,7 @@ input:focus-visible {
   }
 
   .own-session-management__heading .button,
+  .own-session-management__actions .button,
   .own-session-state .button,
   .own-session-row .button,
   .own-session-pages .button,

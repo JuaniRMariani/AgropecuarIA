@@ -18,6 +18,7 @@ import {
   loadSession,
   resolveAuthorizationUrl,
   removeOrganizationOwnerMembership,
+  revokeAllOtherOwnSessions,
   revokeSession,
   revokeOwnSession,
   revokeOwnerInvitation,
@@ -37,6 +38,7 @@ import type {
   OwnerMembershipActionState,
   OwnerMembershipResourceState,
   OwnSessionActionState,
+  OwnSessionRevocationIntent,
   OwnSessionResourceState,
   OwnSessionSummary,
   OwnerInvitationAcceptanceState,
@@ -88,7 +90,7 @@ type StoredOwnerRemovalAction = Readonly<{
   idempotencyKey: string;
 }>;
 
-type StoredOwnSessionRevocation = OwnSessionSummary;
+type StoredOwnSessionRevocation = OwnSessionRevocationIntent;
 
 export function createOrganizationIdempotencyKey(): string {
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
@@ -268,9 +270,7 @@ function clearOwnerRemovalAction(): void {
   }
 }
 
-function isStoredOwnSessionRevocation(
-  value: unknown,
-): value is StoredOwnSessionRevocation {
+function isStoredOwnSessionSummary(value: unknown): value is OwnSessionSummary {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -289,6 +289,28 @@ function isStoredOwnSessionRevocation(
     "isCurrent" in value &&
     value.isCurrent === false
   );
+}
+
+function parseStoredOwnSessionRevocation(
+  value: unknown,
+): StoredOwnSessionRevocation | null {
+  if (isStoredOwnSessionSummary(value)) {
+    return { kind: "single", session: value };
+  }
+  if (typeof value !== "object" || value === null || !("kind" in value)) {
+    return null;
+  }
+  if (value.kind === "all-others") {
+    return { kind: "all-others" };
+  }
+  if (
+    value.kind === "single" &&
+    "session" in value &&
+    isStoredOwnSessionSummary(value.session)
+  ) {
+    return { kind: "single", session: value.session };
+  }
+  return null;
 }
 
 function storeOwnSessionRevocation(action: StoredOwnSessionRevocation): void {
@@ -312,7 +334,7 @@ function takeOwnSessionRevocation(): StoredOwnSessionRevocation | null {
       return null;
     }
     const value: unknown = JSON.parse(serialized);
-    return isStoredOwnSessionRevocation(value) ? value : null;
+    return parseStoredOwnSessionRevocation(value);
   } catch {
     return null;
   }
@@ -529,24 +551,27 @@ function ownSessionResourceFailure(error: unknown): OwnSessionResourceState {
 
 function ownSessionActionFailure(
   error: unknown,
-  session: OwnSessionSummary,
+  intent: OwnSessionRevocationIntent,
 ): OwnSessionActionState {
   if (error instanceof IdentityApiError) {
     if (error.kind === "reauthentication-required") {
       return {
         kind: "reauthentication-required",
-        session,
-        message: "Verificá tu identidad con MFA para cerrar esta sesión.",
+        intent,
+        message:
+          intent.kind === "all-others"
+            ? "Verificá tu identidad con MFA para cerrar las otras sesiones."
+            : "Verificá tu identidad con MFA para cerrar esta sesión.",
       };
     }
-    if (error.status === 412) {
+    if (intent.kind === "single" && error.status === 412) {
       return {
         kind: "stale",
         message:
           "La sesión cambió en paralelo. Actualizamos la lista para que revises su estado.",
       };
     }
-    if (error.status === 404) {
+    if (intent.kind === "single" && error.status === 404) {
       return {
         kind: "unavailable",
         message:
@@ -562,6 +587,20 @@ function ownSessionActionFailure(
         message: "La sesión actual se cierra desde el control Cerrar sesión.",
       };
     }
+    if (error.kind === "rate-limited") {
+      return {
+        kind: "rate-limited",
+        message:
+          "Alcanzaste el límite temporal de seguridad. Esperá un momento antes de reintentar.",
+      };
+    }
+    if (error.status === 503) {
+      return {
+        kind: "service-unavailable",
+        message:
+          "La gestión de sesiones no está disponible temporalmente. No confirmamos ningún cambio.",
+      };
+    }
   }
   if (error instanceof TypeError && !window.navigator.onLine) {
     return {
@@ -571,7 +610,10 @@ function ownSessionActionFailure(
   }
   return {
     kind: "error",
-    message: "No pudimos cerrar la sesión. No confirmamos ningún cambio.",
+    message:
+      intent.kind === "all-others"
+        ? "No pudimos cerrar las otras sesiones. No confirmamos ningún cambio."
+        : "No pudimos cerrar la sesión. No confirmamos ningún cambio.",
   };
 }
 
@@ -1116,23 +1158,33 @@ export function IdentityHub() {
   );
 
   const executeOwnSessionRevocation = useCallback(
-    async (session: StoredOwnSessionRevocation) => {
-      ownSessionRevocation.current = session;
+    async (intent: StoredOwnSessionRevocation) => {
+      ownSessionRevocation.current = intent;
       setOwnSessionAction({
         kind: "revoking",
-        sessionId: session.sessionId,
+        intent,
       });
       try {
-        await revokeOwnSession(session.sessionId, session.version);
+        if (intent.kind === "single") {
+          await revokeOwnSession(
+            intent.session.sessionId,
+            intent.session.version,
+          );
+        } else {
+          await revokeAllOtherOwnSessions();
+        }
         if (!mounted.current) return;
         ownSessionRevocation.current = null;
         clearOwnSessionRevocation();
         setOwnSessionAction({
           kind: "revoked",
-          message: "La otra sesión fue cerrada.",
+          message:
+            intent.kind === "all-others"
+              ? "Las otras sesiones fueron cerradas. Esta sesión sigue abierta."
+              : "La otra sesión fue cerrada.",
         });
         const currentOffset =
-          ownSessions.kind === "ready"
+          intent.kind === "single" && ownSessions.kind === "ready"
             ? ownSessions.page.items.length === 1 && ownSessions.page.offset > 0
               ? Math.max(0, ownSessions.page.offset - ownSessions.page.limit)
               : ownSessions.page.offset
@@ -1141,9 +1193,9 @@ export function IdentityHub() {
       } catch (error) {
         if (isAbort(error) || !mounted.current) return;
         if (handleOwnSessionUnauthorized(error)) return;
-        const failure = ownSessionActionFailure(error, session);
+        const failure = ownSessionActionFailure(error, intent);
         if (failure.kind === "reauthentication-required") {
-          storeOwnSessionRevocation(session);
+          storeOwnSessionRevocation(intent);
         } else if (failure.kind === "stale" || failure.kind === "unavailable") {
           ownSessionRevocation.current = null;
           clearOwnSessionRevocation();
@@ -1158,14 +1210,17 @@ export function IdentityHub() {
   );
 
   const requestOwnSessionStepUp = useCallback(
-    async (session: StoredOwnSessionRevocation) => {
+    async (intent: StoredOwnSessionRevocation) => {
       if (resource.kind !== "authenticated") return;
-      ownSessionRevocation.current = session;
-      storeOwnSessionRevocation(session);
+      ownSessionRevocation.current = intent;
+      storeOwnSessionRevocation(intent);
       setOwnSessionAction({
         kind: "reauthentication-required",
-        session,
-        message: "Verificá tu identidad con MFA para cerrar esta sesión.",
+        intent,
+        message:
+          intent.kind === "all-others"
+            ? "Verificá tu identidad con MFA para cerrar las otras sesiones."
+            : "Verificá tu identidad con MFA para cerrar esta sesión.",
       });
       try {
         const attempt = await startStepUp("manage_sessions");
@@ -1178,7 +1233,7 @@ export function IdentityHub() {
               session: nextSession,
             });
             takeOwnSessionRevocation();
-            await executeOwnSessionRevocation(session);
+            await executeOwnSessionRevocation(intent);
           }
           return;
         }
@@ -1195,7 +1250,7 @@ export function IdentityHub() {
           mounted.current &&
           !handleOwnSessionUnauthorized(error)
         ) {
-          setOwnSessionAction(ownSessionActionFailure(error, session));
+          setOwnSessionAction(ownSessionActionFailure(error, intent));
         }
       }
     },
@@ -1205,11 +1260,21 @@ export function IdentityHub() {
   const handleBeginOwnSessionRevocation = useCallback(
     (session: OwnSessionSummary) => {
       if (!session.isCurrent) {
-        setOwnSessionAction({ kind: "confirming", session });
+        setOwnSessionAction({
+          kind: "confirming",
+          intent: { kind: "single", session },
+        });
       }
     },
     [],
   );
+
+  const handleBeginAllOtherOwnSessionRevocation = useCallback(() => {
+    setOwnSessionAction({
+      kind: "confirming",
+      intent: { kind: "all-others" },
+    });
+  }, []);
 
   const handleConfirmOwnSessionRevocation = useCallback(() => {
     if (
@@ -1218,11 +1283,11 @@ export function IdentityHub() {
     ) {
       return;
     }
-    const { session } = ownSessionAction;
+    const { intent } = ownSessionAction;
     if (hasSessionManagementAssurance(resource.session)) {
-      void executeOwnSessionRevocation(session);
+      void executeOwnSessionRevocation(intent);
     } else {
-      void requestOwnSessionStepUp(session);
+      void requestOwnSessionStepUp(intent);
     }
   }, [
     executeOwnSessionRevocation,
@@ -1232,9 +1297,9 @@ export function IdentityHub() {
   ]);
 
   const handleResumeOwnSessionRevocation = useCallback(() => {
-    const session = ownSessionRevocation.current;
-    if (session !== null) {
-      void requestOwnSessionStepUp(session);
+    const intent = ownSessionRevocation.current;
+    if (intent !== null) {
+      void requestOwnSessionStepUp(intent);
     }
   }, [requestOwnSessionStepUp]);
 
@@ -1979,8 +2044,11 @@ export function IdentityHub() {
         storeOwnSessionRevocation(storedRevocation);
         setOwnSessionAction({
           kind: "reauthentication-required",
-          session: storedRevocation,
-          message: "Verificá tu identidad con MFA para cerrar esta sesión.",
+          intent: storedRevocation,
+          message:
+            storedRevocation.kind === "all-others"
+              ? "Verificá tu identidad con MFA para cerrar las otras sesiones."
+              : "Verificá tu identidad con MFA para cerrar esta sesión.",
         });
       }
     });
@@ -2070,6 +2138,9 @@ export function IdentityHub() {
       notice={notice}
       ownSessionAction={ownSessionAction}
       ownSessions={ownSessions}
+      onBeginAllOtherOwnSessionRevocation={
+        handleBeginAllOtherOwnSessionRevocation
+      }
       onBeginOwnSessionRevocation={handleBeginOwnSessionRevocation}
       onCancelOwnSessionRevocation={() => setOwnSessionAction({ kind: "idle" })}
       onConfirmOwnSessionRevocation={handleConfirmOwnSessionRevocation}
@@ -2094,12 +2165,12 @@ export function IdentityHub() {
         }
       }}
       onRetryOwnSessionRevocation={() => {
-        const session = ownSessionRevocation.current;
-        if (session === null || resource.kind !== "authenticated") return;
+        const intent = ownSessionRevocation.current;
+        if (intent === null || resource.kind !== "authenticated") return;
         if (hasSessionManagementAssurance(resource.session)) {
-          void executeOwnSessionRevocation(session);
+          void executeOwnSessionRevocation(intent);
         } else {
-          void requestOwnSessionStepUp(session);
+          void requestOwnSessionStepUp(intent);
         }
       }}
       onResumeOwnSessionRevocation={handleResumeOwnSessionRevocation}

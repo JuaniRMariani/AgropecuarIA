@@ -121,6 +121,7 @@ const ownerMembershipProps = {
 const ownSessionProps = {
   ownSessions: { kind: "idle" } as const,
   ownSessionAction: { kind: "idle" } as const,
+  onBeginAllOtherOwnSessionRevocation: vi.fn(),
   onBeginOwnSessionRevocation: vi.fn(),
   onCancelOwnSessionRevocation: vi.fn(),
   onConfirmOwnSessionRevocation: vi.fn(),
@@ -165,6 +166,7 @@ function renderView(
     onCancelOrganization: vi.fn(),
     onCreateOrganization: vi.fn(),
     onReauthenticateOrganization: vi.fn(),
+    onBeginAllOtherOwnSessionRevocation: vi.fn(),
     onBeginOwnSessionRevocation: vi.fn(),
     onCancelOwnSessionRevocation: vi.fn(),
     onConfirmOwnSessionRevocation: vi.fn(),
@@ -348,7 +350,10 @@ describe("IdentityView", () => {
           kind: "ready",
           page: { items: [target], total: 1, offset: 0, limit: 20 },
         },
-        action: { kind: "confirming", session: target },
+        action: {
+          kind: "confirming",
+          intent: { kind: "single", session: target },
+        },
       },
     );
 
@@ -365,6 +370,106 @@ describe("IdentityView", () => {
       }),
     );
     expect(handlers.onConfirmOwnSessionRevocation).toHaveBeenCalledOnce();
+  });
+
+  it("offers an accessible all-other-sessions confirmation only when another session exists", () => {
+    const current = {
+      sessionId: "8766395e-ec88-481e-9a72-81fa2cc2904a",
+      authenticatedAtUtc: "2026-08-18T10:00:00Z",
+      expiresAtUtc: "2026-08-25T10:00:00Z",
+      isCurrent: true,
+      version: "b766395e-ec88-481e-9a72-81fa2cc2904a",
+    } as const;
+    const other = {
+      sessionId: "9766395e-ec88-481e-9a72-81fa2cc2904a",
+      authenticatedAtUtc: "2026-08-17T10:00:00Z",
+      expiresAtUtc: "2026-08-24T10:00:00Z",
+      isCurrent: false,
+      version: "a766395e-ec88-481e-9a72-81fa2cc2904a",
+    } as const;
+    const authenticated = {
+      kind: "authenticated",
+      capabilities: productionCapabilities,
+      session: accountSession,
+    } as const;
+
+    renderView(
+      authenticated,
+      { kind: "none" },
+      {},
+      {},
+      {},
+      {
+        resources: {
+          kind: "ready",
+          page: { items: [current], total: 1, offset: 0, limit: 20 },
+        },
+      },
+    );
+    expect(
+      screen.getByRole("button", { name: "Cerrar las otras sesiones" }),
+    ).toBeDisabled();
+
+    cleanup();
+    const { handlers } = renderView(
+      authenticated,
+      { kind: "none" },
+      {},
+      {},
+      {},
+      {
+        resources: {
+          kind: "ready",
+          page: { items: [current, other], total: 2, offset: 0, limit: 20 },
+        },
+      },
+    );
+    const trigger = screen.getByRole("button", {
+      name: "Cerrar las otras sesiones",
+    });
+    expect(trigger).toBeEnabled();
+    fireEvent.click(trigger);
+    expect(handlers.onBeginAllOtherOwnSessionRevocation).toHaveBeenCalledOnce();
+
+    cleanup();
+    const confirmation = renderView(
+      authenticated,
+      { kind: "none" },
+      {},
+      {},
+      {},
+      {
+        resources: {
+          kind: "ready",
+          page: { items: [current, other], total: 2, offset: 0, limit: 20 },
+        },
+        action: {
+          kind: "confirming",
+          intent: { kind: "all-others" },
+        },
+      },
+    );
+    const dialog = screen.getByRole("alertdialog", {
+      name: "¿Cerrar las otras sesiones?",
+    });
+    expect(screen.getByRole("button", { name: "Cancelar" })).toHaveFocus();
+    expect(dialog).toHaveAccessibleDescription(
+      /sesión actual permanecerá abierta/i,
+    );
+    expect(confirmation.container).not.toHaveTextContent(current.sessionId);
+    expect(confirmation.container).not.toHaveTextContent(other.sessionId);
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(
+      confirmation.handlers.onCancelOwnSessionRevocation,
+    ).toHaveBeenCalledOnce();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Confirmar cierre de las otras sesiones",
+      }),
+    );
+    expect(
+      confirmation.handlers.onConfirmOwnSessionRevocation,
+    ).toHaveBeenCalledOnce();
   });
 
   it.each([
@@ -417,12 +522,15 @@ describe("IdentityView", () => {
     [
       {
         kind: "reauthentication-required",
-        session: {
-          sessionId: "9766395e-ec88-481e-9a72-81fa2cc2904a",
-          authenticatedAtUtc: "2026-08-17T10:00:00Z",
-          expiresAtUtc: "2026-08-24T10:00:00Z",
-          isCurrent: false,
-          version: "a766395e-ec88-481e-9a72-81fa2cc2904a",
+        intent: {
+          kind: "single",
+          session: {
+            sessionId: "9766395e-ec88-481e-9a72-81fa2cc2904a",
+            authenticatedAtUtc: "2026-08-17T10:00:00Z",
+            expiresAtUtc: "2026-08-24T10:00:00Z",
+            isCurrent: false,
+            version: "a766395e-ec88-481e-9a72-81fa2cc2904a",
+          },
         },
         message: "Verificá tu identidad con MFA.",
       } as OwnSessionActionState,
@@ -444,6 +552,22 @@ describe("IdentityView", () => {
       } as OwnSessionActionState,
       "fue cerrada",
       "status",
+    ],
+    [
+      {
+        kind: "rate-limited",
+        message: "Esperá un momento antes de reintentar.",
+      } as OwnSessionActionState,
+      "Esperá un momento",
+      "alert",
+    ],
+    [
+      {
+        kind: "service-unavailable",
+        message: "La gestión de sesiones no está disponible.",
+      } as OwnSessionActionState,
+      "no está disponible",
+      "alert",
     ],
   ])("announces the own-session action state", (action, message, role) => {
     renderView(

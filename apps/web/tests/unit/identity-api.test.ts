@@ -18,6 +18,7 @@ import {
   parseOrganizationOwnerMembershipList,
   parseRemovedOrganizationOwnerMembership,
   parseStepUpAttempt,
+  revokeAllOtherOwnSessions,
   revokeOwnerInvitation,
   revokeOwnSession,
   removeOrganizationOwnerMembership,
@@ -443,6 +444,32 @@ describe("identity mutations", () => {
         }),
       }),
     );
+  });
+
+  it("revokes all other own sessions with CSRF and no target payload or precondition", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "safe-token" }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(revokeAllOtherOwnSessions()).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/identity/sessions/others",
+      expect.objectContaining({
+        method: "DELETE",
+        body: undefined,
+        credentials: "include",
+        headers: expect.objectContaining({
+          "X-CSRF-TOKEN": "safe-token",
+        }),
+      }),
+    );
+    const request = fetchMock.mock.calls[1]?.[1];
+    expect(request?.headers).not.toHaveProperty("If-Match");
   });
 
   it.each([

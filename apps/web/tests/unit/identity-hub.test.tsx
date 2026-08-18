@@ -74,6 +74,7 @@ const apiMocks = vi.hoisted(() => ({
         idempotencyKey: string,
       ) => Promise<RemovedOrganizationOwnerMembership>
     >(),
+  revokeAllOtherOwnSessions: vi.fn<() => Promise<void>>(),
   revokeOwnSession:
     vi.fn<(sessionId: string, version: string) => Promise<void>>(),
   startStepUp:
@@ -156,6 +157,7 @@ beforeEach(() => {
     offset: 0,
     limit: 20,
   });
+  apiMocks.revokeAllOtherOwnSessions.mockResolvedValue();
   apiMocks.revokeOwnSession.mockResolvedValue();
   apiMocks.identityLoginUrl.mockReturnValue("#reauthenticate");
   fieldApiMocks.listFields.mockResolvedValue([]);
@@ -453,6 +455,169 @@ describe("IdentityHub own session management", () => {
     );
   });
 
+  it("closes every other session through the server-side command and refreshes the inventory", async () => {
+    const attempt: StepUpAttempt = {
+      attemptId: "c766395e-ec88-481e-9a72-81fa2cc2904a",
+      purpose: "manage_sessions",
+      expiresAtUtc: "2026-08-18T10:05:00Z",
+      authorizationUrl: "/provider",
+    };
+    apiMocks.startStepUp.mockResolvedValue(attempt);
+    apiMocks.completeDevelopmentStepUp.mockResolvedValue({
+      ...accountSession,
+      authentication: {
+        level: "strong",
+        authenticatedAtUtc: "2026-08-18T10:00:00Z",
+        purpose: "manage_sessions",
+        strongAuthenticatedAtUtc: "2026-08-18T10:01:00Z",
+        expiresAtUtc: "2030-08-18T10:06:00Z",
+      },
+    });
+    apiMocks.listOwnSessions
+      .mockResolvedValueOnce({
+        items: [currentSession, otherSession],
+        total: 2,
+        offset: 0,
+        limit: 20,
+      })
+      .mockResolvedValue({
+        items: [currentSession],
+        total: 1,
+        offset: 0,
+        limit: 20,
+      });
+
+    render(<IdentityHub />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Cerrar las otras sesiones",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Confirmar cierre de las otras sesiones",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(apiMocks.startStepUp).toHaveBeenCalledWith("manage_sessions"),
+    );
+    await waitFor(() =>
+      expect(apiMocks.revokeAllOtherOwnSessions).toHaveBeenCalledOnce(),
+    );
+    expect(apiMocks.revokeOwnSession).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText(
+        "Las otras sesiones fueron cerradas. Esta sesión sigue abierta.",
+      ),
+    ).toBeVisible();
+    await waitFor(() =>
+      expect(apiMocks.listOwnSessions.mock.calls.length).toBeGreaterThanOrEqual(
+        2,
+      ),
+    );
+    expect(
+      screen.getByRole("button", { name: "Cerrar las otras sesiones" }),
+    ).toBeDisabled();
+  });
+
+  it("resumes the all-other-sessions intent after a backend 403 step-up challenge", async () => {
+    const strongSession: IdentitySession = {
+      ...accountSession,
+      authentication: {
+        level: "strong",
+        authenticatedAtUtc: "2026-08-18T10:00:00Z",
+        purpose: "manage_sessions",
+        strongAuthenticatedAtUtc: "2026-08-18T10:01:00Z",
+        expiresAtUtc: "2030-08-18T10:06:00Z",
+      },
+    };
+    apiMocks.loadSession.mockResolvedValue(strongSession);
+    apiMocks.revokeAllOtherOwnSessions
+      .mockRejectedValueOnce(
+        new IdentityApiError(
+          "reauthentication-required",
+          403,
+          "identity.strong_authentication_required",
+        ),
+      )
+      .mockResolvedValueOnce();
+    apiMocks.startStepUp.mockResolvedValue({
+      attemptId: "c766395e-ec88-481e-9a72-81fa2cc2904a",
+      purpose: "manage_sessions",
+      expiresAtUtc: "2026-08-18T10:05:00Z",
+      authorizationUrl: "/provider",
+    });
+    apiMocks.completeDevelopmentStepUp.mockResolvedValue({
+      ...strongSession,
+      authentication: {
+        ...strongSession.authentication,
+        strongAuthenticatedAtUtc: "2026-08-18T10:02:00Z",
+      },
+    });
+
+    render(<IdentityHub />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Cerrar las otras sesiones",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Confirmar cierre de las otras sesiones",
+      }),
+    );
+
+    const resume = await screen.findByRole("button", {
+      name: "Verificar con MFA y continuar",
+    });
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.identity.session-revocation.v1",
+      ),
+    ).toContain("all-others");
+    fireEvent.click(resume);
+
+    await waitFor(() =>
+      expect(apiMocks.revokeAllOtherOwnSessions).toHaveBeenCalledTimes(2),
+    );
+    expect(apiMocks.startStepUp).toHaveBeenCalledWith("manage_sessions");
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.identity.session-revocation.v1",
+      ),
+    ).toBeNull();
+  });
+
+  it("resumes a stored all-other-sessions intent after an external step-up return", async () => {
+    globalThis.sessionStorage.setItem(
+      "agropecuaria.identity.session-revocation.v1",
+      JSON.stringify({ kind: "all-others" }),
+    );
+    apiMocks.loadSession.mockResolvedValue({
+      ...accountSession,
+      authentication: {
+        level: "strong",
+        authenticatedAtUtc: "2026-08-18T10:00:00Z",
+        purpose: "manage_sessions",
+        strongAuthenticatedAtUtc: "2026-08-18T10:01:00Z",
+        expiresAtUtc: "2030-08-18T10:06:00Z",
+      },
+    });
+
+    render(<IdentityHub />);
+
+    await waitFor(() =>
+      expect(apiMocks.revokeAllOtherOwnSessions).toHaveBeenCalledOnce(),
+    );
+    expect(apiMocks.revokeOwnSession).not.toHaveBeenCalled();
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.identity.session-revocation.v1",
+      ),
+    ).toBeNull();
+  });
+
   it("fails stale revocation closed, refreshes the page, and announces review", async () => {
     apiMocks.loadSession.mockResolvedValue({
       ...accountSession,
@@ -620,6 +785,111 @@ describe("IdentityHub own session management", () => {
     fireEvent.click(
       screen.getByRole("button", {
         name: "Confirmar cierre de sesión 976639",
+      }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Esta sesión fue revocada",
+      }),
+    ).toBeVisible();
+    expect(
+      globalThis.sessionStorage.getItem(
+        "agropecuaria.identity.session-revocation.v1",
+      ),
+    ).toBeNull();
+    expect(screen.queryByText(/Verificá tu identidad con MFA/i)).toBeNull();
+  });
+
+  it.each([
+    [
+      "rate limit",
+      new IdentityApiError("rate-limited", 429, "request.rate_limited"),
+      "límite temporal de seguridad",
+    ],
+    [
+      "service outage",
+      new IdentityApiError(
+        "provider-down",
+        503,
+        "identity.session_management_unavailable",
+      ),
+      "no está disponible temporalmente",
+    ],
+    ["offline", new TypeError("Failed to fetch"), "sin conexión"],
+  ])(
+    "preserves and retries the all-other-sessions intent after %s",
+    async (_caseName, error, message) => {
+      if (error instanceof TypeError) {
+        vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+      }
+      apiMocks.loadSession.mockResolvedValue({
+        ...accountSession,
+        authentication: {
+          level: "strong",
+          authenticatedAtUtc: "2026-08-18T10:00:00Z",
+          purpose: "manage_sessions",
+          strongAuthenticatedAtUtc: "2026-08-18T10:01:00Z",
+          expiresAtUtc: "2030-08-18T10:06:00Z",
+        },
+      });
+      apiMocks.revokeAllOtherOwnSessions
+        .mockRejectedValueOnce(error)
+        .mockResolvedValueOnce();
+
+      render(<IdentityHub />);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Cerrar las otras sesiones",
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Confirmar cierre de las otras sesiones",
+        }),
+      );
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(message);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Reintentar cierre" }),
+      );
+      await waitFor(() =>
+        expect(apiMocks.revokeAllOtherOwnSessions).toHaveBeenCalledTimes(2),
+      );
+      expect(
+        await screen.findByText(/Las otras sesiones fueron cerradas/i),
+      ).toBeVisible();
+    },
+  );
+
+  it("transitions globally when revoke-all reports a revoked actor", async () => {
+    apiMocks.loadSession.mockResolvedValue({
+      ...accountSession,
+      authentication: {
+        level: "strong",
+        authenticatedAtUtc: "2026-08-18T10:00:00Z",
+        purpose: "manage_sessions",
+        strongAuthenticatedAtUtc: "2026-08-18T10:01:00Z",
+        expiresAtUtc: "2030-08-18T10:06:00Z",
+      },
+    });
+    apiMocks.revokeAllOtherOwnSessions.mockRejectedValue(
+      new IdentityApiError("revoked", 401, "identity.session_revoked"),
+    );
+
+    render(<IdentityHub />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Cerrar las otras sesiones",
+      }),
+    );
+    globalThis.sessionStorage.setItem(
+      "agropecuaria.identity.session-revocation.v1",
+      JSON.stringify({ kind: "all-others" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Confirmar cierre de las otras sesiones",
       }),
     );
 

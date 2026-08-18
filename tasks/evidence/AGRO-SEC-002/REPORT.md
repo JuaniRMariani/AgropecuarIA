@@ -4,7 +4,7 @@ Fecha: 2026-08-18. Base publicada: `5f32e15`; alcance actual: worktree integrado
 
 ## Resultado ejecutivo
 
-No se confirmaron vulnerabilidades críticas, altas o medias explotables dentro del runtime local y la configuración default-off auditados. El registro vigente cubre 28/28 operaciones HTTP, incluido create/list/detail/rename de `ManagementUnit` en Productive Core y list/revoke de sesiones propias en Identity.
+No se confirmaron vulnerabilidades críticas, altas o medias explotables dentro del runtime local y la configuración default-off auditados. El registro vigente cubre 29/29 operaciones HTTP, incluido create/list/detail/rename de `ManagementUnit` en Productive Core e inventario/revocación individual/bulk de sesiones propias en Identity.
 
 La frontera Productive Core combina autenticación cookie, CSRF para escritura, autorización owner revalidada por un puerto Identity estrecho, contexto PostgreSQL transaction-local y `FORCE RLS`. La organización de la ruta funciona sólo como locator: actor, sesión y autorización se obtienen del servidor antes de recurso, alias o ledger. Creación y rename idempotentes son atómicos; rename suma ETag/If-Match fuerte, revisión monotónica, 412 neutral y un evento sin nombres.
 
@@ -30,6 +30,7 @@ Ninguno. `findings.json` permanece como array vacío y debe seguir validando con
 - Telemetría Productive Core sólo emite operación, outcome y cardinalidad acotados.
 - El inventario de sesiones se resuelve mediante funciones actor-scoped sin grant de tabla a la app y no expone `TokenHash`, IP, user-agent, proveedor, dispositivo ni tenant.
 - La revocación de otra sesión exige purpose exacto `manage_sessions`, CSRF e `If-Match`; el target actual se rechaza, foreign/missing/expired son neutrales y el CAS concurrente produce un solo journal.
+- La revocación bulk exige purpose exacto y CSRF, deriva actor/current en servidor, serializa por actor y sólo concede `EXECUTE` sobre una función que excluye current. La respuesta 204 omite IDs/count y los journals por target confirman o revierten junto con todo el batch.
 
 ## Estado
 

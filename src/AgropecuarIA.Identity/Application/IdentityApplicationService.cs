@@ -1869,6 +1869,119 @@ public sealed class IdentityApplicationService(
         }
     }
 
+    public async Task RevokeAllOtherOwnSessionsAsync(
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RevokeAllOtherOwnSessionsCoreAsync(
+                currentSession,
+                requestContext,
+                cancellationToken);
+        }
+        catch (Exception exception) when (
+            !cancellationToken.IsCancellationRequested &&
+            IsSessionManagementInfrastructureFailure(exception))
+        {
+            throw IdentityErrors.SessionManagementUnavailable();
+        }
+    }
+
+    private async Task RevokeAllOtherOwnSessionsCoreAsync(
+        AuthenticatedSession currentSession,
+        IdentityRequestContext requestContext,
+        CancellationToken cancellationToken)
+    {
+        requestContext.RequirePlatformActor(currentSession.UserId);
+        RequireSessionManagementContext(currentSession);
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        if (!HasCurrentSessionManagementAssurance(currentSession, now))
+        {
+            throw IdentityErrors.StrongAuthenticationRequired();
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted,
+            cancellationToken);
+        await SetSessionManagementDatabaseContextAsync(currentSession, cancellationToken);
+        RevokeAllOtherOwnSessionsDatabaseResult[] rows = await dbContext.Database
+            .SqlQueryRaw<RevokeAllOtherOwnSessionsDatabaseResult>(
+                """
+                SELECT outcome AS "Outcome",
+                       session_id AS "SessionId",
+                       revoked_at_utc AS "RevokedAtUtc",
+                       version AS "Version"
+                FROM identity.revoke_all_other_own_sessions({0})
+                """,
+                now.Subtract(runtimeOptions.StrongAuthenticationWindow))
+            .ToArrayAsync(cancellationToken);
+
+        if (rows.Length == 1 && IsEmptySessionManagementResult(rows[0]))
+        {
+            switch (rows[0].Outcome)
+            {
+                case "no_sessions":
+                    await transaction.CommitAsync(cancellationToken);
+                    telemetry.Record(
+                        "session_revoke_all_others",
+                        "replayed",
+                        purpose: StepUpPurposes.ManageSessions);
+                    return;
+                case "strong_authentication_required":
+                    throw IdentityErrors.StrongAuthenticationRequired();
+                case "not_available":
+                    throw IdentityErrors.SessionManagementUnavailable();
+            }
+        }
+
+        DateTimeOffset? revokedAtUtc = null;
+        HashSet<Guid> revokedSessionIds = [];
+        foreach (RevokeAllOtherOwnSessionsDatabaseResult row in rows)
+        {
+            if (row.Outcome != "revoked" ||
+                row.SessionId is not Guid sessionId ||
+                sessionId == Guid.Empty ||
+                sessionId == currentSession.SessionId ||
+                row.RevokedAtUtc is not DateTimeOffset rowRevokedAtUtc ||
+                row.Version is not Guid version ||
+                version == Guid.Empty ||
+                !revokedSessionIds.Add(sessionId) ||
+                (revokedAtUtc is not null && revokedAtUtc != rowRevokedAtUtc))
+            {
+                throw IdentityErrors.SessionManagementUnavailable();
+            }
+
+            revokedAtUtc ??= rowRevokedAtUtc;
+            dbContext.SecurityJournalEntries.Add(CreateSecurityJournalEntry(
+                currentSession.UserId,
+                sessionId,
+                "session_revoked",
+                "succeeded",
+                null,
+                requestContext));
+        }
+
+        if (revokedSessionIds.Count == 0)
+        {
+            throw IdentityErrors.SessionManagementUnavailable();
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        telemetry.Record(
+            "session_revoke_all_others",
+            "succeeded",
+            purpose: StepUpPurposes.ManageSessions);
+    }
+
+    private static bool IsEmptySessionManagementResult(
+        RevokeAllOtherOwnSessionsDatabaseResult result) =>
+        result.SessionId is null &&
+        result.RevokedAtUtc is null &&
+        result.Version is null;
+
     private async Task RevokeOtherOwnSessionCoreAsync(
         RevokeOwnSessionCommand command,
         AuthenticatedSession currentSession,
@@ -3672,6 +3785,17 @@ public sealed class IdentityApplicationService(
     }
 
     private sealed class RevokeOwnSessionDatabaseResult
+    {
+        public string Outcome { get; init; } = string.Empty;
+
+        public Guid? SessionId { get; init; }
+
+        public DateTimeOffset? RevokedAtUtc { get; init; }
+
+        public Guid? Version { get; init; }
+    }
+
+    private sealed class RevokeAllOtherOwnSessionsDatabaseResult
     {
         public string Outcome { get; init; } = string.Empty;
 

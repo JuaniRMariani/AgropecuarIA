@@ -1630,7 +1630,7 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - [x] Conservar la sesión actual y rotar `Version`/fijar `RevokedAtUtc` por target. Emitir journal local exactamente una vez por sesión realmente modificada, todo en la misma transacción; sin evento, outbox, email, notificación, dispositivo, IP, UA o fingerprint.
 - [x] Implementar contrato/backend, función DB/grants mínimos y UI Cuenta con ownership disjunto.
 - [x] Probar 0/1/N, replay, bulk×bulk y bulk×individual, sesión actual intacta, otros usuarios/expiradas/revocadas intactos, purpose confusion, actor stale, CSRF, fallo de journal, cancelación/pool y cookies revocadas ante Identity y Productive.
-- [ ] Ejecutar gates completos, revisión independiente, commit/push con `JuaniRMariani` y sin deploy.
+- [x] Ejecutar gates completos, revisión independiente, commit/push con `JuaniRMariani` y sin deploy.
 
 ### Replan tras revisión independiente
 
@@ -1653,4 +1653,5 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 
 - Readiness unánime. Build Release `0/0`; raíz `371/371`; Identity `136/136`; DB own-session `12/12`; API own-session `10/10`; Fitness `135/135`; EF `3/3`; Vitest `217/217`; Playwright `10/10`; FND `45/45`; SEC `56/56`; SEC-002 `29/29`; SCA/UTF-8/JSON/parser/secrets/diff PASS.
 - La revisión independiente detectó una carrera cross-current Medium antes de publicar. El lock actor compartido, la revalidación current `FOR UPDATE` y una prueba determinista con waiter observado en `pg_locks` la cerraron. Dictamen final: GO, 0 Critical, 0 High, 0 Medium.
-- Publicación pendiente; `AGRO-ID-004` permanece `En curso` y no hubo deploy.
+- Publicación funcional: `36429af` (`feat(identity): close other active sessions`) en `origin/main`; author y committer verificados como `JuaniRMariani <juanirmariani@gmail.com>`.
+- `RevokeAllOtherOwnSessionsV1` queda aprobado integrado-local. `AGRO-ID-004` permanece `En curso`; no hubo deploy.

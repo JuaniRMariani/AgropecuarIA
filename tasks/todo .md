@@ -1716,3 +1716,21 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - Gates finales: build Release 9 proyectos `0/0`; raíz MTP `381/381`; EF `3/3`; Vitest `252/252`; Playwright oficial `12/12`; FND `45/45`; SEC `56/56`; format/lint/typecheck/Next build/SCA/UTF-8/secrets/diff `PASS`.
 - Revisión independiente final: `PASS`, 0 Critical, 0 High, 0 Medium y 0 Low abiertos. Se cerraron antes de publicar la pérdida de foco por popstate, el reemplazo del éxito de creación, la carrera detail A→B con prefijo compartido y UUID completos en atributos DOM.
 - Publicación funcional: `6956c43` (`feat(frontend): add field detail deep links`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.
+
+## Iteración 36 — selección del próximo sub-slice Ready (2026-08-18)
+
+### Plan
+
+- [x] Auditar en paralelo Product/QA, Security/Data y Architecture sobre el backlog vigente después de `OwnerFieldDeepLinkV1`.
+- [x] Comparar al menos un incremento Productive, uno Identity/seguridad y uno frontend/plataforma; exigir valor observable, micro-DoR, dependencias satisfechas, límites y gates.
+- [x] Mantener fail-closed los candidatos que requieran rol, proveedor, consumidor, retención, dispositivo, catálogo o política todavía inexistentes.
+- [x] Declarar `0 GO` al no existir un sub-slice reversible con DoR completa; registrar NO-GO factual antes de cualquier edición runtime.
+- [x] No implementar ni mutar runtime, contratos, DB o frontend; publicar sólo la evidencia de readiness con `JuaniRMariani` y sin deploy.
+
+### Review
+
+- Resultado unánime: `0 GO`. `ArchiveFieldDraftV1` es el candidato más cercano, pero sigue NO-GO por lifecycle/restore, visibilidad, cuota 100, carreras y compatibilidad N/N-1: DB/OpenAPI/cliente sólo admiten `draft`, List/Get no filtran lifecycle y Count incluye todas las filas.
+- `FND-002 DeliveryWithRealConsumerV1` permanece NO-GO: los eventos runtime tienen `consumers=[]` y no existe consumidor aprobado, inbox, dispatcher, worker, lease/fencing, poison ni política de retención. Crear infraestructura sin efecto real violaría su DoD.
+- El residuo de `AGRO-ID-004` permanece NO-GO: dispositivo/familia/fingerprint/UA-IP/notificación/propagación/SLO/purge requieren PII, finalidad, retención, proveedor o runtime inexistentes.
+- Frontend/plataforma tampoco ofrece un slice autónomo Ready: preferencias requieren modelo/política y el quality gate de CI requiere proveedor, identidad de runner, artifacts, provenance y promoción definidos.
+- Próximo desbloqueo válido: decisión explícita sobre lifecycle/cuota/visibilidad de Archive o nominación de un consumidor de negocio real. No se editaron runtime, contratos, DB ni frontend; no hubo deploy.

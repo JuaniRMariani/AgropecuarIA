@@ -29,3 +29,5 @@ Estado: PASS integrado-local; `AGRO-ID-004` permanece `En curso`.
 
 - El padre conserva revoke-all, familias/dispositivos, notificaciones, propagación distribuida, SLO y retención/purge.
 - No se aprueba deploy compartido ni se afirma delivery, cache/job invalidation o aviso al usuario.
+
+Publicación funcional: `45a7b91` (`feat(identity): manage own active sessions`) en `origin/main`, con author y committer `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.

@@ -1578,7 +1578,7 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - [x] Revocar mediante CSRF + `If-Match` fuerte; actor derivado del servidor, target ajeno/ausente neutral, CAS activo→revocado y replay concurrente sin segundo journal.
 - [x] Reutilizar `RevokedAtUtc`/`Version` existentes y auditoría local atómica. La única migración permitida amplía de forma aditiva los CHECK de purpose para `manage_sessions`; no agrega motivo/columnas, dispositivo, notificación, evento/consumer, purge ni claim legal.
 - [x] Implementar OpenAPI, dominio/aplicación/API, autorización/DB mínima, vista Cuenta, tests y evidencia sin cerrar el padre.
-- [ ] Ejecutar gates integrales, revisión independiente, commit/push con identidad local verificada y no desplegar.
+- [x] Ejecutar gates integrales, revisión independiente, commit/push con identidad local verificada y no desplegar.
 
 ### Replan tras gate E2E
 
@@ -1615,3 +1615,4 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - FND `45/45`, SEC `56/56`, SEC-002 `28/28`, NuGet/pnpm audit, UTF-8/JSON, parser, secretos y diff-check PASS.
 - Revisión independiente: GO con 0 Critical, 0 High y 0 Medium. Cinco Medium fueron corregidos y cubiertos antes de publicación.
 - `AGRO-ID-004` permanece `En curso`; dispositivos/fingerprints, revoke-all, notificaciones, propagación distribuida, SLO, retención/purge y deploy siguen fuera.
+- Publicación funcional: `45a7b91` (`feat(identity): manage own active sessions`) en `origin/main`; author y committer verificados como `JuaniRMariani <juanirmariani@gmail.com>`. No hubo deploy.

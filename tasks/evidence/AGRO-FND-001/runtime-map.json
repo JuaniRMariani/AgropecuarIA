@@ -71,7 +71,7 @@
       ]
     },
     {
-      "moduleId": "catalog",
+      "moduleId": "national-catalog",
       "projectPath": "src/AgropecuarIA.Catalog/AgropecuarIA.Catalog.csproj",
       "databaseSchema": "catalog",
       "contracts": []
@@ -84,7 +84,7 @@
         "identity-tenancy",
         "territory",
         "productive-core",
-        "catalog"
+        "national-catalog"
       ]
     }
   ]

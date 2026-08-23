@@ -298,9 +298,11 @@ public sealed class AuthorizationSurfaceContractTests
             "contracts/identity.openapi.yaml",
             "contracts/territory.openapi.yaml",
             "contracts/productive-core.openapi.yaml",
+            "contracts/catalog.openapi.yaml",
             "apps/AgropecuarIA.Api/IdentityEndpoints.cs",
             "src/AgropecuarIA.Territory/Delivery/TerritoryEndpoints.cs",
             "src/AgropecuarIA.ProductiveCore/Delivery/ProductiveCoreEndpoints.cs",
+            "src/AgropecuarIA.Catalog/Delivery/CatalogEndpoints.cs",
         ];
         foreach (string relativePath in relativePaths)
         {

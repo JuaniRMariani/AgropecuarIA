@@ -55,6 +55,7 @@ public static class IdentityServiceCollectionExtensions
         services.TryAddScoped<IOrganizationCreationRecoveryContextFactory,
             OrganizationCreationRecoveryContextFactory>();
         services.AddScoped<IdentityApplicationService>();
+        services.AddScoped<MfaApplicationService>();
         services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = IdentityAuthenticationDefaults.SessionScheme;

@@ -42,9 +42,44 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
     public DbSet<IdentityOutboxMessage> OutboxMessages => Set<IdentityOutboxMessage>();
 
+    public DbSet<UserTotpCredential> TotpCredentials => Set<UserTotpCredential>();
+    public DbSet<UserPasskeyCredential> PasskeyCredentials => Set<UserPasskeyCredential>();
+    public DbSet<UserRecoveryCode> RecoveryCodes => Set<UserRecoveryCode>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("identity");
+
+        modelBuilder.Entity<UserTotpCredential>(entity =>
+        {
+            entity.ToTable("totp_credentials");
+            entity.HasKey(item => item.UserId);
+            entity.Property(item => item.ProtectedSecret).IsRequired();
+            entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.HasOne<PlatformUser>().WithOne().HasForeignKey<UserTotpCredential>(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserPasskeyCredential>(entity =>
+        {
+            entity.ToTable("passkey_credentials");
+            entity.HasKey(item => item.CredentialId);
+            entity.Property(item => item.UserId).IsRequired();
+            entity.Property(item => item.PublicKey).IsRequired();
+            entity.Property(item => item.SignCount).IsRequired();
+            entity.Property(item => item.Aaguid).IsRequired();
+            entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.HasIndex(item => item.UserId);
+            entity.HasOne<PlatformUser>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserRecoveryCode>(entity =>
+        {
+            entity.ToTable("recovery_codes");
+            entity.HasKey(item => new { item.UserId, item.CodeHash });
+            entity.Property(item => item.CodeHash).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.HasOne<PlatformUser>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
 
         modelBuilder.Entity<PlatformUser>(entity =>
         {

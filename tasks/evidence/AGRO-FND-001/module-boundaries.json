@@ -70,7 +70,8 @@
       "allowedDependencies": [
         "identity-tenancy",
         "audit-compliance"
-      ]
+      ],
+      "projectPath": "src/AgropecuarIA.Catalog/AgropecuarIA.Catalog.csproj"
     },
     {
       "id": "productive-core",
@@ -339,14 +340,6 @@
         "weather",
         "documents",
         "audit-compliance"
-      ]
-    },
-    {
-      "id": "catalog",
-      "projectPath": "src/AgropecuarIA.Catalog/AgropecuarIA.Catalog.csproj",
-      "databaseSchema": "catalog",
-      "allowedDependencies": [
-        "identity-tenancy"
       ]
     }
   ]

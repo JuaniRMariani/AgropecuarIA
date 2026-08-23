@@ -91,6 +91,7 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
             builder.UseSetting("ConnectionStrings:Identity", connectionString);
             builder.UseSetting("ConnectionStrings:Territory", connectionString);
             builder.UseSetting("ConnectionStrings:ProductiveCore", connectionString);
+            builder.UseSetting("ConnectionStrings:Catalog", connectionString);
             builder.UseSetting(
                 "Identity:DevelopmentProvider:Enabled",
                 (environment is "Development" or "Test").ToString());
@@ -108,6 +109,7 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
                     ["ConnectionStrings:Identity"] = connectionString,
                     ["ConnectionStrings:Territory"] = connectionString,
                     ["ConnectionStrings:ProductiveCore"] = connectionString,
+                    ["ConnectionStrings:Catalog"] = connectionString,
                     ["Identity:DevelopmentProvider:Enabled"] =
                         (environment is "Development" or "Test").ToString(),
                     ["Identity:DevelopmentProvider:SyntheticProfileCount"] = "1",

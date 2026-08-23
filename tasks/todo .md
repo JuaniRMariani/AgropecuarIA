@@ -1734,3 +1734,18 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - El residuo de `AGRO-ID-004` permanece NO-GO: dispositivo/familia/fingerprint/UA-IP/notificación/propagación/SLO/purge requieren PII, finalidad, retención, proveedor o runtime inexistentes.
 - Frontend/plataforma tampoco ofrece un slice autónomo Ready: preferencias requieren modelo/política y el quality gate de CI requiere proveedor, identidad de runner, artifacts, provenance y promoción definidos.
 - Próximo desbloqueo válido: decisión explícita sobre lifecycle/cuota/visibilidad de Archive o nominación de un consumidor de negocio real. No se editaron runtime, contratos, DB ni frontend; no hubo deploy.
+
+## Iteración 37 — Auditoría de tareas pendientes (2026-08-22)
+
+### Plan
+- [x] Ejecutar la directiva TAREA_OBJETIVO=AUTO para identificar tareas Ready o Propuesto viables.
+- [x] Respetar la restricción del sponsor: realizar las tareas pendientes sin tomar decisiones de logica o de negocio.
+- [x] Auditar candidatos a sub-slice.
+
+### Review
+- Resultado unánime: 0 GO.
+- No hay tareas en estado Ready en el backlog (00-index.md).
+- Las tareas en estado Propuesto o En curso requieren decisiones explícitas de negocio, definición de políticas, proveedores o contratos para cumplir su Definition of Ready (DoR).
+- Dado que no se permite tomar decisiones de lógica o negocio de forma autónoma, la implementación queda bloqueada hasta que se definan dichos requerimientos (ej. ciclo de vida de Archive o nominación de consumidor real).
+- No se modificó el código productivo ni se alteró el runtime.
+

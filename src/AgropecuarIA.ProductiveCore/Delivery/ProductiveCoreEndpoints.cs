@@ -103,6 +103,32 @@ public static class ProductiveCoreEndpoints
             return Results.Ok(ToRenamedResponse(renamed));
         });
 
+
+        organizations.MapPost("/fields/{fieldId:guid}/archive", async (
+            Guid organizationId,
+            Guid fieldId,
+            HttpContext context,
+            IAntiforgery antiforgery,
+            ProductiveCoreArchiveApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            SetPrivateResponseHeaders(context.Response);
+            await antiforgery.ValidateRequestAsync(context);
+            string idempotencyKey = ReadSingleIdempotencyKey(context.Request.Headers);
+            Guid expectedVersion = ReadStrongVersion(context.Request.Headers);
+            AuthenticatedSession session = AuthenticatedSessionClaims.Read(context.User);
+            ArchivedManagementUnitResult archived = await service.ArchiveFieldDraftAsync(
+                new ArchiveFieldDraftCommand(
+                    organizationId,
+                    fieldId,
+                    expectedVersion,
+                    idempotencyKey),
+                RequestContext(context, session, organizationId),
+                cancellationToken);
+            SetEntityTag(context.Response, archived.Version);
+            return Results.Ok(ToArchivedResponse(archived));
+        });
+
         return endpoints;
     }
 
@@ -211,6 +237,32 @@ public static class ProductiveCoreEndpoints
         string Status,
         string SpatialStatus,
         DateTimeOffset CreatedAtUtc,
+        Guid Version,
+        bool IsReplay);
+
+
+    private static ArchivedFieldResponse ToArchivedResponse(ArchivedManagementUnitResult field) =>
+        new(
+            field.FieldId,
+            field.OrganizationId,
+            field.DisplayName,
+            field.Type,
+            field.Status,
+            field.SpatialStatus,
+            field.CreatedAtUtc,
+            field.Revision,
+            field.Version,
+            field.IsReplay);
+
+    public sealed record ArchivedFieldResponse(
+        Guid FieldId,
+        Guid OrganizationId,
+        string DisplayName,
+        string Type,
+        string Status,
+        string SpatialStatus,
+        DateTimeOffset CreatedAtUtc,
+        long Revision,
         Guid Version,
         bool IsReplay);
 

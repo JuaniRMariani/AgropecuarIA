@@ -636,3 +636,157 @@ public sealed class ManagementUnitRenameKeyAlias
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
 }
+public sealed class ManagementUnitArchiveLedger
+{
+    private ManagementUnitArchiveLedger() { }
+
+    public ManagementUnitArchiveLedger(
+        Guid id,
+        Guid organizationId,
+        Guid actorUserId,
+        Guid sessionId,
+        Guid authorizationVersion,
+        Guid managementUnitId,
+        Guid expectedVersion,
+        byte[] requestFingerprint,
+        Guid leaseOwner,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset leaseUntilUtc)
+    {
+        if (id == Guid.Empty || organizationId == Guid.Empty || actorUserId == Guid.Empty ||
+            sessionId == Guid.Empty || authorizationVersion == Guid.Empty ||
+            managementUnitId == Guid.Empty || expectedVersion == Guid.Empty || leaseOwner == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Ledger, tenant, actor, session, authorization, unit, version, and lease IDs are required.");
+        }
+
+        if (requestFingerprint is not { Length: 32 })
+        {
+            throw new ArgumentException("The request fingerprint must contain 32 bytes.", nameof(requestFingerprint));
+        }
+
+        if (leaseUntilUtc <= startedAtUtc)
+        {
+            throw new ArgumentException("The ledger lease must expire after it starts.", nameof(leaseUntilUtc));
+        }
+
+        Id = id;
+        OrganizationId = organizationId;
+        ScopeKind = ManagementUnitArchiveProtocol.ScopeKind;
+        Namespace = ManagementUnitArchiveProtocol.Namespace;
+        Operation = ManagementUnitArchiveProtocol.Operation;
+        ContractVersion = 1;
+        CanonicalizationVersion = 1;
+        ActorUserId = actorUserId;
+        SessionId = sessionId;
+        AuthorizationVersion = authorizationVersion;
+        ManagementUnitId = managementUnitId;
+        ExpectedVersion = expectedVersion;
+        RequestFingerprint = requestFingerprint.ToArray();
+        State = ManagementUnitArchiveProtocol.States.InProgress;
+        LeaseOwner = leaseOwner;
+        FenceToken = 1;
+        LeaseUntilUtc = leaseUntilUtc;
+        StartedAtUtc = startedAtUtc;
+    }
+
+    public Guid Id { get; private set; }
+    public Guid OrganizationId { get; private set; }
+    public string ScopeKind { get; private set; } = string.Empty;
+    public string Namespace { get; private set; } = string.Empty;
+    public string Operation { get; private set; } = string.Empty;
+    public int ContractVersion { get; private set; }
+    public int CanonicalizationVersion { get; private set; }
+    public Guid ActorUserId { get; private set; }
+    public Guid SessionId { get; private set; }
+    public Guid AuthorizationVersion { get; private set; }
+    public Guid ManagementUnitId { get; private set; }
+    public Guid ExpectedVersion { get; private set; }
+    public byte[] RequestFingerprint { get; private set; } = [];
+    public string State { get; private set; } = string.Empty;
+    public Guid? ResultVersion { get; private set; }
+    public long? ResultRevision { get; private set; }
+    public Guid LeaseOwner { get; private set; }
+    public long FenceToken { get; private set; }
+    public DateTimeOffset LeaseUntilUtc { get; private set; }
+    public DateTimeOffset StartedAtUtc { get; private set; }
+    public DateTimeOffset? CompletedAtUtc { get; private set; }
+    public Guid Version { get; private set; } = Guid.NewGuid();
+
+    public void Complete(
+        Guid leaseOwner,
+        long fenceToken,
+        Guid resultVersion,
+        long resultRevision,
+        DateTimeOffset completedAtUtc)
+    {
+        if (State != ManagementUnitArchiveProtocol.States.InProgress ||
+            LeaseOwner != leaseOwner ||
+            FenceToken != fenceToken)
+        {
+            throw new InvalidOperationException("Only the current fenced owner can complete this ledger entry.");
+        }
+
+        if (resultVersion == Guid.Empty || resultRevision < 2)
+        {
+            throw new ArgumentException("A valid archive result is required.");
+        }
+
+        if (completedAtUtc < StartedAtUtc)
+        {
+            throw new ArgumentException("Completion cannot precede the ledger start.", nameof(completedAtUtc));
+        }
+
+        ResultVersion = resultVersion;
+        ResultRevision = resultRevision;
+        CompletedAtUtc = completedAtUtc;
+        State = ManagementUnitArchiveProtocol.States.Succeeded;
+        Version = Guid.NewGuid();
+    }
+}
+
+public sealed class ManagementUnitArchiveKeyAlias
+{
+    private ManagementUnitArchiveKeyAlias() { }
+
+    public ManagementUnitArchiveKeyAlias(
+        Guid id,
+        Guid ledgerId,
+        Guid organizationId,
+        string keyVersion,
+        byte[] keyDigest,
+        DateTimeOffset createdAtUtc)
+    {
+        if (id == Guid.Empty || ledgerId == Guid.Empty || organizationId == Guid.Empty)
+        {
+            throw new ArgumentException("Alias, ledger, and organization IDs are required.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(keyVersion);
+        if (keyDigest is not { Length: 32 })
+        {
+            throw new ArgumentException("The idempotency key digest must contain 32 bytes.", nameof(keyDigest));
+        }
+
+        Id = id;
+        LedgerId = ledgerId;
+        OrganizationId = organizationId;
+        ScopeKind = ManagementUnitArchiveProtocol.ScopeKind;
+        Namespace = ManagementUnitArchiveProtocol.Namespace;
+        Operation = ManagementUnitArchiveProtocol.Operation;
+        KeyVersion = keyVersion;
+        KeyDigest = keyDigest.ToArray();
+        CreatedAtUtc = createdAtUtc;
+    }
+
+    public Guid Id { get; private set; }
+    public Guid LedgerId { get; private set; }
+    public Guid OrganizationId { get; private set; }
+    public string ScopeKind { get; private set; } = string.Empty;
+    public string Namespace { get; private set; } = string.Empty;
+    public string Operation { get; private set; } = string.Empty;
+    public string KeyVersion { get; private set; } = string.Empty;
+    public byte[] KeyDigest { get; private set; } = [];
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+}

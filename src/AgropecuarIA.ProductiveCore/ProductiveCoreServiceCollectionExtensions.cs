@@ -45,6 +45,7 @@ public static class ProductiveCoreServiceCollectionExtensions
         services.AddSingleton<ProductiveCoreTelemetry>();
         services.AddScoped<ProductiveCoreApplicationService>();
         services.AddScoped<ProductiveCoreRenameApplicationService>();
+        services.AddScoped<ProductiveCoreArchiveApplicationService>();
         services.AddExceptionHandler<ProductiveCoreExceptionHandler>();
         return services;
     }

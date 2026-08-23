@@ -94,6 +94,30 @@ public interface IProductiveCoreUnitOfWork : IAsyncDisposable
         DateTimeOffset createdAtUtc,
         CancellationToken cancellationToken);
 
+
+    Task<Guid?> FindArchiveLedgerIdAsync(
+        Guid organizationId,
+        IReadOnlyDictionary<string, byte[]> aliases,
+        CancellationToken cancellationToken);
+
+    Task<ManagementUnitArchiveLedger?> GetArchiveLedgerAsync(
+        Guid organizationId,
+        Guid ledgerId,
+        CancellationToken cancellationToken);
+
+    void AddArchive(
+        ManagementUnitArchiveLedger ledger,
+        IReadOnlyCollection<ManagementUnitArchiveKeyAlias> aliases,
+        ProductiveJournalEntry journalEntry,
+        ProductiveOutboxMessage outboxMessage);
+
+    Task AddMissingArchiveAliasesAsync(
+        Guid organizationId,
+        Guid ledgerId,
+        IReadOnlyDictionary<string, byte[]> aliases,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 
     Task CommitAsync(CancellationToken cancellationToken);

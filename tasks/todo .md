@@ -1764,3 +1764,19 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - Pendiente para completarlo al 100% (Siguiente iteración): ProductiveCoreArchiveApplicationService, su Ledger de idempotencia y el Endpoint HTTP para invocarlo desde el frontend.
 - Siguen pendientes: AGRO-FND-002, AGRO-FND-003, AGRO-ID-002, AGRO-ID-003, AGRO-ID-004, AGRO-CAT-001 (entre otros).
 
+
+## Iteración 39 — Capa de Aplicación e Idempotencia para ArchiveFieldDraftV1 (2026-08-22)
+
+### Plan
+- [x] Crear clases de idempotencia ManagementUnitArchiveLedger y ManagementUnitArchiveKeyAlias.
+- [x] Agregar los Unit Of Work contracts y la implementación en PostgresProductiveCoreUnitOfWork (AddArchive, AddMissingArchiveAliasesAsync, GetArchiveLedgerAsync, etc).
+- [x] Configurar EF Core DbSet y restricciones de Constraints/Check en ProductiveCoreDbContext.
+- [x] Implementar el Application Service transaccional ProductiveCoreArchiveApplicationService copiando la semántica de VSA segura del proyecto.
+- [x] Exponer el minimal API endpoint MapPost("/fields/{fieldId:guid}/archive") en ProductiveCoreEndpoints.
+- [x] Registrar el servicio en el contenedor DI.
+- [x] Generar EF Migration AddArchiveFieldDraft para ProductiveCoreDbContext.
+- [x] Validar que todo compila exitosamente.
+
+### Review
+- Resultado: GO.
+- Hemos completado rigurosamente toda la capa de persistencia y API requerida por la VSA para exponer el caso de uso Archive de borradores, logrando una operación transaccionalmente segura e idempotente.

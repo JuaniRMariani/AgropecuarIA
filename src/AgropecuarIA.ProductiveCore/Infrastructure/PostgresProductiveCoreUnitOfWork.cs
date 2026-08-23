@@ -478,6 +478,106 @@ internal sealed class PostgresProductiveCoreUnitOfWork(
         }
     }
 
+
+    public Task<Guid?> FindArchiveLedgerIdAsync(
+        Guid organizationId,
+        IReadOnlyDictionary<string, byte[]> aliases,
+        CancellationToken cancellationToken) =>
+        FindLedgerIdAsync(
+            organizationId,
+            aliases,
+            "management_unit_archive_key_aliases",
+            "archive idempotency ledger",
+            cancellationToken);
+
+    public async Task<ManagementUnitArchiveLedger?> GetArchiveLedgerAsync(
+        Guid organizationId,
+        Guid ledgerId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await dbContext.ManagementUnitArchiveLedgers
+                .AsNoTracking()
+                .SingleOrDefaultAsync(
+                    item => item.OrganizationId == organizationId && item.Id == ledgerId,
+                    cancellationToken);
+        }
+        catch (Exception exception) when (IsPersistenceFailure(exception))
+        {
+            throw Unavailable("read the archive ledger", exception);
+        }
+    }
+
+    public void AddArchive(
+        ManagementUnitArchiveLedger ledger,
+        IReadOnlyCollection<ManagementUnitArchiveKeyAlias> aliases,
+        ProductiveJournalEntry journalEntry,
+        ProductiveOutboxMessage outboxMessage)
+    {
+        ArgumentNullException.ThrowIfNull(ledger);
+        ArgumentNullException.ThrowIfNull(aliases);
+        ArgumentNullException.ThrowIfNull(journalEntry);
+        ArgumentNullException.ThrowIfNull(outboxMessage);
+        dbContext.ManagementUnitArchiveLedgers.Add(ledger);
+        dbContext.ManagementUnitArchiveKeyAliases.AddRange(aliases);
+        dbContext.ProductiveJournalEntries.Add(journalEntry);
+        dbContext.ProductiveOutboxMessages.Add(outboxMessage);
+    }
+
+    public async Task AddMissingArchiveAliasesAsync(
+        Guid organizationId,
+        Guid ledgerId,
+        IReadOnlyDictionary<string, byte[]> aliases,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(aliases);
+        try
+        {
+            string[] versions = aliases.Keys.ToArray();
+            ManagementUnitArchiveKeyAlias[] existing = await dbContext
+                .ManagementUnitArchiveKeyAliases
+                .AsNoTracking()
+                .Where(item => item.OrganizationId == organizationId &&
+                    item.LedgerId == ledgerId &&
+                    versions.Contains(item.KeyVersion))
+                .ToArrayAsync(cancellationToken);
+            foreach ((string version, byte[] digest) in aliases)
+            {
+                ManagementUnitArchiveKeyAlias? current = existing.SingleOrDefault(
+                    item => string.Equals(item.KeyVersion, version, StringComparison.Ordinal));
+                if (current is not null)
+                {
+                    if (!CryptographicOperations.FixedTimeEquals(current.KeyDigest, digest))
+                    {
+                        throw new ProductiveIdempotencyRaceException(
+                            "An archive idempotency key version is already bound to another digest.");
+                    }
+
+                    continue;
+                }
+
+                dbContext.ManagementUnitArchiveKeyAliases.Add(
+                    new ManagementUnitArchiveKeyAlias(
+                        Guid.NewGuid(),
+                        ledgerId,
+                        organizationId,
+                        version,
+                        digest,
+                        createdAtUtc));
+            }
+        }
+        catch (ProductiveIdempotencyRaceException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (IsPersistenceFailure(exception))
+        {
+            throw Unavailable("reconcile archive idempotency key aliases", exception);
+        }
+    }
+
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         try

@@ -187,3 +187,20 @@ public static class ProductiveCoreErrors
             retryable: true,
             retryAfterSeconds: 1);
 }
+public sealed record ArchiveFieldDraftCommand(
+    Guid OrganizationId,
+    Guid FieldId,
+    Guid ExpectedVersion,
+    string IdempotencyKey);
+
+public sealed record ArchivedManagementUnitResult(
+    Guid FieldId,
+    Guid OrganizationId,
+    string DisplayName,
+    string Type,
+    string Status,
+    string SpatialStatus,
+    DateTimeOffset CreatedAtUtc,
+    long Revision,
+    Guid Version,
+    bool IsReplay);

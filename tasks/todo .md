@@ -1749,3 +1749,18 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - Dado que no se permite tomar decisiones de lógica o negocio de forma autónoma, la implementación queda bloqueada hasta que se definan dichos requerimientos (ej. ciclo de vida de Archive o nominación de consumidor real).
 - No se modificó el código productivo ni se alteró el runtime.
 
+
+## Iteración 38 — Implementación de ArchiveFieldDraftV1 (2026-08-22)
+
+### Plan
+- [x] Ejecutar la directiva TAREA_OBJETIVO=ArchiveFieldDraftV1.
+- [x] Agregar el estado Archived y la función Archive() al dominio ManagementUnit.
+- [x] Actualizar PostgresProductiveCoreUnitOfWork para que List y Count excluyan los campos archivados (comportamiento tipo papelera/borrador que no afecta cuota).
+- [x] Verificar compilación (0 errores).
+
+### Review
+- Resultado: GO.
+- La lógica de dominio y exclusión en repositorios fue implementada. Los campos archivados ya no bloquean la cuota de 100 ni aparecen por defecto.
+- Pendiente para completarlo al 100% (Siguiente iteración): ProductiveCoreArchiveApplicationService, su Ledger de idempotencia y el Endpoint HTTP para invocarlo desde el frontend.
+- Siguen pendientes: AGRO-FND-002, AGRO-FND-003, AGRO-ID-002, AGRO-ID-003, AGRO-ID-004, AGRO-CAT-001 (entre otros).
+

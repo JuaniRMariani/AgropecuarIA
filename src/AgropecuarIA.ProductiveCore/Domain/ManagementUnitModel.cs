@@ -11,6 +11,7 @@ public static class ManagementUnitTypes
 public static class ManagementUnitStatuses
 {
     public const string Draft = "draft";
+    public const string Archived = "archived";
 }
 
 public static class ManagementUnitSpatialStatuses
@@ -43,6 +44,21 @@ public static class ManagementUnitRenameProtocol
     public const string ScopeKind = "tenant";
     public const string Namespace = "management_unit";
     public const string Operation = "rename_field";
+
+    public static class States
+    {
+        public const string InProgress = "in_progress";
+        public const string Succeeded = "succeeded";
+        public const string FailedTerminal = "failed_terminal";
+        public const string ResponseExpired = "response_expired";
+    }
+}
+
+public static class ManagementUnitArchiveProtocol
+{
+    public const string ScopeKind = "tenant";
+    public const string Namespace = "management_unit";
+    public const string Operation = "archive_field";
 
     public static class States
     {
@@ -119,6 +135,28 @@ public sealed class ManagementUnit
         }
 
         DisplayName = normalized;
+        Revision = checked(Revision + 1);
+        Version = newVersion;
+    }
+
+    public void Archive(Guid expectedVersion, Guid newVersion)
+    {
+        if (expectedVersion == Guid.Empty || newVersion == Guid.Empty)
+        {
+            throw new ArgumentException("Expected and replacement versions are required.");
+        }
+
+        if (Version != expectedVersion)
+        {
+            throw new ManagementUnitVersionConflictException();
+        }
+
+        if (Status != ManagementUnitStatuses.Draft)
+        {
+            throw new InvalidOperationException("Only drafts can be archived.");
+        }
+
+        Status = ManagementUnitStatuses.Archived;
         Revision = checked(Revision + 1);
         Version = newVersion;
     }

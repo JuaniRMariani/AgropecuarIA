@@ -221,7 +221,7 @@ internal sealed class PostgresProductiveCoreUnitOfWork(
         {
             return await dbContext.ManagementUnits
                 .AsNoTracking()
-                .Where(item => item.OrganizationId == organizationId)
+                .Where(item => item.OrganizationId == organizationId && item.Status != ManagementUnitStatuses.Archived)
                 .OrderBy(item => item.CreatedAtUtc)
                 .ThenBy(item => item.Id)
                 .Take(ManagementUnitLimits.MaximumPerOrganization + 1)
@@ -240,7 +240,7 @@ internal sealed class PostgresProductiveCoreUnitOfWork(
         try
         {
             return await dbContext.ManagementUnits.CountAsync(
-                item => item.OrganizationId == organizationId,
+                item => item.OrganizationId == organizationId && item.Status != ManagementUnitStatuses.Archived,
                 cancellationToken);
         }
         catch (Exception exception) when (IsPersistenceFailure(exception))

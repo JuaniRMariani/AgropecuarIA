@@ -69,12 +69,23 @@
           "version": "1.0.0"
         }
       ]
+    },
+    {
+      "moduleId": "catalog",
+      "projectPath": "src/AgropecuarIA.Catalog/AgropecuarIA.Catalog.csproj",
+      "databaseSchema": "catalog",
+      "contracts": []
     }
   ],
   "compositionRoots": [
     {
       "projectPath": "apps/AgropecuarIA.Api/AgropecuarIA.Api.csproj",
-      "allowedModuleIds": ["identity-tenancy", "territory", "productive-core"]
+      "allowedModuleIds": [
+        "identity-tenancy",
+        "territory",
+        "productive-core",
+        "catalog"
+      ]
     }
   ]
 }

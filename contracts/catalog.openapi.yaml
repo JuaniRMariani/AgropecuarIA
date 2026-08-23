@@ -1,0 +1,14 @@
+openapi: 3.0.1
+info:
+  title: AgropecuarIA Catalog API
+  version: "1.0"
+paths:
+  /api/catalog/diff:
+    get:
+      operationId: GetCatalogDiff
+  /api/catalog/ingest:
+    post:
+      operationId: PostCatalogIngest
+  /api/organizations/{organizationId}/fields/{fieldId}/archive:
+    post:
+      operationId: PostFieldArchive

@@ -298,6 +298,8 @@ public static partial class AuthorizationSurfaceValidator
             Path.Combine(repositoryRoot, "contracts", "territory.openapi.yaml")));
         openApi.UnionWith(ExtractOpenApiOperations(
             Path.Combine(repositoryRoot, "contracts", "productive-core.openapi.yaml")));
+        openApi.UnionWith(ExtractOpenApiOperations(
+            Path.Combine(repositoryRoot, "contracts", "catalog.openapi.yaml")));
         HashSet<string> runtime = ExtractRuntimeOperations(repositoryRoot, issues);
 
         AddSetDifference(registered, openApi, "authorization-register.openapi", issues);

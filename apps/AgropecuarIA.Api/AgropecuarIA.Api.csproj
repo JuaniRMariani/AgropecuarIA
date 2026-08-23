@@ -10,4 +10,7 @@
     </PackageReference>
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AgropecuarIA.Catalog\AgropecuarIA.Catalog.csproj" />
+  </ItemGroup>
 </Project>

@@ -2,45 +2,658 @@
   "schemaVersion": 1,
   "scope": "identity-territory-productive-core-integrated-local",
   "operations": [
-    { "id": "identity.capabilities", "method": "GET", "path": "/api/identity/capabilities", "boundary": "public-platform", "resource": "identity-capabilities", "action": "read", "authentication": "anonymous", "actorSource": "none", "tenantSource": "none", "applicationAuthorization": "public allow-list response", "storageBoundary": "none", "neutralErrors": "typed provider availability only", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#ProductionWithOidcConfiguredHasNoSyntheticEndpoints"] },
-    { "id": "identity.antiforgery", "method": "GET", "path": "/api/identity/antiforgery", "boundary": "public-platform", "resource": "antiforgery-token", "action": "issue", "authentication": "anonymous", "actorSource": "none", "tenantSource": "none", "applicationAuthorization": "framework token issuance", "storageBoundary": "none", "neutralErrors": "framework problem", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#StateChangesRejectMissingAntiforgeryToken"] },
-    { "id": "identity.session.read", "method": "GET", "path": "/api/identity/session", "boundary": "authenticated-platform", "resource": "own-session", "action": "read", "authentication": "session-cookie", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "session id and actor revalidated", "storageBoundary": "identity-platform", "neutralErrors": "401 for invalid session", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#RevokedCookieCannotBeReusedByAStolenSession"] },
-    { "id": "identity.sessions.list", "method": "GET", "path": "/api/identity/sessions", "boundary": "authenticated-platform", "resource": "own-session-collection", "action": "list", "authentication": "session-cookie", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "current actor session and authorization version revalidated before bounded own-only query", "storageBoundary": "identity-platform:actor-scoped-security-definer", "neutralErrors": "401 for invalid current session and typed unavailable storage", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#InventoryIsOwnActiveStableAndKeepsTotalOnAnEmptyPage", "tests/AgropecuarIA.Identity.Tests/OwnSessionManagementDatabaseSecurityTests.cs#InventoryIsActorScopedPrivacySafeOrderedAndPoolLocal"] },
-    { "id": "identity.sessions.revoke-all", "method": "DELETE", "path": "/api/identity/sessions", "boundary": "authenticated-platform", "resource": "own-session-collection", "action": "revoke-all-including-current", "authentication": "session-cookie+csrf", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "exact manage_sessions assurance; actor and current session are revalidated under the shared actor lock before an actor-scoped batch that includes current", "storageBoundary": "identity-platform:actor-serialized-security-definer-execute-only", "neutralErrors": "response exposes no identifiers or count; cookie deletion occurs only after commit; after a lost response 401 proves only current invalid and requires reauthentication plus inventory", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#RevokeAllOwnSessionsIsAtomicDeletesCookieAndKeepsForeignSession", "tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#GlobalAuditJournalFailureKeepsCookieAndRollsBackEverySession", "tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#GlobalRevocationBlocksIdentityAndProductiveEndpointsForEveryOwnCookie", "tests/AgropecuarIA.Identity.Tests/RevokeAllOwnSessionsDatabaseSecurityTests.cs#CrossCurrentGlobalSerializesWithGlobalIndividualBulkAndLogout"] },
-    { "id": "identity.sessions.revoke", "method": "DELETE", "path": "/api/identity/sessions/{sessionId}", "boundary": "authenticated-platform", "resource": "own-session", "action": "revoke-other", "authentication": "session-cookie+csrf+if-match", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "exact manage_sessions assurance before actor-scoped target lookup; current session excluded", "storageBoundary": "identity-platform:actor-scoped-cas-security-definer", "neutralErrors": "foreign missing expired targets are neutral; stale and current are typed", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#RevokeRequiresExactPurposeAndIsConcurrentReplaySafeJournalOnce", "tests/AgropecuarIA.Identity.Tests/OwnSessionManagementDatabaseSecurityTests.cs#RevokeIsPurposeBoundActorScopedCasAndRollbackSafe", "tests/AgropecuarIA.Identity.Tests/OwnSessionManagementDatabaseSecurityTests.cs#ConcurrentReplayProducesOneTransitionAndOneJournal"] },
-    { "id": "identity.sessions.revoke-others", "method": "DELETE", "path": "/api/identity/sessions/others", "boundary": "authenticated-platform", "resource": "own-session-collection", "action": "revoke-all-others", "authentication": "session-cookie+csrf", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "exact manage_sessions assurance; actor and current session are revalidated before an actor-scoped batch that excludes current", "storageBoundary": "identity-platform:actor-serialized-security-definer-execute-only", "neutralErrors": "response exposes no target identifiers or count; zero targets and replay are identical 204", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#RevokeAllOthersIsAtomicIdempotentAndKeepsCurrentAndForeignSessions", "tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#BulkAuditJournalFailureReturnsUnavailableAndRollsBackEverySession", "tests/AgropecuarIA.Identity.Tests/OwnSessionManagementDatabaseSecurityTests.cs#ConcurrentBulkCommandsProduceOneBatchAndOneJournalPerTarget", "tests/AgropecuarIA.Identity.Tests/OwnSessionManagementDatabaseSecurityTests.cs#ConcurrentBulkAndIndividualRevokesJournalEachTargetOnce"] },
-    { "id": "identity.login", "method": "GET", "path": "/api/identity/login/{connection}", "boundary": "public-platform", "resource": "oidc-connection", "action": "challenge", "authentication": "anonymous", "actorSource": "none", "tenantSource": "none", "applicationAuthorization": "connection allow-list and provider availability", "storageBoundary": "none", "neutralErrors": "typed invalid or unavailable connection", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/OidcConfigurationContractTests.cs#OidcUsesCodePkceQueryAndUnmappedStandardClaims"] },
-    { "id": "identity.link.start", "method": "POST", "path": "/api/identity/link-attempts", "boundary": "authenticated-platform", "resource": "own-external-identity", "action": "link-start", "authentication": "session-cookie+csrf", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "recent verified own session", "storageBoundary": "identity-platform", "neutralErrors": "typed provider or assurance denial", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#SensitiveIdentityMutationWithStaleAuthenticationReturnsForbiddenProblem"] },
-    { "id": "identity.stepup.start", "method": "POST", "path": "/api/identity/step-up-attempts", "boundary": "authenticated-platform", "resource": "own-step-up-attempt", "action": "create", "authentication": "session-cookie+csrf", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "supported purpose and own session", "storageBoundary": "identity-platform", "neutralErrors": "typed purpose or provider denial", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs#StartRequiresAntiforgeryAndRejectsUnknownPurpose"] },
-    { "id": "identity.stepup.challenge", "method": "GET", "path": "/api/identity/step-up/{attemptId}", "boundary": "authenticated-platform", "resource": "own-step-up-attempt", "action": "challenge", "authentication": "session-cookie", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "attempt bound to actor and session", "storageBoundary": "identity-platform", "neutralErrors": "typed unavailable attempt", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs#AttemptCannotBeCompletedFromAnotherSessionOrUser"] },
-    { "id": "identity.link.complete", "method": "POST", "path": "/api/identity/link-attempts/{attemptId}/complete", "boundary": "authenticated-platform", "resource": "own-link-attempt", "action": "complete", "authentication": "session-cookie+csrf", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "one-shot attempt bound to actor and session", "storageBoundary": "identity-platform", "neutralErrors": "typed unavailable attempt", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/IdentityLinkingIntegrationTests.cs#LinkCompletionIsOneShotAndRejectsReplay"] },
-    { "id": "identity.external.unlink", "method": "DELETE", "path": "/api/identity/identities/{identityId}", "boundary": "authenticated-platform", "resource": "own-external-identity", "action": "unlink", "authentication": "session-cookie+csrf", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "recent verified owner of identity", "storageBoundary": "identity-platform", "neutralErrors": "typed unavailable identity", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/IdentityLinkingIntegrationTests.cs#IdentityOwnedByAnotherUserIsNotReassigned"] },
-    { "id": "identity.session.revoke", "method": "POST", "path": "/api/identity/session/revoke", "boundary": "authenticated-platform", "resource": "own-session", "action": "revoke", "authentication": "session-cookie+csrf", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "session id and actor exact match", "storageBoundary": "identity-platform", "neutralErrors": "401 for invalid session", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#RevokedCookieCannotBeReusedByAStolenSession"] },
-    { "id": "identity.organization.create", "method": "POST", "path": "/api/identity/organizations", "boundary": "authenticated-platform", "resource": "organization-bootstrap", "action": "create", "authentication": "session-cookie+csrf+idempotency-key", "actorSource": "server-session-claims-revalidated", "tenantSource": "server-created-after-platform-authorization", "applicationAuthorization": "recent verified actor before ledger lookup", "storageBoundary": "force-rls:platform-bootstrap-to-new-tenant", "neutralErrors": "neutral actor conflict and typed reconciliation", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/OrganizationCreateApiIntegrationTests.cs#SameKeyFromAnotherActorIsANeutralConflictAndCreatesNoEffect", "tests/AgropecuarIA.Identity.Tests/OrganizationDatabaseSecurityTests.cs#RuntimeRolesEnforceActorAndTenantIsolation"] },
-    { "id": "identity.owner-invitation.list", "method": "GET", "path": "/api/identity/organizations/{organizationId}/owner-invitations", "boundary": "tenant", "resource": "organization-owner-invitation", "action": "list", "authentication": "session-cookie", "actorSource": "server-session-claims-revalidated", "tenantSource": "server-derived-route-revalidated", "applicationAuthorization": "active owner membership", "storageBoundary": "force-rls:actor+tenant", "neutralErrors": "foreign and missing tenant are neutral", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApiTests.cs#OwnerCanCreateListAndInviteeCanAcceptOnlyOnce", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationDatabaseSecurityTests.cs#RlsAndGrantsIsolateTenantsNoContextPoolsAndNonApplicationRoles"] },
-    { "id": "identity.owner-invitation.create", "method": "POST", "path": "/api/identity/organizations/{organizationId}/owner-invitations", "boundary": "tenant", "resource": "organization-owner-invitation", "action": "create", "authentication": "session-cookie+csrf+idempotency-key", "actorSource": "server-session-claims-revalidated", "tenantSource": "server-derived-route-revalidated", "applicationAuthorization": "active owner plus purpose-bound strong assurance", "storageBoundary": "force-rls:actor+tenant", "neutralErrors": "foreign tenant denied without existence disclosure", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApplicationTests.cs#StrongAuthenticationBoundaryAndForeignOwnerFailClosed", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationDatabaseSecurityTests.cs#RlsAndGrantsIsolateTenantsNoContextPoolsAndNonApplicationRoles"] },
-    { "id": "identity.owner-invitation.revoke", "method": "POST", "path": "/api/identity/organizations/{organizationId}/owner-invitations/{invitationId}/revoke", "boundary": "tenant", "resource": "organization-owner-invitation", "action": "revoke", "authentication": "session-cookie+csrf+if-match", "actorSource": "server-session-claims-revalidated", "tenantSource": "server-derived-route-revalidated", "applicationAuthorization": "active owner plus purpose-bound strong assurance and version", "storageBoundary": "force-rls:actor+tenant", "neutralErrors": "foreign or unavailable invitation is neutral", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApiTests.cs#RevokeRequiresCsrfAndStrongCurrentIfMatch", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApplicationTests.cs#AcceptAndRevokeRaceProducesExactlyOneTerminalEffect"] },
-    { "id": "identity.owner-invitation.accept", "method": "POST", "path": "/api/identity/owner-invitations/accept", "boundary": "authenticated-platform", "resource": "organization-owner-invitation-bearer", "action": "accept", "authentication": "session-cookie+csrf+bearer-body", "actorSource": "server-session-claims-revalidated", "tenantSource": "server-resolved-bearer-revalidated", "applicationAuthorization": "recent verified actor and pending one-shot invitation", "storageBoundary": "force-rls:resolved-tenant", "neutralErrors": "invalid revoked expired or foreign replay is unavailable", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApplicationTests.cs#CreateAndAcceptAreReplaySafeAndDualWriteMemberships", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationDatabaseSecurityTests.cs#TokenLookupExposesOnlyOneRowAndEnablesBoundAcceptanceAndRotationGate"] },
-    { "id": "identity.owner-membership.list", "method": "GET", "path": "/api/identity/organizations/{organizationId}/owner-memberships", "boundary": "tenant", "resource": "organization-owner-membership", "action": "list", "authentication": "session-cookie", "actorSource": "server-session-claims-revalidated", "tenantSource": "server-derived-route-revalidated", "applicationAuthorization": "active owner membership before directory lookup", "storageBoundary": "force-rls:actor+tenant+owner-directory-function", "neutralErrors": "foreign and missing tenant are neutral", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/OrganizationOwnerMembershipApiTests.cs#OwnerCanListAndRemoveCoOwnerWithReplaySafeConcurrencyContract"] },
-    { "id": "identity.owner-membership.remove", "method": "DELETE", "path": "/api/identity/organizations/{organizationId}/owner-memberships/{membershipId}", "boundary": "tenant", "resource": "organization-owner-membership", "action": "remove", "authentication": "session-cookie+csrf+if-match+idempotency-key", "actorSource": "server-session-claims-revalidated", "tenantSource": "server-derived-route-revalidated", "applicationAuthorization": "active owner plus purpose-bound strong assurance; authorization precedes ledger and target lookup", "storageBoundary": "force-rls:actor+tenant+last-owner-safe-function", "neutralErrors": "foreign missing removed and self targets are neutral; last owner and stale version are typed", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/OrganizationOwnerMembershipApiTests.cs#OwnerCanListAndRemoveCoOwnerWithReplaySafeConcurrencyContract", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerMembershipApiTests.cs#SelfRemovalIsNeutralAndHasNoEffect"] },
-    { "id": "development.identity.signin", "method": "POST", "path": "/api/development/identity/sign-in", "boundary": "development-test-only", "resource": "synthetic-session", "action": "issue", "authentication": "anonymous+csrf", "actorSource": "server-allocated-fixture", "tenantSource": "none", "applicationAuthorization": "environment plus feature flag", "storageBoundary": "identity-platform-test-data", "neutralErrors": "route absent outside Development/Test", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#ProductionWithOidcConfiguredHasNoSyntheticEndpoints", "tests/AgropecuarIA.Identity.Tests/DevelopmentIdentityEndpointSecurityTests.cs#SyntheticProfilesAreDistinctStableBoundedAndProtectedPerBrowser"] },
-    { "id": "development.identity.link-verify", "method": "POST", "path": "/api/development/identity/link-attempts/{attemptId}/verify", "boundary": "development-test-only", "resource": "synthetic-link-proof", "action": "attach", "authentication": "session-cookie+csrf", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "environment plus flag and attempt binding", "storageBoundary": "identity-platform-test-data", "neutralErrors": "route absent outside Development/Test", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/DevelopmentIdentityEndpointSecurityTests.cs#CandidateVerificationIsBoundToTheInitiatingUserAndSession", "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#ProductionWithOidcConfiguredHasNoSyntheticEndpoints"] },
-    { "id": "development.identity.stepup-complete", "method": "POST", "path": "/api/development/identity/step-up-attempts/{attemptId}/complete", "boundary": "development-test-only", "resource": "synthetic-step-up-proof", "action": "complete", "authentication": "session-cookie+csrf", "actorSource": "server-session-claims-revalidated", "tenantSource": "none", "applicationAuthorization": "environment plus flag and attempt binding", "storageBoundary": "identity-platform-test-data", "neutralErrors": "route absent outside Development/Test", "owner": "Identity", "tests": ["tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs#DevelopmentStepUpRotatesCookieAndRejectsOldSessionAndReplay", "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#ProductionWithOidcConfiguredHasNoSyntheticEndpoints"] },
-    { "id": "territory.search", "method": "GET", "path": "/api/territory/search", "boundary": "shared-reference", "resource": "official-territory-reference", "action": "search", "authentication": "session-cookie", "actorSource": "authenticated-session-only", "tenantSource": "none", "applicationAuthorization": "authenticated platform capability", "storageBoundary": "territory-readonly-active-snapshot", "neutralErrors": "typed unavailable snapshot", "owner": "Territory", "tests": ["tests/AgropecuarIA.Territory.Tests/TerritoryEndpointsTests.cs#EndpointsRequireAuthentication", "tests/AgropecuarIA.Territory.Tests/TerritoryDatabaseSecurityTests.cs#ConstraintsAndForcedPoliciesFailClosedOutsideStaging"] },
-    { "id": "territory.resolve", "method": "GET", "path": "/api/territory/resolve", "boundary": "shared-reference", "resource": "official-territory-resolution", "action": "resolve", "authentication": "session-cookie", "actorSource": "authenticated-session-only", "tenantSource": "none", "applicationAuthorization": "authenticated platform capability, bounded coordinates and egress default-off", "storageBoundary": "volatile-coordinate-cache-no-tenant-data", "neutralErrors": "explicit unavailable fallback", "owner": "Territory", "tests": ["tests/AgropecuarIA.Territory.Tests/TerritoryReferenceServiceTests.cs#ResolveProviderIsDisabledByDefaultAndNeverEgresses", "tests/AgropecuarIA.Territory.Tests/TerritoryTelemetryTests.cs#TelemetryBoundsTagsAndCannotExposeCoordinatesOrNames"] },
-    { "id": "productive-core.field.list", "method": "GET", "path": "/api/organizations/{organizationId}/fields", "boundary": "tenant", "resource": "management-unit-field", "action": "list", "authentication": "session-cookie", "actorSource": "server-session-claims-revalidated", "tenantSource": "server-derived-route-revalidated", "applicationAuthorization": "active owner membership and live session authorization before resource lookup", "storageBoundary": "force-rls:actor+tenant+authorization-version", "neutralErrors": "foreign missing and removed membership are neutral", "owner": "Productive Core", "tests": ["tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreApplicationServiceTests.cs#AuthorizationDenialPrecedesIdempotencyLookupAndRead", "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs#RolesGrantsRlsAndLiveAuthorizationIsolateTenantsAndResetPoolContext"] },
-    { "id": "productive-core.field.create", "method": "POST", "path": "/api/organizations/{organizationId}/fields", "boundary": "tenant", "resource": "management-unit-field", "action": "create", "authentication": "session-cookie+csrf+idempotency-key", "actorSource": "server-session-claims-revalidated", "tenantSource": "server-derived-route-revalidated", "applicationAuthorization": "active owner membership and live session authorization before idempotency lookup", "storageBoundary": "force-rls:actor+tenant+authorization-version", "neutralErrors": "foreign tenant is neutral and idempotency conflicts reveal no cross-tenant state", "owner": "Productive Core", "tests": ["tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreApplicationServiceTests.cs#CreateReplayAndFingerprintMismatchAreDeterministic", "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs#IdempotencyCoverageAndAtomicWritesAreTenantBoundAndJournalIsAppendOnly"] },
-    { "id": "productive-core.field.detail", "method": "GET", "path": "/api/organizations/{organizationId}/fields/{fieldId}", "boundary": "tenant", "resource": "management-unit-field", "action": "read", "authentication": "session-cookie", "actorSource": "server-session-claims-revalidated", "tenantSource": "server-derived-route-revalidated", "applicationAuthorization": "active owner membership and live session authorization before field lookup", "storageBoundary": "force-rls:actor+tenant+authorization-version", "neutralErrors": "foreign missing and removed membership or field are neutral", "owner": "Productive Core", "tests": ["tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreApplicationServiceTests.cs#ListIsOrderedAndDetailIsNeutralForMissingTarget", "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs#RolesGrantsRlsAndLiveAuthorizationIsolateTenantsAndResetPoolContext"] },
-    { "id": "productive-core.field.rename", "method": "PATCH", "path": "/api/organizations/{organizationId}/fields/{fieldId}", "boundary": "tenant", "resource": "management-unit-field", "action": "rename-draft", "authentication": "session-cookie+csrf+idempotency-key+if-match", "actorSource": "server-session-claims-revalidated", "tenantSource": "server-derived-route-revalidated", "applicationAuthorization": "active owner membership and live session authorization before replay alias and field lookup", "storageBoundary": "force-rls:actor+tenant+authorization-version", "neutralErrors": "foreign missing stale removed membership or field fail neutral without a cross-tenant existence oracle", "owner": "Productive Core", "tests": ["tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreRenameApplicationServiceTests.cs#AuthorizationDenialPrecedesAliasAndResourceLookup", "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreRenameApplicationServiceTests.cs#StaleAndCanonicalNoChangeFailWithoutAuxiliaryEffects", "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs#RenameFieldDraftCommitsOneAtomicSliceAndReplaysTheSameResult", "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs#ConcurrentRenameWithTheSameExpectedVersionCommitsOnceAndReturns412"] }
+    {
+      "id": "identity.capabilities",
+      "method": "GET",
+      "path": "/api/identity/capabilities",
+      "boundary": "public-platform",
+      "resource": "identity-capabilities",
+      "action": "read",
+      "authentication": "anonymous",
+      "actorSource": "none",
+      "tenantSource": "none",
+      "applicationAuthorization": "public allow-list response",
+      "storageBoundary": "none",
+      "neutralErrors": "typed provider availability only",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#ProductionWithOidcConfiguredHasNoSyntheticEndpoints"
+      ]
+    },
+    {
+      "id": "identity.antiforgery",
+      "method": "GET",
+      "path": "/api/identity/antiforgery",
+      "boundary": "public-platform",
+      "resource": "antiforgery-token",
+      "action": "issue",
+      "authentication": "anonymous",
+      "actorSource": "none",
+      "tenantSource": "none",
+      "applicationAuthorization": "framework token issuance",
+      "storageBoundary": "none",
+      "neutralErrors": "framework problem",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#StateChangesRejectMissingAntiforgeryToken"
+      ]
+    },
+    {
+      "id": "identity.session.read",
+      "method": "GET",
+      "path": "/api/identity/session",
+      "boundary": "authenticated-platform",
+      "resource": "own-session",
+      "action": "read",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "session id and actor revalidated",
+      "storageBoundary": "identity-platform",
+      "neutralErrors": "401 for invalid session",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#RevokedCookieCannotBeReusedByAStolenSession"
+      ]
+    },
+    {
+      "id": "identity.sessions.list",
+      "method": "GET",
+      "path": "/api/identity/sessions",
+      "boundary": "authenticated-platform",
+      "resource": "own-session-collection",
+      "action": "list",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "current actor session and authorization version revalidated before bounded own-only query",
+      "storageBoundary": "identity-platform:actor-scoped-security-definer",
+      "neutralErrors": "401 for invalid current session and typed unavailable storage",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#InventoryIsOwnActiveStableAndKeepsTotalOnAnEmptyPage",
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionManagementDatabaseSecurityTests.cs#InventoryIsActorScopedPrivacySafeOrderedAndPoolLocal"
+      ]
+    },
+    {
+      "id": "identity.sessions.revoke-all",
+      "method": "DELETE",
+      "path": "/api/identity/sessions",
+      "boundary": "authenticated-platform",
+      "resource": "own-session-collection",
+      "action": "revoke-all-including-current",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "exact manage_sessions assurance; actor and current session are revalidated under the shared actor lock before an actor-scoped batch that includes current",
+      "storageBoundary": "identity-platform:actor-serialized-security-definer-execute-only",
+      "neutralErrors": "response exposes no identifiers or count; cookie deletion occurs only after commit; after a lost response 401 proves only current invalid and requires reauthentication plus inventory",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#RevokeAllOwnSessionsIsAtomicDeletesCookieAndKeepsForeignSession",
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#GlobalAuditJournalFailureKeepsCookieAndRollsBackEverySession",
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#GlobalRevocationBlocksIdentityAndProductiveEndpointsForEveryOwnCookie",
+        "tests/AgropecuarIA.Identity.Tests/RevokeAllOwnSessionsDatabaseSecurityTests.cs#CrossCurrentGlobalSerializesWithGlobalIndividualBulkAndLogout"
+      ]
+    },
+    {
+      "id": "identity.sessions.revoke",
+      "method": "DELETE",
+      "path": "/api/identity/sessions/{sessionId}",
+      "boundary": "authenticated-platform",
+      "resource": "own-session",
+      "action": "revoke-other",
+      "authentication": "session-cookie+csrf+if-match",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "exact manage_sessions assurance before actor-scoped target lookup; current session excluded",
+      "storageBoundary": "identity-platform:actor-scoped-cas-security-definer",
+      "neutralErrors": "foreign missing expired targets are neutral; stale and current are typed",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#RevokeRequiresExactPurposeAndIsConcurrentReplaySafeJournalOnce",
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionManagementDatabaseSecurityTests.cs#RevokeIsPurposeBoundActorScopedCasAndRollbackSafe",
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionManagementDatabaseSecurityTests.cs#ConcurrentReplayProducesOneTransitionAndOneJournal"
+      ]
+    },
+    {
+      "id": "identity.sessions.revoke-others",
+      "method": "DELETE",
+      "path": "/api/identity/sessions/others",
+      "boundary": "authenticated-platform",
+      "resource": "own-session-collection",
+      "action": "revoke-all-others",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "exact manage_sessions assurance; actor and current session are revalidated before an actor-scoped batch that excludes current",
+      "storageBoundary": "identity-platform:actor-serialized-security-definer-execute-only",
+      "neutralErrors": "response exposes no target identifiers or count; zero targets and replay are identical 204",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#RevokeAllOthersIsAtomicIdempotentAndKeepsCurrentAndForeignSessions",
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs#BulkAuditJournalFailureReturnsUnavailableAndRollsBackEverySession",
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionManagementDatabaseSecurityTests.cs#ConcurrentBulkCommandsProduceOneBatchAndOneJournalPerTarget",
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionManagementDatabaseSecurityTests.cs#ConcurrentBulkAndIndividualRevokesJournalEachTargetOnce"
+      ]
+    },
+    {
+      "id": "identity.login",
+      "method": "GET",
+      "path": "/api/identity/login/{connection}",
+      "boundary": "public-platform",
+      "resource": "oidc-connection",
+      "action": "challenge",
+      "authentication": "anonymous",
+      "actorSource": "none",
+      "tenantSource": "none",
+      "applicationAuthorization": "connection allow-list and provider availability",
+      "storageBoundary": "none",
+      "neutralErrors": "typed invalid or unavailable connection",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OidcConfigurationContractTests.cs#OidcUsesCodePkceQueryAndUnmappedStandardClaims"
+      ]
+    },
+    {
+      "id": "identity.link.start",
+      "method": "POST",
+      "path": "/api/identity/link-attempts",
+      "boundary": "authenticated-platform",
+      "resource": "own-external-identity",
+      "action": "link-start",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "recent verified own session",
+      "storageBoundary": "identity-platform",
+      "neutralErrors": "typed provider or assurance denial",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#SensitiveIdentityMutationWithStaleAuthenticationReturnsForbiddenProblem"
+      ]
+    },
+    {
+      "id": "identity.stepup.start",
+      "method": "POST",
+      "path": "/api/identity/step-up-attempts",
+      "boundary": "authenticated-platform",
+      "resource": "own-step-up-attempt",
+      "action": "create",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "supported purpose and own session",
+      "storageBoundary": "identity-platform",
+      "neutralErrors": "typed purpose or provider denial",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs#StartRequiresAntiforgeryAndRejectsUnknownPurpose"
+      ]
+    },
+    {
+      "id": "identity.stepup.challenge",
+      "method": "GET",
+      "path": "/api/identity/step-up/{attemptId}",
+      "boundary": "authenticated-platform",
+      "resource": "own-step-up-attempt",
+      "action": "challenge",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "attempt bound to actor and session",
+      "storageBoundary": "identity-platform",
+      "neutralErrors": "typed unavailable attempt",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs#AttemptCannotBeCompletedFromAnotherSessionOrUser"
+      ]
+    },
+    {
+      "id": "identity.link.complete",
+      "method": "POST",
+      "path": "/api/identity/link-attempts/{attemptId}/complete",
+      "boundary": "authenticated-platform",
+      "resource": "own-link-attempt",
+      "action": "complete",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "one-shot attempt bound to actor and session",
+      "storageBoundary": "identity-platform",
+      "neutralErrors": "typed unavailable attempt",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/IdentityLinkingIntegrationTests.cs#LinkCompletionIsOneShotAndRejectsReplay"
+      ]
+    },
+    {
+      "id": "identity.external.unlink",
+      "method": "DELETE",
+      "path": "/api/identity/identities/{identityId}",
+      "boundary": "authenticated-platform",
+      "resource": "own-external-identity",
+      "action": "unlink",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "recent verified owner of identity",
+      "storageBoundary": "identity-platform",
+      "neutralErrors": "typed unavailable identity",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/IdentityLinkingIntegrationTests.cs#IdentityOwnedByAnotherUserIsNotReassigned"
+      ]
+    },
+    {
+      "id": "identity.session.revoke",
+      "method": "POST",
+      "path": "/api/identity/session/revoke",
+      "boundary": "authenticated-platform",
+      "resource": "own-session",
+      "action": "revoke",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "session id and actor exact match",
+      "storageBoundary": "identity-platform",
+      "neutralErrors": "401 for invalid session",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#RevokedCookieCannotBeReusedByAStolenSession"
+      ]
+    },
+    {
+      "id": "identity.organization.create",
+      "method": "POST",
+      "path": "/api/identity/organizations",
+      "boundary": "authenticated-platform",
+      "resource": "organization-bootstrap",
+      "action": "create",
+      "authentication": "session-cookie+csrf+idempotency-key",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-created-after-platform-authorization",
+      "applicationAuthorization": "recent verified actor before ledger lookup",
+      "storageBoundary": "force-rls:platform-bootstrap-to-new-tenant",
+      "neutralErrors": "neutral actor conflict and typed reconciliation",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OrganizationCreateApiIntegrationTests.cs#SameKeyFromAnotherActorIsANeutralConflictAndCreatesNoEffect",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationDatabaseSecurityTests.cs#RuntimeRolesEnforceActorAndTenantIsolation"
+      ]
+    },
+    {
+      "id": "identity.owner-invitation.list",
+      "method": "GET",
+      "path": "/api/identity/organizations/{organizationId}/owner-invitations",
+      "boundary": "tenant",
+      "resource": "organization-owner-invitation",
+      "action": "list",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "active owner membership",
+      "storageBoundary": "force-rls:actor+tenant",
+      "neutralErrors": "foreign and missing tenant are neutral",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApiTests.cs#OwnerCanCreateListAndInviteeCanAcceptOnlyOnce",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationDatabaseSecurityTests.cs#RlsAndGrantsIsolateTenantsNoContextPoolsAndNonApplicationRoles"
+      ]
+    },
+    {
+      "id": "identity.owner-invitation.create",
+      "method": "POST",
+      "path": "/api/identity/organizations/{organizationId}/owner-invitations",
+      "boundary": "tenant",
+      "resource": "organization-owner-invitation",
+      "action": "create",
+      "authentication": "session-cookie+csrf+idempotency-key",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "active owner plus purpose-bound strong assurance",
+      "storageBoundary": "force-rls:actor+tenant",
+      "neutralErrors": "foreign tenant denied without existence disclosure",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApplicationTests.cs#StrongAuthenticationBoundaryAndForeignOwnerFailClosed",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationDatabaseSecurityTests.cs#RlsAndGrantsIsolateTenantsNoContextPoolsAndNonApplicationRoles"
+      ]
+    },
+    {
+      "id": "identity.owner-invitation.revoke",
+      "method": "POST",
+      "path": "/api/identity/organizations/{organizationId}/owner-invitations/{invitationId}/revoke",
+      "boundary": "tenant",
+      "resource": "organization-owner-invitation",
+      "action": "revoke",
+      "authentication": "session-cookie+csrf+if-match",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "active owner plus purpose-bound strong assurance and version",
+      "storageBoundary": "force-rls:actor+tenant",
+      "neutralErrors": "foreign or unavailable invitation is neutral",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApiTests.cs#RevokeRequiresCsrfAndStrongCurrentIfMatch",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApplicationTests.cs#AcceptAndRevokeRaceProducesExactlyOneTerminalEffect"
+      ]
+    },
+    {
+      "id": "identity.owner-invitation.accept",
+      "method": "POST",
+      "path": "/api/identity/owner-invitations/accept",
+      "boundary": "authenticated-platform",
+      "resource": "organization-owner-invitation-bearer",
+      "action": "accept",
+      "authentication": "session-cookie+csrf+bearer-body",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-resolved-bearer-revalidated",
+      "applicationAuthorization": "recent verified actor and pending one-shot invitation",
+      "storageBoundary": "force-rls:resolved-tenant",
+      "neutralErrors": "invalid revoked expired or foreign replay is unavailable",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApplicationTests.cs#CreateAndAcceptAreReplaySafeAndDualWriteMemberships",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationDatabaseSecurityTests.cs#TokenLookupExposesOnlyOneRowAndEnablesBoundAcceptanceAndRotationGate"
+      ]
+    },
+    {
+      "id": "identity.owner-membership.list",
+      "method": "GET",
+      "path": "/api/identity/organizations/{organizationId}/owner-memberships",
+      "boundary": "tenant",
+      "resource": "organization-owner-membership",
+      "action": "list",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "active owner membership before directory lookup",
+      "storageBoundary": "force-rls:actor+tenant+owner-directory-function",
+      "neutralErrors": "foreign and missing tenant are neutral",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerMembershipApiTests.cs#OwnerCanListAndRemoveCoOwnerWithReplaySafeConcurrencyContract"
+      ]
+    },
+    {
+      "id": "identity.owner-membership.remove",
+      "method": "DELETE",
+      "path": "/api/identity/organizations/{organizationId}/owner-memberships/{membershipId}",
+      "boundary": "tenant",
+      "resource": "organization-owner-membership",
+      "action": "remove",
+      "authentication": "session-cookie+csrf+if-match+idempotency-key",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "active owner plus purpose-bound strong assurance; authorization precedes ledger and target lookup",
+      "storageBoundary": "force-rls:actor+tenant+last-owner-safe-function",
+      "neutralErrors": "foreign missing removed and self targets are neutral; last owner and stale version are typed",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerMembershipApiTests.cs#OwnerCanListAndRemoveCoOwnerWithReplaySafeConcurrencyContract",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerMembershipApiTests.cs#SelfRemovalIsNeutralAndHasNoEffect"
+      ]
+    },
+    {
+      "id": "development.identity.signin",
+      "method": "POST",
+      "path": "/api/development/identity/sign-in",
+      "boundary": "development-test-only",
+      "resource": "synthetic-session",
+      "action": "issue",
+      "authentication": "anonymous+csrf",
+      "actorSource": "server-allocated-fixture",
+      "tenantSource": "none",
+      "applicationAuthorization": "environment plus feature flag",
+      "storageBoundary": "identity-platform-test-data",
+      "neutralErrors": "route absent outside Development/Test",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#ProductionWithOidcConfiguredHasNoSyntheticEndpoints",
+        "tests/AgropecuarIA.Identity.Tests/DevelopmentIdentityEndpointSecurityTests.cs#SyntheticProfilesAreDistinctStableBoundedAndProtectedPerBrowser"
+      ]
+    },
+    {
+      "id": "development.identity.link-verify",
+      "method": "POST",
+      "path": "/api/development/identity/link-attempts/{attemptId}/verify",
+      "boundary": "development-test-only",
+      "resource": "synthetic-link-proof",
+      "action": "attach",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "environment plus flag and attempt binding",
+      "storageBoundary": "identity-platform-test-data",
+      "neutralErrors": "route absent outside Development/Test",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/DevelopmentIdentityEndpointSecurityTests.cs#CandidateVerificationIsBoundToTheInitiatingUserAndSession",
+        "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#ProductionWithOidcConfiguredHasNoSyntheticEndpoints"
+      ]
+    },
+    {
+      "id": "development.identity.stepup-complete",
+      "method": "POST",
+      "path": "/api/development/identity/step-up-attempts/{attemptId}/complete",
+      "boundary": "development-test-only",
+      "resource": "synthetic-step-up-proof",
+      "action": "complete",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "environment plus flag and attempt binding",
+      "storageBoundary": "identity-platform-test-data",
+      "neutralErrors": "route absent outside Development/Test",
+      "owner": "Identity",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs#DevelopmentStepUpRotatesCookieAndRejectsOldSessionAndReplay",
+        "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs#ProductionWithOidcConfiguredHasNoSyntheticEndpoints"
+      ]
+    },
+    {
+      "id": "territory.search",
+      "method": "GET",
+      "path": "/api/territory/search",
+      "boundary": "shared-reference",
+      "resource": "official-territory-reference",
+      "action": "search",
+      "authentication": "session-cookie",
+      "actorSource": "authenticated-session-only",
+      "tenantSource": "none",
+      "applicationAuthorization": "authenticated platform capability",
+      "storageBoundary": "territory-readonly-active-snapshot",
+      "neutralErrors": "typed unavailable snapshot",
+      "owner": "Territory",
+      "tests": [
+        "tests/AgropecuarIA.Territory.Tests/TerritoryEndpointsTests.cs#EndpointsRequireAuthentication",
+        "tests/AgropecuarIA.Territory.Tests/TerritoryDatabaseSecurityTests.cs#ConstraintsAndForcedPoliciesFailClosedOutsideStaging"
+      ]
+    },
+    {
+      "id": "territory.resolve",
+      "method": "GET",
+      "path": "/api/territory/resolve",
+      "boundary": "shared-reference",
+      "resource": "official-territory-resolution",
+      "action": "resolve",
+      "authentication": "session-cookie",
+      "actorSource": "authenticated-session-only",
+      "tenantSource": "none",
+      "applicationAuthorization": "authenticated platform capability, bounded coordinates and egress default-off",
+      "storageBoundary": "volatile-coordinate-cache-no-tenant-data",
+      "neutralErrors": "explicit unavailable fallback",
+      "owner": "Territory",
+      "tests": [
+        "tests/AgropecuarIA.Territory.Tests/TerritoryReferenceServiceTests.cs#ResolveProviderIsDisabledByDefaultAndNeverEgresses",
+        "tests/AgropecuarIA.Territory.Tests/TerritoryTelemetryTests.cs#TelemetryBoundsTagsAndCannotExposeCoordinatesOrNames"
+      ]
+    },
+    {
+      "id": "productive-core.field.list",
+      "method": "GET",
+      "path": "/api/organizations/{organizationId}/fields",
+      "boundary": "tenant",
+      "resource": "management-unit-field",
+      "action": "list",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "active owner membership and live session authorization before resource lookup",
+      "storageBoundary": "force-rls:actor+tenant+authorization-version",
+      "neutralErrors": "foreign missing and removed membership are neutral",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreApplicationServiceTests.cs#AuthorizationDenialPrecedesIdempotencyLookupAndRead",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs#RolesGrantsRlsAndLiveAuthorizationIsolateTenantsAndResetPoolContext"
+      ]
+    },
+    {
+      "id": "productive-core.field.create",
+      "method": "POST",
+      "path": "/api/organizations/{organizationId}/fields",
+      "boundary": "tenant",
+      "resource": "management-unit-field",
+      "action": "create",
+      "authentication": "session-cookie+csrf+idempotency-key",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "active owner membership and live session authorization before idempotency lookup",
+      "storageBoundary": "force-rls:actor+tenant+authorization-version",
+      "neutralErrors": "foreign tenant is neutral and idempotency conflicts reveal no cross-tenant state",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreApplicationServiceTests.cs#CreateReplayAndFingerprintMismatchAreDeterministic",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs#IdempotencyCoverageAndAtomicWritesAreTenantBoundAndJournalIsAppendOnly"
+      ]
+    },
+    {
+      "id": "productive-core.field.detail",
+      "method": "GET",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}",
+      "boundary": "tenant",
+      "resource": "management-unit-field",
+      "action": "read",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "active owner membership and live session authorization before field lookup",
+      "storageBoundary": "force-rls:actor+tenant+authorization-version",
+      "neutralErrors": "foreign missing and removed membership or field are neutral",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreApplicationServiceTests.cs#ListIsOrderedAndDetailIsNeutralForMissingTarget",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs#RolesGrantsRlsAndLiveAuthorizationIsolateTenantsAndResetPoolContext"
+      ]
+    },
+    {
+      "id": "productive-core.field.rename",
+      "method": "PATCH",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}",
+      "boundary": "tenant",
+      "resource": "management-unit-field",
+      "action": "rename-draft",
+      "authentication": "session-cookie+csrf+idempotency-key+if-match",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "active owner membership and live session authorization before replay alias and field lookup",
+      "storageBoundary": "force-rls:actor+tenant+authorization-version",
+      "neutralErrors": "foreign missing stale removed membership or field fail neutral without a cross-tenant existence oracle",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreRenameApplicationServiceTests.cs#AuthorizationDenialPrecedesAliasAndResourceLookup",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreRenameApplicationServiceTests.cs#StaleAndCanonicalNoChangeFailWithoutAuxiliaryEffects",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs#RenameFieldDraftCommitsOneAtomicSliceAndReplaysTheSameResult",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs#ConcurrentRenameWithTheSameExpectedVersionCommitsOnceAndReturns412"
+      ]
+    },
+    {
+      "id": "catalog.diff.read",
+      "method": "GET",
+      "path": "/api/catalog/diff",
+      "boundary": "public-platform",
+      "resource": "catalog-diff",
+      "action": "read",
+      "authentication": "anonymous",
+      "actorSource": "none",
+      "tenantSource": "none",
+      "applicationAuthorization": "none",
+      "storageBoundary": "catalog-platform",
+      "neutralErrors": "none",
+      "owner": "Catalog",
+      "tests": [
+        "tests/AgropecuarIA.Catalog.Tests/CatalogDiffApplicationServiceTests.cs#DiffIsGenerated"
+      ]
+    },
+    {
+      "id": "catalog.ingest.create",
+      "method": "POST",
+      "path": "/api/catalog/ingest",
+      "boundary": "public-platform",
+      "resource": "catalog-ingest",
+      "action": "create",
+      "authentication": "anonymous",
+      "actorSource": "none",
+      "tenantSource": "none",
+      "applicationAuthorization": "none",
+      "storageBoundary": "catalog-platform",
+      "neutralErrors": "none",
+      "owner": "Catalog",
+      "tests": [
+        "tests/AgropecuarIA.Catalog.Tests/CatalogIngestionApplicationServiceTests.cs#IngestionIsIdempotent"
+      ]
+    },
+    {
+      "id": "productive-core.field.archive",
+      "method": "POST",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}/archive",
+      "boundary": "tenant",
+      "resource": "field",
+      "action": "archive",
+      "authentication": "session-cookie+csrf+idempotency-key",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "active owner membership and live session authorization before field lookup",
+      "storageBoundary": "force-rls:actor+tenant+authorization-version",
+      "neutralErrors": "foreign and missing tenant are neutral",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreArchiveApplicationServiceTests.cs#ArchiveIsIdempotent"
+      ]
+    }
   ],
   "frameworkEntrypoints": [
-    { "id": "identity.oidc.callback", "path": "/signin-oidc", "owner": "Identity", "control": "ASP.NET Core OIDC state nonce code PKCE issuer and auth_time validation", "tests": ["tests/AgropecuarIA.Identity.Tests/OidcConfigurationContractTests.cs#ReauthenticationRejectsMissingStaleAndFutureAuthTime"] }
+    {
+      "id": "identity.oidc.callback",
+      "path": "/signin-oidc",
+      "owner": "Identity",
+      "control": "ASP.NET Core OIDC state nonce code PKCE issuer and auth_time validation",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/OidcConfigurationContractTests.cs#ReauthenticationRejectsMissingStaleAndFutureAuthTime"
+      ]
+    }
   ],
   "absentSurfaces": [
-    { "name": "jobs", "status": "not-present" },
-    { "name": "storage", "status": "not-present" },
-    { "name": "export", "status": "not-present" },
-    { "name": "ai", "status": "not-present" },
-    { "name": "retrieval", "status": "not-present" }
+    {
+      "name": "jobs",
+      "status": "not-present"
+    },
+    {
+      "name": "storage",
+      "status": "not-present"
+    },
+    {
+      "name": "export",
+      "status": "not-present"
+    },
+    {
+      "name": "ai",
+      "status": "not-present"
+    },
+    {
+      "name": "retrieval",
+      "status": "not-present"
+    }
   ]
 }

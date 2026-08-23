@@ -12,6 +12,9 @@ using AgropecuarIA.ProductiveCore.Infrastructure;
 using AgropecuarIA.Territory;
 using AgropecuarIA.Territory.Delivery;
 using AgropecuarIA.Territory.Infrastructure;
+using AgropecuarIA.Catalog;
+using AgropecuarIA.Catalog.Delivery;
+using AgropecuarIA.Catalog.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -54,6 +57,7 @@ builder.Services.AddProblemDetails(options =>
 });
 builder.Services.AddTerritoryModule(builder.Configuration);
 builder.Services.AddProductiveCoreModule(builder.Configuration);
+builder.Services.AddCatalogModule(builder.Configuration);
 builder.Services.AddExceptionHandler<IdentityExceptionHandler>();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -280,6 +284,8 @@ builder.Services.AddOpenTelemetry()
         .AddMeter(TerritoryTelemetry.SourceName)
         .AddMeter(ProductiveCoreTelemetry.SourceName));
 
+bool applyCatalogMigrations = builder.Configuration.GetValue<bool>("Catalog:ApplyMigrations");
+
 WebApplication app = builder.Build();
 
 if (applyIdentityMigrations)
@@ -300,6 +306,14 @@ if (applyProductiveCoreMigrations)
     ProductiveCoreDbContext productiveCoreDbContext =
         scope.ServiceProvider.GetRequiredService<ProductiveCoreDbContext>();
     await productiveCoreDbContext.Database.MigrateAsync();
+}
+
+if (applyCatalogMigrations)
+{
+    await using AsyncServiceScope scope = app.Services.CreateAsyncScope();
+    CatalogDbContext catalogDbContext =
+        scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+    await catalogDbContext.Database.MigrateAsync();
 }
 
 app.UseExceptionHandler();
@@ -330,6 +344,7 @@ app.UseAntiforgery();
 app.MapIdentityEndpoints();
 app.MapTerritoryEndpoints();
 app.MapProductiveCoreEndpoints();
+app.MapCatalogEndpoints();
 
 app.Run();
 

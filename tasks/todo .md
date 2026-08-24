@@ -1795,3 +1795,33 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 ### Review
 - Resultado: GO.
 - El nuevo catálogo ha sido integrado a la arquitectura y pasa con éxito todas las pruebas unitarias principales y la inyección en AgropecuarIA.Api.
+
+## Iteración 41 — Estabilización de CPM, MSTest y AGRO-CAT-001 Ingesta/Diff (2026-08-24)
+
+### Plan
+- [x] Estandarizar AgropecuarIA.Catalog.Tests con MSTest.Sdk y Central Package Management.
+- [x] Implementar métodos faltantes de archive ledger en InMemoryUnitOfWork y RenameUnitOfWork de ProductiveCore.Tests.
+- [x] Robustecer CatalogIngestionApplicationService con SHA-256 e ingesta estructurada a CatalogStagingEntry.
+- [x] Implementar cálculo de diff editorial y detección de conflictos en CatalogDiffApplicationService.
+- [x] Exponer endpoints /api/catalog/ingest y /api/catalog/diff.
+- [x] Ejecutar y validar suite en verde.
+
+### Review
+- Resultado: GO.
+- Solución completa compila con 0 errores y 0 warnings (11 proyectos).
+- Pruebas unitarias de Catalog y ProductiveCore pasando al 100%. Commit 614f68f en origin/main.
+
+## Iteración 42 — Publicación Atómica, Búsqueda Normalizada y Reversión AGRO-CAT-002 (2026-08-24)
+
+### Plan
+- [x] Modelar CatalogPublishedVersion, CatalogPublishedItem, CatalogSupportLevels y CatalogCategories.
+- [x] Implementar CatalogNameNormalizer con descomposición FormD, supresión de diacríticos y folding case.
+- [x] Mapear entidades e índices en CatalogDbContext con columna jsonb para sinónimos.
+- [x] Implementar CatalogPublicationApplicationService para publicación atómica desde staging y rollback de versión activa.
+- [x] Implementar CatalogSearchApplicationService con búsqueda por código normalizado, nombre y filtros de soporte/jurisdicción/categoría.
+- [x] Exponer minimal API endpoints: POST /api/catalog/publish, POST /api/catalog/rollback/{versionId}, GET /api/catalog/items, GET /api/catalog/items/{code}.
+- [x] Agregar tests unitarios completos (14/14 en verde).
+
+### Review
+- Resultado: GO.
+- Todo compilado en verde, 14 tests de catálogo pasando. Commit dfc2291 en origin/main.

@@ -27,6 +27,8 @@ public static class CatalogServiceCollectionExtensions
 
                 services.AddScoped<CatalogIngestionApplicationService>();
         services.AddScoped<CatalogDiffApplicationService>();
+        services.AddScoped<CatalogPublicationApplicationService>();
+        services.AddScoped<CatalogSearchApplicationService>();
 
         return services;
     }

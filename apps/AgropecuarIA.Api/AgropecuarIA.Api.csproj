@@ -12,5 +12,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\AgropecuarIA.Catalog\AgropecuarIA.Catalog.csproj" />
+    <ProjectReference Include="..\..\src\AgropecuarIA.Weather\AgropecuarIA.Weather.csproj" />
   </ItemGroup>
 </Project>

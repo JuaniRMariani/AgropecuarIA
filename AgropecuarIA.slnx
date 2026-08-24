@@ -7,6 +7,7 @@
     <Project Path="src/AgropecuarIA.Identity/AgropecuarIA.Identity.csproj" />
     <Project Path="src/AgropecuarIA.ProductiveCore/AgropecuarIA.ProductiveCore.csproj" />
     <Project Path="src/AgropecuarIA.Territory/AgropecuarIA.Territory.csproj" />
+    <Project Path="src/AgropecuarIA.Weather/AgropecuarIA.Weather.csproj" />
     <Project Path="tasks/evidence/AGRO-FND-001/fitness/src/AgropecuarIA.ArchitectureFitness/AgropecuarIA.ArchitectureFitness.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -14,6 +15,7 @@
     <Project Path="tests/AgropecuarIA.Identity.Tests/AgropecuarIA.Identity.Tests.csproj" />
     <Project Path="tests/AgropecuarIA.ProductiveCore.Tests/AgropecuarIA.ProductiveCore.Tests.csproj" />
     <Project Path="tests/AgropecuarIA.Territory.Tests/AgropecuarIA.Territory.Tests.csproj" />
+    <Project Path="tests/AgropecuarIA.Weather.Tests/AgropecuarIA.Weather.Tests.csproj" />
     <Project Path="tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/AgropecuarIA.ArchitectureFitness.Tests.csproj" />
   </Folder>
 </Solution>

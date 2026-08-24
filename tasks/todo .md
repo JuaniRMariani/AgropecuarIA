@@ -1863,4 +1863,18 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 
 ### Review
 - Resultado: GO.
-- Solución completa compila con 0 errores y 0 warnings.
+- Solución completa compila con 0 errores y 0 warnings. Commit 6223720 en origin/main.
+
+## Iteración 46 — Módulo de Clima, Pronósticos y Lluvia Observada AGRO-CLI-001 / AGRO-CLI-002 (2026-08-24)
+
+### Plan
+- [x] Crear módulo AgropecuarIA.Weather con entidades WeatherForecastSnapshot, WeatherObservedRain y enumeraciones WeatherFreshnessStatuses / WeatherObservedRainMethods.
+- [x] Mapear tablas e índices en WeatherDbContext con almacenamiento jsonb para variables horarias/diarias y unicidad de snapshot hash.
+- [x] Implementar OpenMeteoWeatherClient y WeatherForecastApplicationService con estrategia de cache fresh, degradación transparente a stale y fallback a unavailable sin romper transacciones de negocio.
+- [x] Implementar registro y rectificación auditable de lluvias observadas por pluviómetro / estación meteorológica.
+- [x] Exponer endpoints: GET /api/organizations/{orgId}/fields/{fieldId}/weather/forecast, POST /api/organizations/{orgId}/fields/{fieldId}/weather/rain, GET /api/organizations/{orgId}/fields/{fieldId}/weather/rain.
+- [x] Crear suite de pruebas unitarias en AgropecuarIA.Weather.Tests (5/5 en verde).
+
+### Review
+- Resultado: GO.
+- Solución completa compila con 0 errores y 0 warnings en los 13 proyectos.

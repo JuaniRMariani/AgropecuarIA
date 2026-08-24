@@ -1,0 +1,8 @@
+<Project Sdk="MSTest.Sdk/4.3.3">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AgropecuarIA.Weather\AgropecuarIA.Weather.csproj" />
+  </ItemGroup>
+</Project>

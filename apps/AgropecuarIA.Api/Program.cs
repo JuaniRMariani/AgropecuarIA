@@ -15,6 +15,9 @@ using AgropecuarIA.Territory.Infrastructure;
 using AgropecuarIA.Catalog;
 using AgropecuarIA.Catalog.Delivery;
 using AgropecuarIA.Catalog.Infrastructure;
+using AgropecuarIA.Weather;
+using AgropecuarIA.Weather.Delivery;
+using AgropecuarIA.Weather.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -58,6 +61,7 @@ builder.Services.AddProblemDetails(options =>
 builder.Services.AddTerritoryModule(builder.Configuration);
 builder.Services.AddProductiveCoreModule(builder.Configuration);
 builder.Services.AddCatalogModule(builder.Configuration);
+builder.Services.AddAgropecuariaWeather(builder.Configuration);
 builder.Services.AddExceptionHandler<IdentityExceptionHandler>();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -226,6 +230,23 @@ builder.Services.AddRateLimiter(options =>
                 AutoReplenishment = true,
             });
     });
+    options.AddPolicy(WeatherEndpoints.RateLimitPolicy, context =>
+    {
+        string partitionKey = context.Request.Cookies.TryGetValue(
+            IdentityAuthenticationDefaults.SessionCookieName,
+            out string? sessionToken)
+            ? $"weather:{Convert.ToHexString(IdentityTokenService.HashToken(sessionToken))}"
+            : $"weather-anonymous:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            });
+    });
     options.OnRejected = async (context, cancellationToken) =>
     {
         context.HttpContext.RequestServices
@@ -345,6 +366,7 @@ app.MapIdentityEndpoints();
 app.MapTerritoryEndpoints();
 app.MapProductiveCoreEndpoints();
 app.MapCatalogEndpoints();
+app.MapWeatherEndpoints();
 
 app.Run();
 

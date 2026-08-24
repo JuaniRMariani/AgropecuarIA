@@ -1877,4 +1877,17 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 
 ### Review
 - Resultado: GO.
-- Solución completa compila con 0 errores y 0 warnings en los 13 proyectos.
+- Solución completa compila con 0 errores y 0 warnings en los 13 proyectos. Commit 3732d59 en origin/main.
+
+## Iteración 47 — Ingestión y Cruce Espacial de Alertas SMN CAP AGRO-CLI-003 (2026-08-24)
+
+### Plan
+- [x] Modelar entidad WeatherAlert con severidades normalizadas (yellow, orange, red, minor), estados (actual, update, cancel), ventana temporal (effective/expires) y bounding boxes espaciales.
+- [x] Mapear tabla weather_alerts en WeatherDbContext con índices por identificador único, vigencias y límites espaciales.
+- [x] Implementar WeatherAlertApplicationService con ingestión idempotente y consulta de alertas activas por coordenadas geográficas.
+- [x] Exponer endpoints: GET /api/organizations/{orgId}/fields/{fieldId}/weather/alerts y POST /api/weather/alerts/ingest.
+- [x] Crear suite de pruebas unitarias en WeatherAlertTests.cs (4/4 en verde, totalizando 9/9 en Weather.Tests).
+
+### Review
+- Resultado: GO.
+- Solución completa compila con 0 errores y 0 warnings.

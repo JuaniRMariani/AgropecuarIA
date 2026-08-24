@@ -73,6 +73,31 @@ public static class WeatherEndpoints
             return Results.Ok(results);
         });
 
+        weather.MapGet("/alerts", async (
+            Guid organizationId,
+            Guid fieldId,
+            double latitude,
+            double longitude,
+            WeatherAlertApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            var alerts = await service.GetActiveAlertsAsync(latitude, longitude, cancellationToken);
+            return Results.Ok(alerts);
+        });
+
+        RouteGroupBuilder globalWeather = endpoints.MapGroup("/api/weather")
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitPolicy);
+
+        globalWeather.MapPost("/alerts/ingest", async (
+            IngestCapAlertCommand request,
+            WeatherAlertApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            var alert = await service.IngestAlertAsync(request, cancellationToken);
+            return Results.Created($"/api/weather/alerts/{alert.Id:D}", alert);
+        });
+
         return endpoints;
     }
 }

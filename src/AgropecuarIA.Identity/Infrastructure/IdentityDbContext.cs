@@ -16,6 +16,9 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     public DbSet<OrganizationMembershipAssignment> AuthoritativeMemberships =>
         Set<OrganizationMembershipAssignment>();
 
+    public DbSet<OrganizationFieldScopeAssignment> FieldScopes =>
+        Set<OrganizationFieldScopeAssignment>();
+
     public DbSet<OrganizationCreationLedger> OrganizationCreationLedgers =>
         Set<OrganizationCreationLedger>();
 
@@ -146,7 +149,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
                 {
                     table.HasCheckConstraint(
                         "CK_memberships_Role",
-                        $"\"Role\" = '{OrganizationMembershipRoles.Owner}'");
+                        $"\"Role\" IN ('{OrganizationMembershipRoles.Owner}', '{OrganizationMembershipRoles.Admin}', '{OrganizationMembershipRoles.Agronomist}', '{OrganizationMembershipRoles.Operator}', '{OrganizationMembershipRoles.Accountant}', '{OrganizationMembershipRoles.Viewer}')");
                     table.HasCheckConstraint(
                         "CK_memberships_Status",
                         $"(\"Status\" = '{OrganizationMembershipStatuses.Active}' AND " +
@@ -157,6 +160,22 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
                         "CK_memberships_SecurityVersion",
                         "\"SecurityVersion\" > 0");
                 });
+
+        modelBuilder.Entity<OrganizationFieldScopeAssignment>(entity =>
+        {
+            entity.ToTable("organization_field_scopes");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.OrganizationId).IsRequired();
+            entity.Property(item => item.MembershipId).IsRequired();
+            entity.Property(item => item.FieldId).IsRequired();
+            entity.Property(item => item.GrantedByUserId).IsRequired();
+            entity.Property(item => item.GrantedAtUtc).IsRequired();
+            entity.HasIndex(item => new { item.OrganizationId, item.MembershipId, item.FieldId }).IsUnique();
+            entity.HasOne<OrganizationMembershipAssignment>()
+                .WithMany()
+                .HasForeignKey(item => item.MembershipId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Role).HasMaxLength(32).IsRequired();
             entity.Property(item => item.Status).HasMaxLength(16).IsRequired();

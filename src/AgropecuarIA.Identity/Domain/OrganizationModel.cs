@@ -8,6 +8,14 @@ public static class OrganizationStatuses
 public static class OrganizationMembershipRoles
 {
     public const string Owner = "owner";
+    public const string Admin = "admin";
+    public const string Agronomist = "agronomist";
+    public const string Operator = "operator";
+    public const string Accountant = "accountant";
+    public const string Viewer = "viewer";
+
+    public static bool IsValid(string role) =>
+        role is Owner or Admin or Agronomist or Operator or Accountant or Viewer;
 }
 
 public static class OrganizationMembershipStatuses
@@ -94,17 +102,24 @@ public sealed class OrganizationMembershipAssignment
         Guid id,
         Guid organizationId,
         Guid userId,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        string role = OrganizationMembershipRoles.Owner)
     {
         if (id == Guid.Empty || organizationId == Guid.Empty || userId == Guid.Empty)
         {
             throw new ArgumentException("Membership, organization, and user IDs are required.");
         }
 
+        string effectiveRole = string.IsNullOrWhiteSpace(role) ? OrganizationMembershipRoles.Owner : role.Trim().ToLowerInvariant();
+        if (!OrganizationMembershipRoles.IsValid(effectiveRole))
+        {
+            throw new ArgumentException($"Invalid membership role: {role}", nameof(role));
+        }
+
         Id = id;
         OrganizationId = organizationId;
         UserId = userId;
-        Role = OrganizationMembershipRoles.Owner;
+        Role = effectiveRole;
         Status = OrganizationMembershipStatuses.Active;
         SecurityVersion = 1;
         CreatedAtUtc = createdAtUtc;
@@ -129,6 +144,23 @@ public sealed class OrganizationMembershipAssignment
     public Guid? RemovedByUserId { get; private set; }
 
     public Guid Version { get; private set; } = Guid.NewGuid();
+
+    public void UpdateRole(string newRole, Guid editorUserId, DateTimeOffset updatedAtUtc, Guid newVersion)
+    {
+        if (editorUserId == Guid.Empty || newVersion == Guid.Empty)
+            throw new ArgumentException("Editor and new version IDs are required.");
+
+        if (Status != OrganizationMembershipStatuses.Active)
+            throw new InvalidOperationException("Only active memberships can have their role updated.");
+
+        string effectiveRole = string.IsNullOrWhiteSpace(newRole) ? OrganizationMembershipRoles.Viewer : newRole.Trim().ToLowerInvariant();
+        if (!OrganizationMembershipRoles.IsValid(effectiveRole))
+            throw new ArgumentException($"Invalid membership role: {newRole}", nameof(newRole));
+
+        Role = effectiveRole;
+        SecurityVersion = checked(SecurityVersion + 1);
+        Version = newVersion;
+    }
 
     public void Remove(Guid removerUserId, DateTimeOffset removedAtUtc, Guid newVersion)
     {
@@ -155,6 +187,40 @@ public sealed class OrganizationMembershipAssignment
         SecurityVersion = checked(SecurityVersion + 1);
         Version = newVersion;
     }
+}
+
+public sealed class OrganizationFieldScopeAssignment
+{
+    private OrganizationFieldScopeAssignment() { }
+
+    public OrganizationFieldScopeAssignment(
+        Guid id,
+        Guid organizationId,
+        Guid membershipId,
+        Guid fieldId,
+        Guid grantedByUserId,
+        DateTimeOffset grantedAtUtc)
+    {
+        if (id == Guid.Empty || organizationId == Guid.Empty || membershipId == Guid.Empty ||
+            fieldId == Guid.Empty || grantedByUserId == Guid.Empty)
+        {
+            throw new ArgumentException("Id, organizationId, membershipId, fieldId and grantedByUserId are required.");
+        }
+
+        Id = id;
+        OrganizationId = organizationId;
+        MembershipId = membershipId;
+        FieldId = fieldId;
+        GrantedByUserId = grantedByUserId;
+        GrantedAtUtc = grantedAtUtc;
+    }
+
+    public Guid Id { get; private set; }
+    public Guid OrganizationId { get; private set; }
+    public Guid MembershipId { get; private set; }
+    public Guid FieldId { get; private set; }
+    public Guid GrantedByUserId { get; private set; }
+    public DateTimeOffset GrantedAtUtc { get; private set; }
 }
 
 public sealed class OrganizationOwnerRemovalLedger

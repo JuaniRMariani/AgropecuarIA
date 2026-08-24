@@ -1837,4 +1837,17 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 
 ### Review
 - Resultado: GO.
+- Solución completa compila con 0 errores y 0 warnings. Commit a9dd386 en origin/main.
+
+## Iteración 44 — Membresías, Roles y Alcance por Campo AGRO-ID-003 (2026-08-24)
+
+### Plan
+- [x] Ampliar OrganizationMembershipRoles con roles multirol (owner, admin, agronomist, operator, accountant, viewer) y validación IsValid.
+- [x] Modelar OrganizationFieldScopeAssignment y soporte para asignación de alcance por campo.
+- [x] Configurar tablas y constraints (CK_memberships_Role) en IdentityDbContext.
+- [x] Implementar OrganizationMembershipApplicationService con alta de miembros, actualización de rol con protección de último owner, asignación/revocación de alcance por campo y resolución de permisos efectivos (deny-by-default).
+- [x] Agregar suite de tests unitarios en OrganizationMembershipTests.cs (5/5 en verde).
+
+### Review
+- Resultado: GO.
 - Solución completa compila con 0 errores y 0 warnings.

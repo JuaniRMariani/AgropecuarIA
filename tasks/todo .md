@@ -1825,3 +1825,16 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 ### Review
 - Resultado: GO.
 - Todo compilado en verde, 14 tests de catálogo pasando. Commit dfc2291 en origin/main.
+
+## Iteración 43 — Registro de Actividades en Núcleo Común AGRO-CAT-003 (2026-08-24)
+
+### Plan
+- [x] Modelar ProductionCycle y ProductionEvent con orígenes tipados, estados y soporte para flujo genérico.
+- [x] Mapear entidades e índices en ProductiveCoreDbContext.
+- [x] Implementar ProductionCycleApplicationService para inicio de ciclos vinculados a ManagementUnit y catálogo, registro de eventos y timeline cronológico.
+- [x] Exponer endpoints minimal API: POST /api/organizations/{orgId}/fields/{fieldId}/cycles, GET /api/organizations/{orgId}/fields/{fieldId}/cycles, POST /api/organizations/{orgId}/cycles/{cycleId}/events, GET /api/organizations/{orgId}/cycles/{cycleId}/timeline.
+- [x] Agregar tests unitarios completos en ProductiveCore.Tests (5/5 en verde).
+
+### Review
+- Resultado: GO.
+- Solución completa compila con 0 errores y 0 warnings.

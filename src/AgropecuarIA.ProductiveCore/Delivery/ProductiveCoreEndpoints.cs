@@ -1,6 +1,7 @@
 using AgropecuarIA.Identity.Application;
 using AgropecuarIA.Identity.Delivery;
 using AgropecuarIA.ProductiveCore.Application;
+using AgropecuarIA.ProductiveCore.Domain;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -127,6 +128,82 @@ public static class ProductiveCoreEndpoints
                 cancellationToken);
             SetEntityTag(context.Response, archived.Version);
             return Results.Ok(ToArchivedResponse(archived));
+        });
+
+        organizations.MapPost("/fields/{fieldId:guid}/cycles", async (
+            Guid organizationId,
+            Guid fieldId,
+            StartProductionCycleRequest request,
+            HttpContext context,
+            ProductionCycleApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            SetPrivateResponseHeaders(context.Response);
+            var cycle = await service.StartCycleAsync(
+                new StartProductionCycleCommand(
+                    organizationId,
+                    fieldId,
+                    request.CatalogCode,
+                    request.CatalogDisplayName,
+                    request.Purpose,
+                    request.System,
+                    request.SupportLevel,
+                    request.StartDateUtc),
+                cancellationToken);
+            return Results.Created(
+                $"/api/organizations/{organizationId:D}/cycles/{cycle.Id:D}",
+                cycle);
+        });
+
+        organizations.MapGet("/fields/{fieldId:guid}/cycles", async (
+            Guid organizationId,
+            Guid fieldId,
+            HttpContext context,
+            ProductionCycleApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            SetPrivateResponseHeaders(context.Response);
+            var cycles = await service.ListCyclesAsync(organizationId, fieldId, cancellationToken);
+            return Results.Ok(cycles);
+        });
+
+        organizations.MapPost("/cycles/{cycleId:guid}/events", async (
+            Guid organizationId,
+            Guid cycleId,
+            RecordProductionEventRequest request,
+            HttpContext context,
+            ProductionCycleApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            SetPrivateResponseHeaders(context.Response);
+            var evt = await service.RecordEventAsync(
+                new RecordProductionEventCommand(
+                    organizationId,
+                    cycleId,
+                    request.EventType,
+                    request.EffectiveDateUtc,
+                    request.Quantity,
+                    request.Unit,
+                    request.Notes,
+                    request.Origin ?? ProductionOrigins.Manual),
+                cancellationToken);
+            return Results.Created(
+                $"/api/organizations/{organizationId:D}/cycles/{cycleId:D}/events/{evt.Id:D}",
+                evt);
+        });
+
+        organizations.MapGet("/cycles/{cycleId:guid}/timeline", async (
+            Guid organizationId,
+            Guid cycleId,
+            HttpContext context,
+            ProductionCycleApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            SetPrivateResponseHeaders(context.Response);
+            var timeline = await service.GetTimelineAsync(organizationId, cycleId, cancellationToken);
+            return timeline is not null
+                ? Results.Ok(timeline)
+                : Results.NotFound(new { status = "cycle_not_found" });
         });
 
         return endpoints;

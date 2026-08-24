@@ -4,6 +4,22 @@ namespace AgropecuarIA.ProductiveCore.Application;
 
 public sealed record CreateFieldCommand(Guid OrganizationId, string DisplayName, string IdempotencyKey);
 
+public sealed record StartProductionCycleRequest(
+    string CatalogCode,
+    string CatalogDisplayName,
+    string Purpose,
+    string System,
+    string SupportLevel,
+    DateTimeOffset StartDateUtc);
+
+public sealed record RecordProductionEventRequest(
+    string EventType,
+    DateTimeOffset EffectiveDateUtc,
+    decimal? Quantity,
+    string? Unit,
+    string? Notes,
+    string? Origin);
+
 public sealed record RenameFieldDraftCommand(
     Guid OrganizationId,
     Guid FieldId,

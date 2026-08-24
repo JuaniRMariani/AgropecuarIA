@@ -32,9 +32,48 @@ public sealed class ProductiveCoreDbContext(DbContextOptions<ProductiveCoreDbCon
     public DbSet<ProductiveOutboxMessage> ProductiveOutboxMessages =>
         Set<ProductiveOutboxMessage>();
 
+    public DbSet<ProductionCycle> ProductionCycles =>
+        Set<ProductionCycle>();
+
+    public DbSet<ProductionEvent> ProductionEvents =>
+        Set<ProductionEvent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("productive_core");
+
+        modelBuilder.Entity<ProductionCycle>(entity =>
+        {
+            entity.ToTable("production_cycles");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.OrganizationId).IsRequired();
+            entity.Property(item => item.ManagementUnitId).IsRequired();
+            entity.Property(item => item.CatalogCode).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.CatalogDisplayName).HasMaxLength(256).IsRequired();
+            entity.Property(item => item.Purpose).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.System).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.SupportLevel).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.StartDateUtc).IsRequired();
+            entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.HasIndex(item => new { item.OrganizationId, item.ManagementUnitId, item.Status });
+        });
+
+        modelBuilder.Entity<ProductionEvent>(entity =>
+        {
+            entity.ToTable("production_events");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.OrganizationId).IsRequired();
+            entity.Property(item => item.ProductionCycleId).IsRequired();
+            entity.Property(item => item.EventType).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.EffectiveDateUtc).IsRequired();
+            entity.Property(item => item.RecordedAtUtc).IsRequired();
+            entity.Property(item => item.Quantity).HasPrecision(18, 4);
+            entity.Property(item => item.Unit).HasMaxLength(32);
+            entity.Property(item => item.Notes).HasMaxLength(1024);
+            entity.Property(item => item.Origin).HasMaxLength(32).IsRequired();
+            entity.HasIndex(item => new { item.OrganizationId, item.ProductionCycleId, item.EffectiveDateUtc });
+        });
 
         modelBuilder.Entity<ManagementUnit>(entity =>
         {

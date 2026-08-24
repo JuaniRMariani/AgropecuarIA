@@ -620,6 +620,50 @@ public sealed class ProductiveCoreApplicationServiceTests
             return Task.CompletedTask;
         }
 
+        public Task<Guid?> FindArchiveLedgerIdAsync(
+            Guid organizationId,
+            IReadOnlyDictionary<string, byte[]> aliases,
+            CancellationToken cancellationToken)
+        {
+            _ = organizationId;
+            _ = aliases;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Guid?>(null);
+        }
+
+        public Task<ManagementUnitArchiveLedger?> GetArchiveLedgerAsync(
+            Guid organizationId,
+            Guid ledgerId,
+            CancellationToken cancellationToken)
+        {
+            _ = organizationId;
+            _ = ledgerId;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<ManagementUnitArchiveLedger?>(null);
+        }
+
+        public void AddArchive(
+            ManagementUnitArchiveLedger ledger,
+            IReadOnlyCollection<ManagementUnitArchiveKeyAlias> aliases,
+            ProductiveJournalEntry journalEntry,
+            ProductiveOutboxMessage outboxMessage) =>
+            throw new NotSupportedException();
+
+        public Task AddMissingArchiveAliasesAsync(
+            Guid organizationId,
+            Guid ledgerId,
+            IReadOnlyDictionary<string, byte[]> aliases,
+            DateTimeOffset createdAtUtc,
+            CancellationToken cancellationToken)
+        {
+            _ = organizationId;
+            _ = ledgerId;
+            _ = aliases;
+            _ = createdAtUtc;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();

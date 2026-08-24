@@ -1,3 +1,4 @@
+using AgropecuarIA.Catalog.Application;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -14,15 +15,24 @@ public static class CatalogEndpoints
             .RequireRateLimiting(RateLimitPolicy);
 
         // Map ingestion endpoint
-        catalog.MapPost("/ingest", (HttpContext context) =>
+        catalog.MapPost("/ingest", async (
+            IngestSourceCommand command,
+            CatalogIngestionApplicationService ingestionService,
+            CancellationToken cancellationToken) =>
         {
-            return Results.Ok(new { message = "Catalog ingested" });
+            bool ingested = await ingestionService.IngestAsync(command, cancellationToken);
+            return ingested
+                ? Results.Ok(new { status = "ingested", sourceId = command.SourceId })
+                : Results.Conflict(new { status = "duplicate_snapshot", message = "Source snapshot with identical hash already exists." });
         });
 
         // Map diff endpoint
-        catalog.MapGet("/diff", (HttpContext context) =>
+        catalog.MapGet("/diff", async (
+            CatalogDiffApplicationService diffService,
+            CancellationToken cancellationToken) =>
         {
-            return Results.Ok(new { message = "Editorial diff generated" });
+            var report = await diffService.GenerateDiffAsync(cancellationToken);
+            return Results.Ok(report);
         });
 
         return endpoints;

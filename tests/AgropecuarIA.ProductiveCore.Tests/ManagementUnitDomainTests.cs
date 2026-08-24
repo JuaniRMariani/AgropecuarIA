@@ -183,4 +183,66 @@ public sealed class ManagementUnitDomainTests
         Assert.IsFalse(message.PayloadJson.Contains("digest", StringComparison.OrdinalIgnoreCase));
         Assert.AreEqual(2L, message.AggregateVersion);
     }
+
+    [TestMethod]
+    public void ConfigureSpatialGeometryUpdatesPropertiesAndStatus()
+    {
+        Guid initialVersion = Guid.NewGuid();
+        Guid newVersion = Guid.NewGuid();
+        ManagementUnit field = new(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Lote Norte",
+            DateTimeOffset.UtcNow,
+            initialVersion);
+
+        Assert.AreEqual(ManagementUnitSpatialStatuses.NotConfigured, field.SpatialStatus);
+        Assert.AreEqual(1L, field.Revision);
+
+        string geoJson = "{\"type\":\"Polygon\",\"coordinates\":[[[-60.5,-34.5],[-60.4,-34.5],[-60.4,-34.4],[-60.5,-34.4],[-60.5,-34.5]]]}";
+        field.ConfigureSpatialGeometry(
+            geoJson,
+            declaredAreaHectares: 120.5m,
+            calculatedAreaHectares: 119.8m,
+            centroidLat: -34.45,
+            centroidLng: -60.45,
+            provinceCode: "06",
+            departmentCode: "06441",
+            expectedVersion: initialVersion,
+            newVersion: newVersion);
+
+        Assert.AreEqual(ManagementUnitSpatialStatuses.Configured, field.SpatialStatus);
+        Assert.AreEqual(120.5m, field.DeclaredAreaHectares);
+        Assert.AreEqual(119.8m, field.CalculatedAreaHectares);
+        Assert.AreEqual(-34.45, field.CentroidLatitude);
+        Assert.AreEqual(-60.45, field.CentroidLongitude);
+        Assert.AreEqual("06", field.OfficialProvinceCode);
+        Assert.AreEqual("06441", field.OfficialDepartmentCode);
+        Assert.AreEqual(2L, field.Revision);
+        Assert.AreEqual(newVersion, field.Version);
+    }
+
+    [TestMethod]
+    public void ConfigureSpatialGeometryWithStaleVersionThrowsConflict()
+    {
+        Guid initialVersion = Guid.NewGuid();
+        ManagementUnit field = new(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Lote Norte",
+            DateTimeOffset.UtcNow,
+            initialVersion);
+
+        Assert.ThrowsExactly<ManagementUnitVersionConflictException>(() =>
+            field.ConfigureSpatialGeometry(
+                "{\"type\":\"Polygon\"}",
+                100m,
+                100m,
+                -34.0,
+                -60.0,
+                "06",
+                null,
+                expectedVersion: Guid.NewGuid(),
+                newVersion: Guid.NewGuid()));
+    }
 }

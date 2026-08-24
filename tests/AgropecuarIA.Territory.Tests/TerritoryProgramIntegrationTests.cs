@@ -19,6 +19,7 @@ public sealed class TerritoryProgramIntegrationTests
                 builder.UseSetting("ConnectionStrings:Identity", connectionString);
                 builder.UseSetting("ConnectionStrings:Territory", connectionString);
                 builder.UseSetting("ConnectionStrings:ProductiveCore", connectionString);
+                builder.UseSetting("ConnectionStrings:Catalog", connectionString);
             });
         using HttpClient client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

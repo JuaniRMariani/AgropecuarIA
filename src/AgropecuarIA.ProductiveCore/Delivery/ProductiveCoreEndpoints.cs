@@ -130,6 +130,35 @@ public static class ProductiveCoreEndpoints
             return Results.Ok(ToArchivedResponse(archived));
         });
 
+        organizations.MapPost("/fields/{fieldId:guid}/geometry", async (
+            Guid organizationId,
+            Guid fieldId,
+            ConfigureFieldGeometryRequest request,
+            HttpContext context,
+            ProductiveCoreApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            SetPrivateResponseHeaders(context.Response);
+            Guid expectedVersion = ReadStrongVersion(context.Request.Headers);
+            AuthenticatedSession session = AuthenticatedSessionClaims.Read(context.User);
+            var result = await service.ConfigureGeometryAsync(
+                new ConfigureFieldGeometryCommand(
+                    organizationId,
+                    fieldId,
+                    request.BoundaryGeoJson,
+                    request.DeclaredAreaHectares,
+                    request.CalculatedAreaHectares,
+                    request.CentroidLatitude,
+                    request.CentroidLongitude,
+                    request.OfficialProvinceCode,
+                    request.OfficialDepartmentCode,
+                    expectedVersion),
+                RequestContext(context, session, organizationId),
+                cancellationToken);
+            SetEntityTag(context.Response, result.Version);
+            return Results.Ok(result);
+        });
+
         organizations.MapPost("/fields/{fieldId:guid}/cycles", async (
             Guid organizationId,
             Guid fieldId,

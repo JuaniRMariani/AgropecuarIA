@@ -86,10 +86,10 @@ public sealed class ProductiveCoreDbContext(DbContextOptions<ProductiveCoreDbCon
                         "\"UnitType\" = 'field'");
                     table.HasCheckConstraint(
                         "CK_management_units_Status",
-                        "\"Status\" = 'draft'");
+                        "\"Status\" IN ('draft', 'archived')");
                     table.HasCheckConstraint(
                         "CK_management_units_SpatialStatus",
-                        "\"SpatialStatus\" = 'not_configured'");
+                        "\"SpatialStatus\" IN ('not_configured', 'configured')");
                     table.HasCheckConstraint(
                         "CK_management_units_DisplayName",
                         "char_length(\"DisplayName\") BETWEEN 2 AND 120");
@@ -106,6 +106,13 @@ public sealed class ProductiveCoreDbContext(DbContextOptions<ProductiveCoreDbCon
             entity.Property(item => item.CreatedAtUtc).IsRequired();
             entity.Property(item => item.Revision).HasDefaultValue(1L).IsRequired();
             entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.Property(item => item.DeclaredAreaHectares).HasPrecision(18, 4);
+            entity.Property(item => item.CalculatedAreaHectares).HasPrecision(18, 4);
+            entity.Property(item => item.CentroidLatitude);
+            entity.Property(item => item.CentroidLongitude);
+            entity.Property(item => item.BoundaryGeoJson).HasColumnType("jsonb");
+            entity.Property(item => item.OfficialProvinceCode).HasMaxLength(32);
+            entity.Property(item => item.OfficialDepartmentCode).HasMaxLength(32);
             entity.HasIndex(item => new { item.OrganizationId, item.CreatedAtUtc, item.Id });
         });
 

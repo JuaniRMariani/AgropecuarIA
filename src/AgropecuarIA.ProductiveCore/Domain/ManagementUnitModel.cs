@@ -17,6 +17,10 @@ public static class ManagementUnitStatuses
 public static class ManagementUnitSpatialStatuses
 {
     public const string NotConfigured = "not_configured";
+    public const string Configured = "configured";
+
+    public static bool IsValid(string status) =>
+        status is NotConfigured or Configured;
 }
 
 public static class ManagementUnitLimits
@@ -115,6 +119,75 @@ public sealed class ManagementUnit
     public long Revision { get; private set; }
 
     public Guid Version { get; private set; }
+
+    public decimal? DeclaredAreaHectares { get; private set; }
+
+    public decimal? CalculatedAreaHectares { get; private set; }
+
+    public double? CentroidLatitude { get; private set; }
+
+    public double? CentroidLongitude { get; private set; }
+
+    public string? BoundaryGeoJson { get; private set; }
+
+    public string? OfficialProvinceCode { get; private set; }
+
+    public string? OfficialDepartmentCode { get; private set; }
+
+    public void ConfigureSpatialGeometry(
+        string boundaryGeoJson,
+        decimal declaredAreaHectares,
+        decimal calculatedAreaHectares,
+        double centroidLat,
+        double centroidLng,
+        string? provinceCode,
+        string? departmentCode,
+        Guid expectedVersion,
+        Guid newVersion)
+    {
+        if (expectedVersion == Guid.Empty || newVersion == Guid.Empty)
+        {
+            throw new ArgumentException("Expected and replacement versions are required.");
+        }
+
+        if (Version != expectedVersion)
+        {
+            throw new ManagementUnitVersionConflictException();
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(boundaryGeoJson);
+
+        if (declaredAreaHectares <= 0)
+        {
+            throw new ArgumentException("Declared area must be positive.", nameof(declaredAreaHectares));
+        }
+
+        if (calculatedAreaHectares <= 0)
+        {
+            throw new ArgumentException("Calculated area must be positive.", nameof(calculatedAreaHectares));
+        }
+
+        if (centroidLat is < -90 or > 90)
+        {
+            throw new ArgumentOutOfRangeException(nameof(centroidLat), "Latitude must be between -90 and 90.");
+        }
+
+        if (centroidLng is < -180 or > 180)
+        {
+            throw new ArgumentOutOfRangeException(nameof(centroidLng), "Longitude must be between -180 and 180.");
+        }
+
+        BoundaryGeoJson = boundaryGeoJson.Trim();
+        DeclaredAreaHectares = declaredAreaHectares;
+        CalculatedAreaHectares = calculatedAreaHectares;
+        CentroidLatitude = centroidLat;
+        CentroidLongitude = centroidLng;
+        OfficialProvinceCode = provinceCode?.Trim();
+        OfficialDepartmentCode = departmentCode?.Trim();
+        SpatialStatus = ManagementUnitSpatialStatuses.Configured;
+        Revision = checked(Revision + 1);
+        Version = newVersion;
+    }
 
     public void Rename(string displayName, Guid expectedVersion, Guid newVersion)
     {

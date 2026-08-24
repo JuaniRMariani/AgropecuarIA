@@ -27,6 +27,45 @@ public sealed record RenameFieldDraftCommand(
     Guid ExpectedVersion,
     string IdempotencyKey);
 
+public sealed record ConfigureFieldGeometryCommand(
+    Guid OrganizationId,
+    Guid FieldId,
+    string BoundaryGeoJson,
+    decimal DeclaredAreaHectares,
+    decimal CalculatedAreaHectares,
+    double CentroidLatitude,
+    double CentroidLongitude,
+    string? OfficialProvinceCode,
+    string? OfficialDepartmentCode,
+    Guid ExpectedVersion);
+
+public sealed record ConfigureFieldGeometryRequest(
+    string BoundaryGeoJson,
+    decimal DeclaredAreaHectares,
+    decimal CalculatedAreaHectares,
+    double CentroidLatitude,
+    double CentroidLongitude,
+    string? OfficialProvinceCode,
+    string? OfficialDepartmentCode);
+
+public sealed record ConfiguredFieldGeometryResult(
+    Guid FieldId,
+    Guid OrganizationId,
+    string DisplayName,
+    string Type,
+    string Status,
+    string SpatialStatus,
+    decimal? DeclaredAreaHectares,
+    decimal? CalculatedAreaHectares,
+    double? CentroidLatitude,
+    double? CentroidLongitude,
+    string? BoundaryGeoJson,
+    string? OfficialProvinceCode,
+    string? OfficialDepartmentCode,
+    DateTimeOffset CreatedAtUtc,
+    long Revision,
+    Guid Version);
+
 public sealed record ManagementUnitResult(
     Guid FieldId,
     Guid OrganizationId,

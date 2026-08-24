@@ -1850,4 +1850,17 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 
 ### Review
 - Resultado: GO.
+- Solución completa compila con 0 errores y 0 warnings. Commit 4e7ca04 en origin/main.
+
+## Iteración 45 — Geometrías Espaciales y Normalización Territorial AGRO-GIS-001 / AGRO-GIS-002 (2026-08-24)
+
+### Plan
+- [x] Habilitar estado espacial `configured` en ManagementUnitSpatialStatuses y modelar ConfigureSpatialGeometry en ManagementUnit.
+- [x] Mapear columnas espaciales (BoundaryGeoJson, DeclaredAreaHectares, CalculatedAreaHectares, CentroidLatitude, CentroidLongitude, OfficialProvinceCode, OfficialDepartmentCode) y actualizar check constraints en ProductiveCoreDbContext.
+- [x] Implementar ConfigureGeometryAsync en ProductiveCoreApplicationService con verificación de permisos, concurrencia optimista y auditoría.
+- [x] Exponer endpoint POST /api/organizations/{orgId}/fields/{fieldId}/geometry con encabezados ETag y respuesta privada.
+- [x] Validar suite de Territory.Tests (44/44 en verde) y agregar tests unitarios para ConfigureSpatialGeometry en ManagementUnitDomainTests.cs (12/12 en verde).
+
+### Review
+- Resultado: GO.
 - Solución completa compila con 0 errores y 0 warnings.

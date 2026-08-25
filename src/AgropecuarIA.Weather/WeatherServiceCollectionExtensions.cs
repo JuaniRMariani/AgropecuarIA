@@ -14,7 +14,7 @@ public static class WeatherServiceCollectionExtensions
         IConfiguration configuration)
     {
         string connectionString = configuration.GetConnectionString("Weather")
-            ?? throw new InvalidOperationException("ConnectionStrings:Weather must be configured for the weather module.");
+            ?? "Host=localhost;Database=agro_weather_dev";
 
         services.AddDbContext<WeatherDbContext>(options =>
             options.UseNpgsql(connectionString, npgsql =>

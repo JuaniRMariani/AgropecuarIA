@@ -27,6 +27,8 @@ public sealed class ProductiveCoreEndpointContractTests
         builder.Services.AddAntiforgery();
         builder.Services.AddScoped<ProductiveCoreApplicationService>(_ => null!);
         builder.Services.AddScoped<ProductiveCoreRenameApplicationService>(_ => null!);
+        builder.Services.AddScoped<ProductiveCoreArchiveApplicationService>(_ => null!);
+        builder.Services.AddScoped<ProductionCycleApplicationService>(_ => null!);
         builder.Services.AddRateLimiter(options => options.AddPolicy(
             ProductiveCoreEndpoints.RateLimitPolicy,
             _ => RateLimitPartition.GetNoLimiter("test")));
@@ -40,11 +42,17 @@ public sealed class ProductiveCoreEndpointContractTests
             .ThenBy(endpoint => string.Join(',', endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? []))
             .ToArray();
 
-        Assert.AreEqual(4, routes.Length);
+        Assert.AreEqual(10, routes.Length);
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields", "GET");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields", "POST");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}", "GET");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}", "PATCH");
+        AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}/archive", "POST");
+        AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}/geometry", "POST");
+        AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}/cycles", "GET");
+        AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}/cycles", "POST");
+        AssertRoute(routes, "/api/organizations/{organizationId:guid}/cycles/{cycleId:guid}/events", "POST");
+        AssertRoute(routes, "/api/organizations/{organizationId:guid}/cycles/{cycleId:guid}/timeline", "GET");
         Assert.IsTrue(routes.All(route => route.Metadata.GetMetadata<IAuthorizeData>() is not null));
         Assert.IsTrue(routes.All(route =>
             route.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName ==

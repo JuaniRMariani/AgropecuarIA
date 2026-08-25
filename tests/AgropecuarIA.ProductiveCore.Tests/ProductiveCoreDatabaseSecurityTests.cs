@@ -1446,6 +1446,7 @@ public sealed class ProductiveCoreDatabaseSecurityTests
     private static IdentityDbContext CreateIdentityDbContext(string connectionString) =>
         new(new DbContextOptionsBuilder<IdentityDbContext>()
             .UseNpgsql(connectionString)
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
             .Options);
 
     private static ProductiveCoreDbContext CreateProductiveDbContext(string connectionString) =>
@@ -1455,6 +1456,7 @@ public sealed class ProductiveCoreDatabaseSecurityTests
                 npgsql => npgsql.MigrationsHistoryTable(
                     "__EFMigrationsHistory",
                     "productive_core"))
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
             .Options);
 
     private sealed class TestProductiveDbContextFactory(string connectionString)

@@ -1904,4 +1904,16 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 
 ### Review
 - Resultado: GO.
-- Solución completa compila con 0 errores y 0 warnings.
+- Solución completa compila con 0 errores y 0 warnings. Commit 802c4e0 en origin/main.
+
+## Iteración 49 — Transacciones y Procesamiento Idempotente Exactly-Once AGRO-FND-002 (2026-08-24)
+
+### Plan
+- [x] Modelar entidad ProductiveInboxEntry para deduplicación atómica de mensajes de integración por MessageId, ConsumerName y OrganizationId.
+- [x] Mapear tabla inbox_entries con índice único compuesto en ProductiveCoreDbContext.
+- [x] Implementar ProductiveInboxProcessor para ejecutar el despacho de mensajes en bloque transaccional atómico con idempotencia garantizada.
+- [x] Crear suite de pruebas unitarias en ProductiveInboxTests.cs (3/3 en verde).
+
+### Review
+- Resultado: GO.
+- Solución completa compila con 0 errores y 0 warnings en los 13 proyectos.

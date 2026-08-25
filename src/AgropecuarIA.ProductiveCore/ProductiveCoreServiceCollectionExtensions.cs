@@ -47,6 +47,7 @@ public static class ProductiveCoreServiceCollectionExtensions
         services.AddScoped<ProductiveCoreRenameApplicationService>();
         services.AddScoped<ProductiveCoreArchiveApplicationService>();
         services.AddScoped<ProductionCycleApplicationService>();
+        services.AddScoped<ProductiveInboxProcessor>();
         services.AddExceptionHandler<ProductiveCoreExceptionHandler>();
         return services;
     }

@@ -38,9 +38,24 @@ public sealed class ProductiveCoreDbContext(DbContextOptions<ProductiveCoreDbCon
     public DbSet<ProductionEvent> ProductionEvents =>
         Set<ProductionEvent>();
 
+    public DbSet<ProductiveInboxEntry> ProductiveInboxEntries =>
+        Set<ProductiveInboxEntry>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("productive_core");
+
+        modelBuilder.Entity<ProductiveInboxEntry>(entity =>
+        {
+            entity.ToTable("inbox_entries");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.MessageId).IsRequired();
+            entity.Property(item => item.ConsumerName).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.OrganizationId).IsRequired();
+            entity.Property(item => item.ProcessedAtUtc).IsRequired();
+
+            entity.HasIndex(item => new { item.OrganizationId, item.ConsumerName, item.MessageId }).IsUnique();
+        });
 
         modelBuilder.Entity<ProductionCycle>(entity =>
         {

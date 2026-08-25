@@ -8,10 +8,32 @@ public sealed class WeatherDbContext(DbContextOptions<WeatherDbContext> options)
     public DbSet<WeatherForecastSnapshot> ForecastSnapshots => Set<WeatherForecastSnapshot>();
     public DbSet<WeatherObservedRain> ObservedRains => Set<WeatherObservedRain>();
     public DbSet<WeatherAlert> WeatherAlerts => Set<WeatherAlert>();
+    public DbSet<WeatherActivityRule> ActivityRules => Set<WeatherActivityRule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("weather");
+
+        modelBuilder.Entity<WeatherActivityRule>(entity =>
+        {
+            entity.ToTable("activity_rules");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.OrganizationId).IsRequired();
+            entity.Property(item => item.ActivityType).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.RuleName).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.MaxWindSpeedKmh).HasPrecision(5, 2);
+            entity.Property(item => item.MinTemperatureCelsius).HasPrecision(5, 2);
+            entity.Property(item => item.MaxTemperatureCelsius).HasPrecision(5, 2);
+            entity.Property(item => item.MaxPrecipitationProbability).HasPrecision(5, 2);
+            entity.Property(item => item.MaxPrecipitationMm).HasPrecision(5, 2);
+            entity.Property(item => item.MinRelativeHumidity).HasPrecision(5, 2);
+            entity.Property(item => item.MaxRelativeHumidity).HasPrecision(5, 2);
+            entity.Property(item => item.IsEnabled).IsRequired();
+            entity.Property(item => item.CreatedByUserId).IsRequired();
+            entity.Property(item => item.CreatedAtUtc).IsRequired();
+
+            entity.HasIndex(item => new { item.OrganizationId, item.FieldId, item.ActivityType });
+        });
 
         modelBuilder.Entity<WeatherAlert>(entity =>
         {

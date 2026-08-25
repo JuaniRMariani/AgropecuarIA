@@ -1890,4 +1890,18 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 
 ### Review
 - Resultado: GO.
+- Solución completa compila con 0 errores y 0 warnings. Commit 333e4d4 en origin/main.
+
+## Iteración 48 — Reglas de Aptitud Climática por Labor y Ventanas de Aplicación AGRO-CLI-004 (2026-08-24)
+
+### Plan
+- [x] Modelar WeatherActivityRule con umbrales de viento, temperatura, precipitación y humedad relativa por tipo de labor (pulverización, siembra, cosecha, fertilización).
+- [x] Implementar motor de evaluación WeatherActivityRule.Evaluate retornando status (optima, marginal, no_apta) y factores de riesgo explícitos.
+- [x] Mapear tabla activity_rules en WeatherDbContext.
+- [x] Implementar WeatherActivityApplicationService con creación/listado de reglas y evaluación con fallbacks a buenas prácticas agronómicas estándar.
+- [x] Exponer endpoints: POST/GET /api/organizations/{orgId}/weather/rules y GET /api/organizations/{orgId}/fields/{fieldId}/weather/suitability.
+- [x] Crear suite de pruebas unitarias en WeatherActivityRuleTests.cs (4/4 en verde, totalizando 13/13 en Weather.Tests).
+
+### Review
+- Resultado: GO.
 - Solución completa compila con 0 errores y 0 warnings.

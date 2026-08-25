@@ -23,6 +23,7 @@ public static class WeatherServiceCollectionExtensions
         services.AddHttpClient<IWeatherForecastClient, OpenMeteoWeatherClient>();
         services.AddScoped<WeatherForecastApplicationService>();
         services.AddScoped<WeatherAlertApplicationService>();
+        services.AddScoped<WeatherActivityApplicationService>();
 
         return services;
     }

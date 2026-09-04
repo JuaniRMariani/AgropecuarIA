@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgropecuarIA Productive Core API
-  version: 2.0.0
+  version: 2.1.0
   description: Tenant-owned productive units. Creation remains a non-spatial draft. Initial geometry configuration validates topology and calculates area with PostGIS; configured does not certify cadastral status, official territorial containment or agronomic suitability.
 paths:
   /api/organizations/{organizationId}/fields:
@@ -216,6 +216,7 @@ paths:
   /api/organizations/{organizationId}/fields/{fieldId}/cycles:
     get:
       operationId: ListProductionCycles
+      deprecated: true
       summary: List cycles belonging to an authorized owner's field
       description: Revalidates the durable session and owner membership in the same tenant-scoped transaction as the field and cycle reads. Foreign and missing resources return the same neutral 404.
       security:
@@ -302,6 +303,7 @@ paths:
   /api/organizations/{organizationId}/cycles/{cycleId}/timeline:
     get:
       operationId: GetProductionTimeline
+      deprecated: true
       summary: Read an authorized owner's cycle and observation timeline
       security:
         - SessionCookie: []
@@ -318,6 +320,56 @@ paths:
         '404': { $ref: '#/components/responses/NotAvailable' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/CycleUnavailable' }
+  /api/organizations/{organizationId}/fields/{fieldId}/cycles/page:
+    get:
+      operationId: ListProductionCyclePage
+      summary: Read a bounded page of stored cycle history
+      description: Reauthorizes owner and field for every page, including archived fields. Ordered by createdAtUtc DESC then id DESC. Cursor is a resource-bound position, not authorization. Reads preserve historical catalog metadata without calling Catalog. Separate requests do not share an MVCC snapshot. The unpaged legacy route is deprecated but unchanged.
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/FieldId'
+        - $ref: '#/components/parameters/HistoryLimit'
+        - $ref: '#/components/parameters/HistoryCursor'
+      responses:
+        '200':
+          description: At most limit cycles; hasMore is true exactly when nextCursor is non-null. No total count is promised.
+          headers:
+            Cache-Control: { schema: { type: string, const: 'private, no-store' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductionCyclePage' }
+        '400': { $ref: '#/components/responses/HistoryBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotAvailable' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/CycleUnavailable' }
+  /api/organizations/{organizationId}/cycles/{cycleId}/timeline/page:
+    get:
+      operationId: GetProductionTimelinePage
+      summary: Read a cycle snapshot and a bounded page of recorded observations
+      description: Reauthorizes owner, cycle and field for every page, including archived fields. Ordered by recordedAtUtc DESC then id DESC, not effectiveDateUtc. Effective date remains an independent business value. Preserves stored catalog snapshots without calling Catalog. Cursor is a resource-bound position, not authorization. Separate requests do not share an MVCC snapshot. The unpaged legacy route is deprecated but unchanged.
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/CycleId'
+        - $ref: '#/components/parameters/HistoryLimit'
+        - $ref: '#/components/parameters/HistoryCursor'
+      responses:
+        '200':
+          description: Stored cycle and at most limit observations; hasMore is true exactly when nextCursor is non-null. A cycle without events still has its stored snapshot.
+          headers:
+            Cache-Control: { schema: { type: string, const: 'private, no-store' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductionTimelinePage' }
+        '400': { $ref: '#/components/responses/HistoryBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotAvailable' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/CycleUnavailable' }
 components:
   securitySchemes:
     SessionCookie:
@@ -329,6 +381,17 @@ components:
       in: header
       name: X-CSRF-TOKEN
   parameters:
+    HistoryLimit:
+      in: query
+      name: limit
+      required: false
+      schema: { type: integer, format: int32, default: 20, minimum: 1, maximum: 100 }
+    HistoryCursor:
+      in: query
+      name: cursor
+      required: false
+      description: Opaque versioned continuation from this resource and history kind. Omit for the first page; empty, malformed, unsupported-version or cross-context values are rejected. Not a credential and not an immutable multi-request snapshot.
+      schema: { type: string, minLength: 1, maxLength: 512, pattern: '^[A-Za-z0-9_-]+$' }
     FieldId:
       in: path
       name: fieldId
@@ -346,6 +409,11 @@ components:
       description: Resource locator only; authorization and tenant context are derived and revalidated by the server.
       schema: { type: string, format: uuid }
   responses:
+    HistoryBadRequest:
+      description: Invalid page limit or cursor (productive_core.invalid_history_query); malformed typed HTTP parameters may be rejected before application execution.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     CycleBadRequest:
       description: Invalid cycle or event request, or invalid antiforgery token
       content:
@@ -401,6 +469,29 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
   schemas:
+    ProductionCyclePage:
+      type: object
+      additionalProperties: false
+      required: [items, hasMore, nextCursor]
+      properties:
+        items: { type: array, maxItems: 100, items: { $ref: '#/components/schemas/ProductionCycle' } }
+        hasMore: { type: boolean }
+        nextCursor: { type: [string, 'null'], minLength: 1, maxLength: 512, pattern: '^[A-Za-z0-9_-]+$' }
+      oneOf:
+        - properties: { hasMore: { const: true }, nextCursor: { type: string } }
+        - properties: { hasMore: { const: false }, nextCursor: { type: 'null' } }
+    ProductionTimelinePage:
+      type: object
+      additionalProperties: false
+      required: [cycle, events, hasMore, nextCursor]
+      properties:
+        cycle: { $ref: '#/components/schemas/ProductionCycle' }
+        events: { type: array, maxItems: 100, items: { $ref: '#/components/schemas/ProductionEvent' } }
+        hasMore: { type: boolean }
+        nextCursor: { type: [string, 'null'], minLength: 1, maxLength: 512, pattern: '^[A-Za-z0-9_-]+$' }
+      oneOf:
+        - properties: { hasMore: { const: true }, nextCursor: { type: string } }
+        - properties: { hasMore: { const: false }, nextCursor: { type: 'null' } }
     StartProductionCycleRequest: {"type":"object","additionalProperties":false,"required":["catalogCode","purpose","system","startDateUtc"],"properties":{"catalogCode":{"type":"string","minLength":1,"maxLength":64},"purpose":{"type":"string","minLength":1,"maxLength":128},"system":{"type":"string","minLength":1,"maxLength":128},"startDateUtc":{"type":"string","format":"date-time"},"expectedCatalogVersionId":{"type":["string","null"],"format":"uuid","description":"Optional active-version precondition, not a historical version selector; mismatches are detected before item lookup."}}}
     RecordProductionEventRequest:
       type: object

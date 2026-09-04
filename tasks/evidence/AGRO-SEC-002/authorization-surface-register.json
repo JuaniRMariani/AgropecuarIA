@@ -918,6 +918,44 @@
       ]
     },
     {
+      "id": "productive-core.cycle.page",
+      "method": "GET",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}/cycles/page",
+      "boundary": "tenant",
+      "resource": "production-cycle",
+      "action": "list",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership before field lookup on every page; context-bound cursor is not authorization; archived field history remains readable",
+      "storageBoundary": "force-rls:actor+tenant+live-session; SQL keyset page with maximum 100 returned rows plus one lookahead; immutable stored catalog snapshot; no Catalog call",
+      "neutralErrors": "foreign and missing resources remain neutral; invalid authorized page query is bounded 400 without cursor disclosure",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.History.cs#HistoryPageHttpIsBoundedContextualPrivateAndReadableAfterArchive",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.History.cs#HistoryPagesBoundDatabaseReadsAndUseUuidTieBreakersWithoutCatalogCalls"
+      ]
+    },
+    {
+      "id": "productive-core.cycle.timeline-page",
+      "method": "GET",
+      "path": "/api/organizations/{organizationId}/cycles/{cycleId}/timeline/page",
+      "boundary": "tenant",
+      "resource": "production-cycle",
+      "action": "read",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership before cycle and field lookup on every page; context-bound cursor is not authorization; archived field history remains readable",
+      "storageBoundary": "force-rls:actor+tenant+live-session; SQL keyset page with maximum 100 returned events plus one lookahead; stored cycle snapshot without Catalog call; pages are not a multi-request MVCC snapshot",
+      "neutralErrors": "foreign and missing resources remain neutral; invalid authorized page query is bounded 400 without cursor disclosure",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.History.cs#HistoryPageHttpIsBoundedContextualPrivateAndReadableAfterArchive",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.History.cs#HistoryPagesBoundDatabaseReadsAndUseUuidTieBreakersWithoutCatalogCalls"
+      ]
+    },
+    {
       "id": "productive-core.event.create",
       "method": "POST",
       "path": "/api/organizations/{organizationId}/cycles/{cycleId}/events",

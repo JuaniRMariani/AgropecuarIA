@@ -67,6 +67,12 @@ public interface IProductiveCoreUnitOfWork : IAsyncDisposable
         Guid cycleId,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<ProductionCycle>> ListProductionCyclePageAsync(
+        Guid organizationId, Guid managementUnitId, ProductionHistoryWindow window, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProductionEvent>> ListProductionEventPageAsync(
+        Guid organizationId, Guid cycleId, ProductionHistoryWindow window, CancellationToken cancellationToken);
+
     void AddProductionCycle(ProductionCycle cycle);
 
     void AddProductionEvent(ProductionEvent productionEvent);

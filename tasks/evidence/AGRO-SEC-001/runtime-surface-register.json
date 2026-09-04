@@ -446,7 +446,9 @@
         "/api/organizations/{organizationId}/fields/{fieldId}/geometry",
         "/api/organizations/{organizationId}/fields/{fieldId}/cycles",
         "/api/organizations/{organizationId}/cycles/{cycleId}/events",
-        "/api/organizations/{organizationId}/cycles/{cycleId}/timeline"
+        "/api/organizations/{organizationId}/cycles/{cycleId}/timeline",
+        "/api/organizations/{organizationId}/fields/{fieldId}/cycles/page",
+        "/api/organizations/{organizationId}/cycles/{cycleId}/timeline/page"
       ],
       "evidence": [
         "contracts/productive-core.openapi.yaml",
@@ -463,9 +465,12 @@
         "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.cs",
         "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.CatalogReference.cs",
         "tests/AgropecuarIA.Catalog.Tests/CatalogActiveResolutionDatabaseTests.cs",
-        "tasks/evidence/AGRO-FND-001/contracts/catalog-entry-ref.v1.schema.json"
+        "tasks/evidence/AGRO-FND-001/contracts/catalog-entry-ref.v1.schema.json",
+        "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.History.cs",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.History.cs",
+        "src/AgropecuarIA.ProductiveCore/Infrastructure/Migrations/20260904232102_AddProductionHistoryPagingIndexes.cs"
       ],
-      "gate": "Initial geometry PostgreSQL/HTTP verification passed in the 2026-09-04 integrated 521-test backend gate with isolated PostGIS 3.6.2: no failures or skips. Geometry replacement/effective history, map/form accessibility, authoritative territorial containment and tolerance/overlap policy remain incomplete. Authoritative cycle-reference implementation verification is pending for this v2 delivery. Cycle event journal/outbox/idempotency, outputs/costs/documents, full productive UI and certified baseline coverage remain incomplete. Writer N-1 must stop before migration because new inserts require a snapshot; coordinated rollout is mandatory. Register membership is not a completed parent task or released capability."
+      "gate": "Initial geometry PostgreSQL/HTTP verification passed in the 2026-09-04 integrated 521-test backend gate with isolated PostGIS 3.6.2. Authoritative cycle-reference implementation passed the subsequent 635-test backend gate; CI 33929041260 succeeded after registry alignment. Geometry replacement/effective history, map/form accessibility, authoritative territorial containment and tolerance/overlap policy remain incomplete. Additive v2.1 paged history routes use tenant reauthorization, contextual cursors and SQL limits; the integrated backend gate passed 643/643, including HTTP session revocation and PostgreSQL traversal of 105 tied rows. Browser and publication verification are tracked in tasks/todo .md. Original unpaged reads remain deprecated but unbounded. Cycle event journal/outbox/idempotency, outputs/costs/documents, full productive UI and certified baseline coverage remain incomplete. Writer N-1 must stop before the catalog-reference migration because new inserts require a snapshot; coordinated rollout is mandatory. Register membership is not a completed parent task or released capability."
     }
   ]
 }

@@ -58,7 +58,7 @@
       "contracts": [
         {
           "path": "contracts/productive-core.openapi.yaml",
-          "version": "2.0.0"
+          "version": "2.1.0"
         },
         {
           "path": "tasks/evidence/AGRO-FND-001/contracts/management-unit-created.v1.schema.json",

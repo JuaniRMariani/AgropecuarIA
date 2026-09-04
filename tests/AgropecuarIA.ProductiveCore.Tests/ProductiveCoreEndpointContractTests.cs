@@ -43,7 +43,7 @@ public sealed class ProductiveCoreEndpointContractTests
             .ThenBy(endpoint => string.Join(',', endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? []))
             .ToArray();
 
-        Assert.AreEqual(11, routes.Length);
+        Assert.AreEqual(13, routes.Length);
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields", "GET");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields", "POST");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}", "GET");
@@ -55,6 +55,8 @@ public sealed class ProductiveCoreEndpointContractTests
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}/cycles", "POST");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/cycles/{cycleId:guid}/events", "POST");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/cycles/{cycleId:guid}/timeline", "GET");
+        AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}/cycles/page", "GET");
+        AssertRoute(routes, "/api/organizations/{organizationId:guid}/cycles/{cycleId:guid}/timeline/page", "GET");
         Assert.IsTrue(routes.All(route => route.Metadata.GetMetadata<IAuthorizeData>() is not null));
         Assert.IsTrue(routes.All(route =>
             route.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName ==

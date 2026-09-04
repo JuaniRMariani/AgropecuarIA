@@ -450,6 +450,12 @@ public sealed class ProductiveCoreRenameApplicationServiceTests
 
     private sealed class RenameUnitOfWork(RenameStore store) : IProductiveCoreUnitOfWork
     {
+        public Task<IReadOnlyList<ProductionCycle>> ListProductionCyclePageAsync(Guid organizationId, Guid managementUnitId, ProductionHistoryWindow window, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ProductionEvent>> ListProductionEventPageAsync(Guid organizationId, Guid cycleId, ProductionHistoryWindow window, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<ProductionCycle?> GetProductionCycleAsync(Guid organizationId, Guid cycleId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

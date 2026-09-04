@@ -17,6 +17,7 @@ El repositorio contiene la especificación, spikes R0 aislados bajo `tasks/evide
 - Gates de CI y pruebas locales con PostGIS: [guía de verificación](docs/implementation/ci-quality-gates.md).
 - Publicación, procedencia y lector autenticado de catálogo: [alcance técnico y recuperación](docs/implementation/catalog-publication-reader.md).
 - Referencias de catálogo conservadas en ciclos: [contrato Productive 2.0, historia y límites](docs/implementation/production-cycle-catalog-reference.md).
+- Historial de ciclos y observaciones: [lecturas paginadas Productive 2.1](docs/implementation/production-history-paging.md).
 
 Los secretos reales se cargan únicamente al publicar un ambiente compartido. El proveedor sintético está limitado a `Development`/`Test`; la aplicación falla cerrada fuera de esos ambientes si OIDC no está configurado.
 

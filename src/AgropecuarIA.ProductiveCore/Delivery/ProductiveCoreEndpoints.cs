@@ -199,6 +199,26 @@ public static class ProductiveCoreEndpoints
                 cycle);
         });
 
+        organizations.MapGet("/fields/{fieldId:guid}/cycles/page", async (
+            Guid organizationId, Guid fieldId, int? limit, string? cursor,
+            HttpContext context, ProductionCycleApplicationService service, CancellationToken cancellationToken) =>
+        {
+            SetPrivateResponseHeaders(context.Response);
+            AuthenticatedSession session = AuthenticatedSessionClaims.Read(context.User);
+            return Results.Ok(await service.ListCyclePageAsync(organizationId, fieldId, limit, cursor,
+                RequestContext(context, session, organizationId), cancellationToken));
+        });
+
+        organizations.MapGet("/cycles/{cycleId:guid}/timeline/page", async (
+            Guid organizationId, Guid cycleId, int? limit, string? cursor,
+            HttpContext context, ProductionCycleApplicationService service, CancellationToken cancellationToken) =>
+        {
+            SetPrivateResponseHeaders(context.Response);
+            AuthenticatedSession session = AuthenticatedSessionClaims.Read(context.User);
+            return Results.Ok(await service.GetTimelinePageAsync(organizationId, cycleId, limit, cursor,
+                RequestContext(context, session, organizationId), cancellationToken));
+        });
+
         organizations.MapGet("/fields/{fieldId:guid}/cycles", async (
             Guid organizationId,
             Guid fieldId,
@@ -301,7 +321,7 @@ public static class ProductiveCoreEndpoints
 
     private static void SetPrivateResponseHeaders(HttpResponse response)
     {
-        response.Headers.CacheControl = "no-store";
+        response.Headers.CacheControl = "private, no-store";
         response.Headers.Pragma = "no-cache";
     }
 

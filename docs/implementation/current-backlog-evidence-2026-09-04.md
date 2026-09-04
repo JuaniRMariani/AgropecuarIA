@@ -2,7 +2,7 @@
 
 ## Alcance y criterio
 
-Inventario iniciado sobre el baseline Git `dd808e4`, actualizado con las entregas verificadas `3023288`, `8f25ed6` y los gates locales de la iteración 55 (635 backend, 346 web, 20 navegador). Publicación y CI remoto se distinguen en el [plan](../../tasks/todo%20.md). No es una certificación de release completo y las reparaciones no convierten automáticamente el padre en completado. Los hallazgos del baseline se conservan abajo como historia, no como defectos todos vigentes.
+Inventario iniciado sobre el baseline Git `dd808e4`, actualizado con las entregas verificadas `3023288`, `8f25ed6`, `054f386`, el CI verde de `389a88a` y el gate backend de la iteración 56 (643 pruebas). Web mantiene su gate de 346 pruebas; navegador y publicación de la iteración 56 se registran separadamente en el [plan](../../tasks/todo%20.md). No es una certificación de release completo y las reparaciones no convierten automáticamente el padre en completado. Los hallazgos del baseline se conservan abajo como historia, no como defectos todos vigentes.
 
 El [índice vigente al inicio](../../tasks/backlog/00-index.md) contiene 81 tareas: 1 `Completada`, 6 `En revisión`, 10 `En curso` y 64 `Propuesto`. Las iteraciones 38–49 agregaron implementación que el índice no refleja, pero compilación y tests unitarios no prueban una VSA de extremo a extremo.
 
@@ -46,7 +46,7 @@ Los IDs siguientes usan su prefijo completo para permitir validar unicidad y cob
 | AGRO-ID-005 | A | Sin soporte JIT productivo. | ID-004 y SEC-002/004; consentimiento, caducidad y auditoría. | E4 |
 | AGRO-CAT-001 | P | Ingesta JSON acotada y completamente validada, snapshots completos, diff/fingerprint y editor explícito separados del owner tenant, probados por HTTP/PG. | UI editorial, fuentes nacionales reales y acta de aprobación; no publicar el fixture sintético como baseline nacional. | E1 |
 | AGRO-CAT-002 | P | Migración publicada, activación serializada, versiones/procedencia inmutables, rollback lógico, auditoría/outbox local y lector autenticado con E2E escritorio/móvil. | Gobierno/aceptación de baseline nacional y operación externa de publicación; el padre no cierra solo por la implementación local. | E1 |
-| AGRO-CAT-003 | P | Ciclos/eventos autorizados; iteración 55 agrega puerto de resolución y snapshot histórico inmutable, con HTTP/PG y gates integrados locales aprobados. | Lecturas paginadas/UI, idempotencia/journal/eventos, contratos mínimos DOC/FIN y ciclo de vida completo. | — |
+| AGRO-CAT-003 | P | Ciclos/eventos autorizados; snapshot histórico inmutable de catálogo y rutas paginadas 2.1 con HTTP/PG, autorización por página y gate backend integrado aprobado. | Integrar UI paginada y retirar GET legacy aún ilimitados; idempotencia/journal/eventos, contratos mínimos DOC/FIN y ciclo de vida completo. | — |
 | AGRO-CAT-004 | A | Extensiones privadas/propuestas editoriales sin runtime. | CAT-002, ID-003; separar edición global y tenant. | — |
 | AGRO-CAT-005 | A | Especialización validada/abstención no implementada. | DIS-002, CAT-002/003; perfil versionado con aprobación competente. | E1 |
 | AGRO-GIS-001 | P | Georef/cache/territorio/UI y evidencia de fixtures nacionales. | Repetir 24 casos, fallback/versionado y verificar integración vigente. | — |
@@ -131,7 +131,7 @@ Los IDs siguientes usan su prefijo completo para permitir validar unicidad y cob
 
 Después: normalizar roles/scopes y geometría, cerrar clima operativo, documentos y consumidor real de outbox, inventario/kernel de costos/operaciones y los módulos restantes en orden de dependencias. Las reparaciones concretas elegidas por el líder pueden reordenarse según hallazgos de gates; la prioridad no autoriza ampliar credenciales, publicar datos o inventar políticas profesionales.
 
-Las tres primeras entregas ya cuentan con implementación y gates locales, con los límites indicados en la tabla. Próximos residuos concretos: las lecturas de ciclos/timeline siguen ilimitadas y deben paginarse antes de agregar UI; algunas lecturas/autorizaciones del UOW traducen SQLSTATE 40001 a indisponibilidad (hallazgo estático separado del fallo de doble envoltorio reproducido al guardar). La evolución de escritores N/N-1 no está demostrada por las columnas aditivas del snapshot de ciclos: Productive 2.0 requiere despliegue coordinado, no realizado aquí.
+Las tres primeras entregas ya cuentan con implementación y gates locales, con los límites indicados en la tabla. La iteración 56 agrega lecturas de ciclos/timeline paginadas en SQL; falta consumirlas en UI y migrar/retirar las rutas legacy ilimitadas. Algunas lecturas/autorizaciones del UOW traducen SQLSTATE 40001 a indisponibilidad (hallazgo estático separado del fallo de doble envoltorio reproducido al guardar). La evolución de escritores N/N-1 no está demostrada por las columnas aditivas del snapshot de ciclos: Productive 2.0 requiere despliegue coordinado, no realizado aquí.
 
 ## Gates externos reales
 

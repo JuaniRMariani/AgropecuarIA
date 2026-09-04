@@ -78,6 +78,8 @@ public sealed class ProductiveCoreDbContext(DbContextOptions<ProductiveCoreDbCon
             entity.Property(item => item.CatalogSourceHash).HasMaxLength(64);
             entity.Property(item => item.CatalogProvenanceStatus).HasMaxLength(32);
             entity.HasIndex(item => new { item.OrganizationId, item.ManagementUnitId, item.Status });
+            entity.HasIndex(item => new { item.OrganizationId, item.ManagementUnitId, item.CreatedAtUtc, item.Id })
+                .IsDescending(false, false, true, true).HasDatabaseName("IX_production_cycles_history_page");
         });
 
         modelBuilder.Entity<ProductionEvent>(entity =>
@@ -94,6 +96,8 @@ public sealed class ProductiveCoreDbContext(DbContextOptions<ProductiveCoreDbCon
             entity.Property(item => item.Notes).HasMaxLength(1024);
             entity.Property(item => item.Origin).HasMaxLength(32).IsRequired();
             entity.HasIndex(item => new { item.OrganizationId, item.ProductionCycleId, item.EffectiveDateUtc });
+            entity.HasIndex(item => new { item.OrganizationId, item.ProductionCycleId, item.RecordedAtUtc, item.Id })
+                .IsDescending(false, false, true, true).HasDatabaseName("IX_production_events_history_page");
         });
 
         modelBuilder.Entity<ManagementUnit>(entity =>

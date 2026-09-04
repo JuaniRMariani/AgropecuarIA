@@ -62,7 +62,7 @@ public sealed record ProductionTimelineResult(
     ProductionCycleDto Cycle,
     IReadOnlyList<ProductionEventDto> Events);
 
-public sealed class ProductionCycleApplicationService(
+public sealed partial class ProductionCycleApplicationService(
     IProductiveCoreUnitOfWorkFactory unitOfWorkFactory,
     TimeProvider timeProvider,
     IProductionCatalogResolver catalogResolver)

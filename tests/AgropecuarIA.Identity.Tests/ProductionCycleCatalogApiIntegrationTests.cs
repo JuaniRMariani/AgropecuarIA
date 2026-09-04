@@ -16,7 +16,7 @@ namespace AgropecuarIA.Identity.Tests;
 
 [TestClass]
 [DoNotParallelize]
-public sealed class ProductionCycleCatalogApiIntegrationTests
+public sealed partial class ProductionCycleCatalogApiIntegrationTests
 {
     private static readonly DateTimeOffset StartDate = new(2026, 8, 1, 0, 0, 0, TimeSpan.Zero);
     private static readonly CatalogEditorialContext FixtureEditor = new(Guid.Parse("bc814899-f242-433a-9bc9-be166dc4f73e"),
@@ -232,11 +232,12 @@ public sealed class ProductionCycleCatalogApiIntegrationTests
         Assert.IsEmpty(cycle.Capabilities);
     }
 
-    private static Task<IdentityApiScenario> CreateScenarioAsync(ResolutionObservation? observation = null, bool applyCatalogMigrations = true) =>
+    private static Task<IdentityApiScenario> CreateScenarioAsync(ResolutionObservation? observation = null, bool applyCatalogMigrations = true, int productiveRateLimit = 30) =>
         IdentityApiScenario.CreateAsync(configuration: new Dictionary<string, string?>
         {
             ["Catalog:ApplyMigrations"] = applyCatalogMigrations.ToString(),
             ["ProductiveCore:ApplyMigrations"] = "true",
+            ["ProductiveCore:RateLimits:PerSessionPerMinute"] = productiveRateLimit.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["ProductiveCore:ManagementUnitCreation:Enabled"] = "true",
             ["ProductiveCore:ManagementUnitCreation:CurrentKeyVersion"] = "test-v1",
             ["ProductiveCore:ManagementUnitCreation:HmacKeys:test-v1"] = "dGVzdC1vbmx5LWlkZW1wb3RlbmN5LWhtYWMta2V5LTMyaW4=",

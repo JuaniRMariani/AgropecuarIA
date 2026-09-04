@@ -108,6 +108,15 @@ public sealed partial class ProductiveCoreDatabaseSecurityTests
         Assert.AreEqual(legacy.SupportLevel, closed.SupportLevel);
         Assert.IsNull(closed.CatalogSnapshot);
         Assert.HasCount(1, await service.ListCyclesAsync(scenario.FirstOrganizationId, fieldId, CycleContext(scenario), CancellationToken.None));
+        ProductionCyclePage page = await service.ListCyclePageAsync(scenario.FirstOrganizationId, fieldId, 20, null, CycleContext(scenario), CancellationToken.None);
+        Assert.HasCount(1, page.Items);
+        Assert.AreEqual("legacy_unresolved", page.Items[0].CatalogReferenceStatus);
+        Assert.IsNull(page.Items[0].CatalogSnapshot);
+        Assert.IsFalse(page.HasMore);
+        ProductionTimelinePage timeline = await service.GetTimelinePageAsync(scenario.FirstOrganizationId, cycleId, 20, null, CycleContext(scenario), CancellationToken.None);
+        Assert.AreEqual("closed", timeline.Cycle.Status);
+        Assert.IsEmpty(timeline.Events);
+        Assert.IsNull(timeline.NextCursor);
     }
 
     private sealed class RejectAnyCatalogResolver : IProductionCatalogResolver

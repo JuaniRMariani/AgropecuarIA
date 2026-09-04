@@ -32,21 +32,33 @@ public sealed class PostgresProductiveCoreUnitOfWorkFactory(
                 cancellationToken);
             return new PostgresProductiveCoreUnitOfWork(dbContext, transaction);
         }
-        catch (Exception exception) when (IsPersistenceFailure(exception))
+        catch (Exception exception)
         {
-            if (transaction is not null)
+            // The caller owns neither resource until a complete UOW is returned.
+            // Cancellation and other failures must release them as well.
+            try
             {
-                await transaction.DisposeAsync();
+                if (transaction is not null)
+                {
+                    await transaction.DisposeAsync();
+                }
+            }
+            finally
+            {
+                if (dbContext is not null)
+                {
+                    await dbContext.DisposeAsync();
+                }
             }
 
-            if (dbContext is not null)
+            if (IsPersistenceFailure(exception))
             {
-                await dbContext.DisposeAsync();
+                throw new ProductivePersistenceUnavailableException(
+                    "Productive Core could not begin a database transaction.",
+                    exception);
             }
 
-            throw new ProductivePersistenceUnavailableException(
-                "Productive Core could not begin a database transaction.",
-                exception);
+            throw;
         }
     }
 

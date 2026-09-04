@@ -2053,7 +2053,7 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - [x] Revalidar owner/organización/campo/ciclo en cada página con RLS y `private, no-store`; cursor no es autorización y se rechaza si pertenece a otro contexto. Parseo acotado/versionado y errores 400 neutros. Las páginas no prometen un snapshot transaccional entre solicitudes.
 - [x] Conservar snapshot histórico de catálogo y distinguir fecha efectiva de fecha de registro en eventos; ninguna lectura consulta el catálogo activo ni habilita soporte especializado.
 - [x] Probar límites, empates de orden, paginación completa sin duplicados, cursores inválidos/cruzados, autorización, archivo, cancelación y persistencia real; actualizar OpenAPI/fitness/registros y ejecutar gates backend.
-- [ ] Verificar regresiones de navegador con las nuevas migraciones, revisar/publicar el checkpoint e inspeccionar el CI remoto.
+- [x] Verificar regresiones de navegador con las nuevas migraciones, revisar/publicar el checkpoint e inspeccionar el CI remoto.
 
 ### Decisión
 
@@ -2066,3 +2066,23 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - Contratos/registros actualizados; arquitectura **220/220 PASS** en la primera integración. Lecturas legacy y cancelación añadidas, verificadas en el siguiente gate completo. La documentación distingue orden de registro/fecha efectiva y no promete snapshot entre solicitudes, UI ni cierre del padre CAT-003.
 - Gate backend integrado final: restore locked/auditoría NuGet PASS, Release build **0W/0E**, **643/643 PASS**, 0 fallos/omitidos, **7m24s**. Incluye replay real de cookie revocada, recursos inexistentes, cancelación y snapshots legacy. La mayor duración de Identity se comprobó hasta su salida exitosa, sin detener, reintentar ni omitir pruebas. Navegador iniciado sobre el mismo código y migraciones.
 - Gate navegador final: **20/20 PASS**, escritorio/móvil, **2.7m**, con las nuevas migraciones y HTTP real. No se modificó frontend desde sus gates 346/346 y formato/lint/tipos/build/auditoría de la iteración 55. Los hosts temporales cerraron, los puertos 3000/5097/52423 quedaron libres y el wrapper retiró exclusivamente su directorio de prueba. Review final: JSON válidos, 81 IDs únicos del inventario preservados y diff sin errores de whitespace. Listo para publicar; no hay deploy ni cierre del padre CAT-003.
+- Publicado `9d0ec33bb8b8c7fecf0426372de54a426f409676`, author/committer `JuaniRMariani <juanirmariani@gmail.com>` y remoto coincidentes. Worktree limpio después del push. CI **`33930476183` SUCCESS**, backend y frontend aprobados sobre este mismo commit.
+
+## Iteración 57 — Liberación de recursos al cancelar la apertura del UOW
+
+### Plan y aceptación
+
+- [x] Reproducir con PostgreSQL real la cancelación después de crear el contexto y después de iniciar la transacción, en modos lectura/escritura. Verificar liberación del contexto/conexión, no solo propagación de cancelación.
+- [x] Si se confirma el defecto, garantizar limpieza de recursos todavía propiedad del factory para toda salida excepcional, sin convertir cancelación en 503, cambiar reintentos ni interferir con el UOW que recibió los recursos correctamente.
+- [x] Verificar persistencia normal, contratos y suite backend integrada; revisar el cambio antes de publicar. La identidad Git, publicación y CI se comprueban después de crear el commit.
+
+### Decisión
+
+- La inspección encontró cleanup únicamente dentro de un catch de errores de persistencia; `OperationCanceledException` no entra en ese filtro. La prueba de paginación cancelada termina antes de crear el contexto y no demuestra su liberación. Se prioriza una regresión acotada antes del lector frontend, sin afirmar una fuga observada hasta reproducirla. La interfaz y los contratos HTTP no cambian en este slice.
+
+### Review en curso
+
+- RED determinista **4/4** con PostgreSQL: cancelación después de crear el contexto deja `ChangeTracker` utilizable; cancelación durante `SET LOCAL ROLE`, con transacción real iniciada, deja la conexión `Open`. Ambas fases reproducidas en Read y SerializableWrite. El fixture libera los recursos en su propio finally para no dejar la regresión contaminando el entorno.
+- Se amplía exclusivamente el cleanup del factory: transacción y contexto se liberan antes de relanzar cancelación/errores no clasificados; únicamente errores de persistencia conservan su traducción existente. `finally` garantiza intentar liberar el contexto aunque falle la liberación de la transacción. No cambia el camino de transferencia exitosa, niveles de aislamiento ni política de retries. GREEN y suite integrada pendientes.
+- GREEN focalizado **8/8 PASS**, **31s**: cuatro cancelaciones, error de persistencia traducido con misma causa, error no clasificado propagado sin envolver, y transferencia exitosa con autorización/commit en Read y SerializableWrite. Todos verifican cierre de conexión y disposición del contexto en el momento correspondiente. Suite backend integrada iniciada sobre el estado final.
+- Gate final local: restore locked/auditoría NuGet PASS, Release build **0W/0E**, **651/651 PASS**, 0 fallos/omitidos, **7m53s**, con PostgreSQL/PostGIS y HTTP real. Revisión final sin cambios de contratos, migraciones, frontend ni política de retries. La entrega anterior mantiene 20/20 E2E y CI `33930476183` verde; no se afirma una nueva corrida de navegador para este cambio exclusivo de cleanup, cubierto aquí por las ocho regresiones y la suite integrada. Preparado para commit/push con la identidad solicitada; el resultado remoto del nuevo commit se consulta por separado en Actions.

@@ -81,6 +81,10 @@ public sealed class PublishedSchemaValidatorTests
     [DataRow("management-unit-geometry-configured.v1.schema.json", "organizationId")]
     [DataRow("management-unit-geometry-configured.v1.schema.json", "geometryVersionId")]
     [DataRow("management-unit-geometry-configured.v1.schema.json", "configuredAtUtc")]
+    [DataRow("product-catalog-published.v1.schema.json", "versionId")]
+    [DataRow("product-catalog-published.v1.schema.json", "publishedAtUtc")]
+    [DataRow("product-catalog-rolled-back.v1.schema.json", "versionId")]
+    [DataRow("product-catalog-rolled-back.v1.schema.json", "rolledBackAtUtc")]
     public void PublishedEventPayloadSchemasRejectMissingExtraAndWronglyTypedFields(
         string fileName,
         string requiredProperty)
@@ -181,6 +185,29 @@ public sealed class PublishedSchemaValidatorTests
         var issues = PublishedSchemaValidator.Validate(FileName, schema.ToJsonString());
 
         Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-const.invalid"));
+    }
+
+    [TestMethod]
+    [DataRow("product-catalog-published.v1.schema.json")]
+    [DataRow("product-catalog-rolled-back.v1.schema.json")]
+    public void CatalogPreviousVersionMustRemainNullableUuid(string fileName)
+    {
+        var schema = Schema(fileName);
+        schema["properties"]!["previousActiveVersionId"]!["type"] = "integer";
+        var issues = PublishedSchemaValidator.Validate(fileName, schema.ToJsonString());
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-shape.invalid"));
+    }
+
+    [TestMethod]
+    public void CatalogPublicationRequiresReviewedHashAndBoundedDistinctSources()
+    {
+        const string FileName = "product-catalog-published.v1.schema.json";
+        var schema = Schema(FileName);
+        schema["properties"]!["candidateHash"]!["pattern"] = ".*";
+        schema["properties"]!["sourceSnapshotIds"]!["uniqueItems"] = false;
+        var issues = PublishedSchemaValidator.Validate(FileName, schema.ToJsonString());
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.catalog.hash.invalid"));
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.catalog.snapshots.invalid"));
     }
 
     private static JsonObject Schema(string fileName) =>

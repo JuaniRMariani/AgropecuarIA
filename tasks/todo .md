@@ -1948,7 +1948,7 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - [x] Rechazar geometrías inválidas, coordenadas/dimensiones no admitidas, payloads/vértices excesivos, campos archivados y reconfiguración; no ejecutar reparación silenciosa ni inferir pertenencia oficial.
 - [x] Integrar la transición inicial con UOW, RLS, grants/trigger y trazabilidad; mantener separado lo pendiente de edición/versionado completo y tolerancias profesionales.
 - [x] Probar PostGIS real, límites/errores, aislamiento, ETags/concurrencia y regresión rename/archive; actualizar contrato/registro con evidencia ejecutable.
-- [ ] Ejecutar gates completos y navegador sobre el estado integrado, revisar diff y publicar usando la identidad Git solicitada.
+- [x] Ejecutar gates completos y navegador sobre el estado integrado, revisar diff y publicar usando la identidad Git solicitada.
 
 ### Review
 
@@ -1961,11 +1961,13 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 
 - [x] Añadir jobs backend/frontend con lockfiles, lint/tipos/tests/build/audit y permisos read-only, sin secretos ni despliegues.
 - [x] Verificar localmente comandos y sintaxis; usar PostGIS aislado en pruebas, nunca un servidor compartido.
-- [ ] Inspeccionar el primer resultado remoto después del push; no confundir YAML válido con CI aprobado.
+- [x] Inspeccionar el primer resultado remoto después del push; no confundir YAML válido con CI aprobado.
 
 ### Review
 
 - Las skills de CI orientan el orden de gates y la separación del despliegue. Sus assets de ejemplo no están instalados; se usa su patrón documentado adaptado al runner MTP SDK10 y al monorepo real. Actions fijadas por SHA comprobado en los repositorios oficiales.
+- Primer remoto `33914604296` sobre `3023288`: frontend PASS; backend restore/build PASS, test step FAIL (exit 2). No se declara CI verde. `gh` no está instalado y la API pública de logs devuelve 403; no se extraen credenciales ni se cambia la cuenta. `f339cde` agrega TRX y anotaciones limitadas a nombres estáticos de métodos fallidos, parser probado sin payloads/DTD, para diagnosticar el runner Linux. Nuevo run `33915446788` en curso.
+- Resultado posterior confirmado: run `33915446788` sobre `f339cde` **SUCCESS**, ambos jobs. Se conservan todas las assertions y no se añadieron reintentos ni skips. El primer fallo no se reprodujo y su causa no puede afirmarse con los logs disponibles: permanece como riesgo de intermitencia por investigar si reaparece. Los diagnósticos ahora se preservan como nombres de métodos, sin exponer contenido de las pruebas.
 
 ## Iteración 53 — Regresión de archivo y ciclos (2026-09-04)
 
@@ -1974,9 +1976,56 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - [x] Rechazar nuevos ciclos sobre campos archivados con 409 tras autorizar el recurso, sin impedir lecturas históricas.
 - [x] Aplicar la restricción también al INSERT del rol runtime y probar servicio/PostgreSQL sin efectos parciales.
 - [x] Agregar cobertura de navegador para la confirmación/cancelación de archivo, listado y resumen de solo lectura.
-- [ ] Ejecutar los gates integrados antes del commit/push autorizado.
+- [x] Ejecutar los gates integrados antes del commit/push autorizado.
 
 ### Review
 
 - Guardia de inicio de ciclo revisada independientemente: 409 tras autorizar/bloquear campo; política INSERT restrictiva evita bypass y SELECT preserva historia. Cubierta por el gate 521/521.
 - Las cuatro ejecuciones E2E nuevas (dos casos en escritorio/móvil) pasan sin stubs de HTTP. No implica cierre de GIS-002 ni CAT-003 completos.
+
+## Iteración 54 — Publicación consistente y lector de catálogo (2026-09-04)
+
+### Plan y aceptación
+
+- [x] Serializar publicación/rollback antes de leer el activo, con transacción y restricción única parcial; rechazar bases históricas ambiguas sin elegir/borrar un ganador. Probar carreras y rollback real en PostgreSQL.
+- [x] Validar completamente la fuente JSON antes de persistir; límites explícitos y rechazo de filas inválidas, sin snapshots falsamente exitosos. Usar el último snapshot completo por fuente para el candidato; duplicados normalizados entre fuentes son conflictos explícitos, nunca una selección silenciosa.
+- [x] Calcular diff contra el publicado y un fingerprint de candidato que incluya snapshots seleccionados y versión activa. La publicación exige ese fingerprint para no aprobar una revisión diferente; documentar explícitamente la evolución del contrato editorial. Conservar referencias a snapshots en publicado, auditoría y outbox local atómicos, sin habilitar despacho externo.
+- [x] Exponer búsqueda/detalle autenticados con versión/procedencia y consulta histórica estable; búsqueda normalizada y sinónimos acotados. Diff queda editorial, no una lectura general del staging.
+- [x] Agregar lector web de solo lectura dentro del workspace: filtro reactivo acotado/cancelable, región de resultados estable, versión/fuentes/soporte/capacidades ausentes y estados sin publicación/vacío/error/versión histórica. Reutilizar tamaños, estilos y controles existentes; UUID corto; ninguna aprobación profesional inventada.
+- [ ] Preparar el puerto público de resolución versionada para ciclos; conectar después de fijar su contrato sin accesos de Productive Core a tablas privadas de Catalog. Los metadatos enviados por clientes nunca certifican soporte especializado. Implementación y criterios separados en Iteración 55; no se declara cerrado aquí.
+- [x] Actualizar contratos/fitness, probar E2E con fixtures claramente sintéticos, revisar independientemente y ejecutar gates.
+- [ ] Publicar el checkpoint verificado con la identidad Git solicitada e inspeccionar su CI remoto.
+
+### Decisiones y límites
+
+- El checkpoint anterior está publicado como `3023288`; gates locales 521 backend, 286 frontend y 16 navegador. CI remoto iniciado en run `33914604296`; frontend ya PASS, backend todavía en curso al abrir esta iteración.
+- La prioridad técnica está delegada. Esta entrega no publica el candidato nacional ni sustituye el acta editorial/profesional de ADR-006. No modifica ambientes compartidos.
+- Las guías de arquitectura mantienen el acceso entre módulos mediante puertos; las de frontend mantienen límites cliente/servidor, cancelación y accesibilidad. El buscador de diseño UI/UX no está instalado (su enlace apunta a un destino ausente); se aplican sus reglas disponibles y el sistema visual existente, sin nuevas dependencias visuales.
+
+### Review en curso
+
+- Lector web implementado con detalle fijado a la versión consultada, historial paginado, filtros cancelables, procedencia nullable explícita y capacidades ausentes. Gates web del agente: typecheck/lint/formato/build PASS y **345/345** tests. Playwright descubre **20** casos; aún no se afirma ejecución integrada de esta entrega.
+- Wrapper E2E preparado y revisado independientemente: dos publicaciones sintéticas por HTTP real, editor local efímero, sesiones revocadas antes del navegador, proceso API directo y restauración del entorno. Parser PowerShell PASS; no modifica el PostgreSQL del sistema.
+- Revisión independiente encontró bypass por identidad de fuente legacy no canonizada y posibilidad de insertar hijos después de confirmada la versión/snapshot. Se requieren regresiones PostgreSQL y cierre del segundo hallazgo antes de aprobar la migración; no se reemplaza historia ni se fabrica evidencia legacy.
+- Guía operativa de esta entrega: `docs/implementation/catalog-publication-reader.md`. El contrato 2.0.0 exige fingerprint en publish y mantiene diff editorial. Gates integrados y commit/push todavía pendientes.
+- Gate backend integrado: restore locked/auditoría NuGet PASS, Release build 0W/0E, **593/593** tests, 0 fallos/omitidos, 4m42s. Incluye Catalog **62** y arquitectura **183**. Web repetido por root: **345/345**, formato/lint/typecheck/build/audit PASS.
+- Bootstrap E2E detectó 401 del cliente PowerShell: CookieContainer omite Secure en HTTP local y reemplaza Cookie manual. El cliente de setup usa ahora jar explícito con HttpClient, sin cambiar flags de la aplicación, sin proxies/redirecciones y solo contra 127.0.0.1. Ya publicó ambos fixtures mediante HTTP real; navegador integrado sigue en curso. Los dos intentos fallidos cerraron su cluster y retiraron datos descartables.
+- Primera corrida efectiva de navegador: **19/20**; los cuatro casos Catalog pasaron, falló una regresión móvil existente de Back. Trace: URL correcta pero vista anterior durante cinco segundos. Regresión unitaria determinista RED antes/GREEN después demuestra retirada del listener `popstate` por un rerender previo durante el despacho. Se mantiene la suscripción una vez y se leen valores del último render confirmado con [Effect Events de React](https://react.dev/reference/react/useEffectEvent); no se confunde esto con identidad estable de la función. No se tocaron assertions/timeout/retries E2E. Gates web posteriores: **346/346**, typecheck/lint/formato/build PASS. Nueva corrida exacta en curso.
+- Gate final exacto: navegador **20/20 PASS**, escritorio/móvil, 1m54s aproximadamente (runner 1.9m), incluyendo la regresión Back y todos los casos Catalog; setup enteramente con cliente local sin proxy/redirecciones y cookies Secure/HttpOnly intactas. Base/host efímeros cerrados y directorio de ejecución retirado por el wrapper. Con backend **593/593** y web **346/346**, la entrega queda lista para commit/push; no hay deploy ni aprobación del catálogo nacional.
+
+## Iteración 55 — Referencia autoritativa de catálogo en ciclos (preparación)
+
+### Plan y aceptación técnica
+
+- [ ] Iniciar después de verificar/publicar el checkpoint Catalog de Iteración 54; no mezclar código a medio terminar con ese checkpoint.
+- [ ] Introducir un puerto propiedad de Productive Core y un adaptador en la composición API que consulte exclusivamente la superficie pública Application de Catalog. Sin ProjectReference Productive→Catalog, consultas a tablas privadas ni FK cruzada.
+- [ ] Versionar explícitamente el contrato Productive a 2.0.0 para inicio de ciclo: request estricto `{catalogCode,purpose,system,startDateUtc,expectedCatalogVersionId?}`. Rechazar metadatos de nombre/soporte enviados por cliente y propiedades desconocidas; documentar la migración del consumidor, no ocultar la incompatibilidad.
+- [ ] Autorizar organización/campo y rechazar archivo antes de consultar Catalog. Resolver activo, entrada y procedencia en un snapshot de lectura coherente. La versión esperada es una precondición del activo observado, no una selección de historia.
+- [ ] Congelar en el ciclo IDs de versión/entrada, etiqueta, código/nombre canónicos, soporte declarado, procedencia nullable y momento de resolución del servidor. Soporte efectivo nuevo siempre genérico, sin capacidades especializadas implícitas. Publicar después de la resolución puede cambiar el activo: el ciclo conserva la versión realmente observada, sin prometer atomicidad distribuida o activo al commit.
+- [ ] Agregar migración forward y guards de coherencia/inmutabilidad de referencias. Ciclos anteriores conservan texto/soporte originales con `legacy_unresolved` y snapshot null; no backfill por coincidencia del código actual. Una publicación legacy sí puede dar una referencia de versión real con procedencia de fuente no disponible.
+- [ ] Probar HTTP real y PostgreSQL: spoof/unknown/CSRF/owner/cross-tenant/archivo, catálogo ausente/stale/caído sin efectos, publicación concurrente después de resolver, lecturas históricas sin consultar Catalog y cierre sin alterar snapshot. Mantener ausencia de retries ante commit ambiguo.
+- [ ] Actualizar contratos/fitness/consumidores, revisar independientemente y ejecutar gates antes de publicar. Registrar los residuos del padre CAT-003: idempotencia/journal/eventos, outputs/costos/documentos, UI y certificación del baseline no se dan por completados por este puerto.
+
+### Decisión
+
+- Propuesta read-only del auditor contrastada con el código: `StartCycleAsync` aún acepta nombre y soporte del cliente; no existe cobertura HTTP real de `/cycles`. La entrega siguiente corrige esa autoridad y agrega esa cobertura, no renombra tests de metadata como integración. Plan aprobado técnicamente; implementación todavía no iniciada.

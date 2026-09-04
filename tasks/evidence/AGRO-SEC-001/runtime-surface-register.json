@@ -352,9 +352,13 @@
         "TM-012"
       ],
       "owner": "Catalog + API + AppSec",
-      "control": "All routes require session authentication. Ingest/publish/rollback additionally require separately provisioned platform editorial permission and antiforgery; tenant ownership is not platform authority. Publication actor derives from session, and published tables have an additive migration.",
+      "control": "All routes require session authentication. Staging diff and mutations require separately provisioned platform editorial permission; mutations also require antiforgery. Catalog API v2 requires a reviewed candidateHash bound to active baseline and complete selected source snapshots. Publication/rollback serialize activation, preserve immutable provenance and atomically write audit plus local outbox. Historical search/detail and bounded version discovery expose unavailable legacy lineage explicitly; no specialized capability or professional acceptance is implied. No idempotency ledger or external delivery is claimed.",
       "tests": [
-        "CatalogEndpointIntegrationTests"
+        "CatalogEndpointIntegrationTests",
+        "CatalogEditorialDatabaseTests",
+        "CatalogOpenApiContractTests",
+        "CatalogPublishedEventContractTests",
+        "CatalogIntegrityDatabaseTests"
       ],
       "contractPaths": [
         "/api/catalog/diff",
@@ -362,14 +366,23 @@
         "/api/catalog/publish",
         "/api/catalog/rollback/{versionId}",
         "/api/catalog/items",
-        "/api/catalog/items/{code}"
+        "/api/catalog/items/{code}",
+        "/api/catalog/versions"
       ],
       "evidence": [
         "contracts/catalog.openapi.yaml",
         "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs",
-        "src/AgropecuarIA.Catalog/Delivery/CatalogEndpoints.cs"
+        "src/AgropecuarIA.Catalog/Delivery/CatalogEndpoints.cs",
+        "tasks/evidence/AGRO-FND-001/contracts/product-catalog-published.v1.schema.json",
+        "tasks/evidence/AGRO-FND-001/contracts/product-catalog-rolled-back.v1.schema.json",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs",
+        "apps/web/tests/unit/catalog-api.test.ts",
+        "apps/web/tests/unit/catalog-reader.test.tsx",
+        "apps/web/tests/e2e/owner-workspace.spec.ts",
+        "docs/implementation/catalog-publication-reader.md",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogIntegrityDatabaseTests.cs"
       ],
-      "gate": "Partial only: diff does not compare a selected source version against active publication; concurrent publication, editorial workflow/UI, professional baseline approval and real-source operation remain incomplete."
+      "gate": "Local v2 editorial PostgreSQL checks and reader unit checks pass; final Catalog Release and integrated Release/browser gates remain pending after reviewed SQL immutability/activation guards. CAT-001/002 remain incomplete: segregated editorial approval workflow, audited replay of legacy unverified snapshots, national baseline professional approval and real-source operation remain unresolved. The discovery national candidate is not promoted by this local delivery."
     },
     {
       "id": "RS-013",

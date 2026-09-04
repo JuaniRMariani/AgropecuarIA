@@ -28,6 +28,8 @@ dotnet test --solution AgropecuarIA.slnx --configuration Release --no-restore --
 
 Omit the native binary assignment when using Docker. These assignments affect only the current shell and its child processes; do not configure a shared database or install PostGIS into the system server to run this gate. The native E2E wrapper is Windows-specific and requires the PostGIS-enabled binaries.
 
+The wrapper also publishes two explicitly synthetic Catalog versions through the real editorial HTTP workflow, using a temporary local editor configuration and revoked setup sessions. This enables reader/history browser regression without a production grant or direct table seed. See the [Catalog slice and fixture boundaries](catalog-publication-reader.md).
+
 ## Remaining release gates
 
 This workflow does not claim completed release certification. Browser regression remains the local isolated `scripts/identity/run-e2e.ps1` gate, pending a portable hosted E2E runner. Branch protection/required-check enforcement, shared environments, promotion, deployment and rollback require explicit repository/environment administration and remain separate. A workflow file alone is not proof that a remote run passed: its first hosted execution must be inspected after push.

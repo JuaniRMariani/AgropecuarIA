@@ -1,70 +1,46 @@
-using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text.Json.Serialization;
 using AgropecuarIA.Catalog.Domain;
 using AgropecuarIA.Catalog.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgropecuarIA.Catalog.Application;
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record IngestSourceCommand(string SourceId, string ContentBase64);
-
-public sealed record RawCatalogEntryDto(string Code, string DisplayName, string? Jurisdiction);
 
 public sealed class CatalogIngestionApplicationService(CatalogDbContext dbContext)
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    public Task<bool> IngestAsync(IngestSourceCommand command, CatalogEditorialContext actor, CancellationToken cancellationToken)
     {
-        PropertyNameCaseInsensitive = true
-    };
-
-    public async Task<bool> IngestAsync(IngestSourceCommand command, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        ArgumentException.ThrowIfNullOrWhiteSpace(command.SourceId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(command.ContentBase64);
-
-        byte[] content = Convert.FromBase64String(command.ContentBase64);
-        byte[] hash = System.Security.Cryptography.SHA256.HashData(content);
-
-        bool alreadyIngested = await dbContext.CatalogSourceSnapshots
-            .AnyAsync(x => x.SourceId == command.SourceId && x.ContentHash == hash, cancellationToken);
-
-        if (alreadyIngested)
-            return false;
-
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        var snapshot = new CatalogSourceSnapshot(Guid.NewGuid(), command.SourceId, hash, now);
-        dbContext.CatalogSourceSnapshots.Add(snapshot);
-
-        try
+        ArgumentNullException.ThrowIfNull(actor);
+        actor.Validate();
+        ParsedCatalogSource parsed = CatalogSourceParser.Parse(command);
+        byte[] hash = SHA256.HashData(parsed.Content);
+        return CatalogTransaction.RunAsync(dbContext, true, async ct =>
         {
-            var entries = JsonSerializer.Deserialize<List<RawCatalogEntryDto>>(content, SerializerOptions);
-
-            if (entries is not null && entries.Count > 0)
+            // Legacy IDs were not canonicalized. Compare bounded metadata in .NET so Unicode trim semantics also agree across platforms.
+            var sameHash = await dbContext.CatalogSourceSnapshots.AsNoTracking().Where(x => x.ContentHash == hash)
+                .Select(x => new { x.SourceId, x.IsComplete }).Take(10001).ToArrayAsync(ct);
+            if (sameHash.Length > 10000) throw CatalogErrors.TooLarge();
+            var duplicates = sameHash.Where(x => string.Equals(x.SourceId.Trim().ToLowerInvariant(), parsed.SourceId, StringComparison.Ordinal)).ToArray();
+            if (duplicates.Length > 0)
             {
-                foreach (var item in entries)
-                {
-                    if (string.IsNullOrWhiteSpace(item.Code) || string.IsNullOrWhiteSpace(item.DisplayName))
-                        continue;
-
-                    var stagingEntry = new CatalogStagingEntry(
-                        Guid.NewGuid(),
-                        command.SourceId,
-                        hash,
-                        item.Code,
-                        item.DisplayName,
-                        item.Jurisdiction ?? "AR",
-                        now);
-
-                    dbContext.CatalogStagingEntries.Add(stagingEntry);
-                }
+                if (duplicates.Any(x => !x.IsComplete)) throw CatalogErrors.LegacySnapshot();
+                if (duplicates.Length > 1) throw CatalogErrors.Conflict();
+                return false;
             }
-        }
-        catch (JsonException)
-        {
-            // Non-JSON binary or raw source snapshot preserved as snapshot without staging records
-        }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return true;
+            DateTimeOffset now = CatalogTransaction.UtcNow();
+            var snapshot = new CatalogSourceSnapshot(Guid.NewGuid(), parsed.SourceId, hash, now, parsed.Content, parsed.Entries.Count, actor.ActorUserId);
+            dbContext.CatalogSourceSnapshots.Add(snapshot);
+            foreach (ParsedCatalogEntry item in parsed.Entries)
+                dbContext.CatalogStagingEntries.Add(new CatalogStagingEntry(Guid.NewGuid(), parsed.SourceId, hash, item.Code, item.DisplayName,
+                    item.Jurisdiction, now, snapshot.Id, item.Category, item.Synonyms));
+            dbContext.CatalogEditorialAudits.Add(new(Guid.NewGuid(), "source_ingested", actor.ActorUserId, actor.SessionId,
+                actor.CorrelationId, null, snapshot.Id, now));
+            await dbContext.SaveChangesAsync(ct);
+            return true;
+        }, cancellationToken);
     }
 }

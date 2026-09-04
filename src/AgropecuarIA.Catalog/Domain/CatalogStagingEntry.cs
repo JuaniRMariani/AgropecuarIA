@@ -11,7 +11,10 @@ public sealed class CatalogStagingEntry
         string code,
         string displayName,
         string jurisdiction,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        Guid? sourceSnapshotId = null,
+        string category = CatalogCategories.Otros,
+        IReadOnlyList<string>? synonyms = null)
     {
         if (id == Guid.Empty)
             throw new ArgumentException("Id is required.");
@@ -30,6 +33,10 @@ public sealed class CatalogStagingEntry
         DisplayName = displayName;
         Jurisdiction = jurisdiction;
         CreatedAtUtc = createdAtUtc;
+        SourceSnapshotId = sourceSnapshotId;
+        NormalizedCode = CatalogNameNormalizer.Normalize(code);
+        Category = category;
+        Synonyms = synonyms?.ToList() ?? [];
     }
 
     public Guid Id { get; private set; }
@@ -39,4 +46,8 @@ public sealed class CatalogStagingEntry
     public string DisplayName { get; private set; } = string.Empty;
     public string Jurisdiction { get; private set; } = string.Empty;
     public DateTimeOffset CreatedAtUtc { get; private set; }
+    public Guid? SourceSnapshotId { get; private set; }
+    public string NormalizedCode { get; private set; } = string.Empty;
+    public string Category { get; private set; } = CatalogCategories.Otros;
+    public List<string> Synonyms { get; private set; } = [];
 }

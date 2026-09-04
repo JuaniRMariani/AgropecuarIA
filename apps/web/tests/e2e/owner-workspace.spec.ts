@@ -202,6 +202,198 @@ async function expectNoSeriousAccessibilityViolations(page: Page) {
 }
 
 test.describe("owner workspace", () => {
+  test("reads the synthetic catalog through reactive filters and immutable historical detail", async ({
+    page,
+  }, testInfo) => {
+    testInfo.setTimeout(90_000);
+    await page.goto("/");
+    const catalogRequests: { method: string; path: string }[] = [];
+    page.on("request", (request) => {
+      const path = new URL(request.url()).pathname;
+      if (path.startsWith("/api/catalog/"))
+        catalogRequests.push({ method: request.method(), path });
+    });
+    await signIn(page);
+    const organization = await createOrganization(
+      page,
+      `Lectura catálogo ${testInfo.project.name} ${Date.now()}`,
+    );
+    await page.goto(
+      `/?org=${shortId(organization.organizationId)}&view=fields`,
+    );
+    await page.getByRole("button", { name: "Catálogo", exact: true }).click();
+    await expect(page).toHaveURL(
+      new RegExp(
+        `\\?org=${shortId(organization.organizationId)}&view=catalog$`,
+      ),
+    );
+    const results = page.getByRole("region", {
+      name: "Resultados del catálogo",
+    });
+    await expect(
+      results.getByText("Maíz de prueba E2E", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      results.getByText("Bovino sintético E2E", { exact: true }),
+    ).toBeVisible();
+    const initialBounds = await results.boundingBox();
+    expect(initialBounds?.height).toBeGreaterThan(0);
+    const input = page.getByRole("searchbox", {
+      name: "Nombre, código o sinónimo",
+    });
+    for (const query of ["maiz", "cereal demostrativo", "E2E-CULTIVO"]) {
+      const filteredResponse = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          url.pathname === "/api/catalog/items" &&
+          url.searchParams.get("query") === query &&
+          response.request().method() === "GET"
+        );
+      });
+      await input.fill(query);
+      expect((await filteredResponse).status()).toBe(200);
+      await expect(
+        results.getByText("Maíz de prueba E2E", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        results.getByText("Bovino sintético E2E", { exact: true }),
+      ).toBeHidden();
+      await expect(input).toBeFocused();
+    }
+    await page
+      .getByRole("combobox", { name: "Categoría", exact: true })
+      .selectOption("OTROS");
+    await page
+      .getByRole("combobox", { name: "Soporte declarado", exact: true })
+      .selectOption("FLUJO_GENERICO");
+    await expect(
+      results.getByText("Maíz de prueba E2E", { exact: true }),
+    ).toBeVisible();
+    const detailTrigger = results.getByRole("button", {
+      name: "Ver detalle de Maíz de prueba E2E, código E2E-CULTIVO",
+    });
+    await detailTrigger.press("Enter");
+    const detail = page.getByRole("region", { name: "Detalle de actividad" });
+    await expect(
+      detail.getByRole("heading", { name: "Maíz de prueba E2E" }),
+    ).toBeVisible();
+    await expect(detail).toBeFocused();
+    await expect(
+      detail.getByText("Fuente declarada: e2e-synthetic-catalog"),
+    ).toBeVisible();
+    await expect(
+      detail.getByText("Reglas técnicas especializadas"),
+    ).toBeVisible();
+    await expect(detail.getByText("Indicadores especializados")).toBeVisible();
+    await expect(detail.getByText("Recomendaciones de IA")).toBeVisible();
+    await expect(
+      detail.getByText("No hay capacidades activas informadas."),
+    ).toBeVisible();
+    await expectNoFullUuidInDom(page);
+    await expectNoSeriousAccessibilityViolations(page);
+    await detail.press("Escape");
+    await expect(detailTrigger).toBeFocused();
+
+    const version = page.getByRole("combobox", { name: "Versión consultada" });
+    const historicalOption = version.getByRole("option", {
+      name: /e2e-synthetic-v1/,
+    });
+    const historicalValue = await historicalOption.getAttribute("value");
+    if (historicalValue === null)
+      throw new Error("Synthetic historical version was not discoverable.");
+    await version.selectOption(historicalValue);
+    await expect(
+      results.getByText("Maíz sintético E2E", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Estás consultando una versión histórica/),
+    ).toBeVisible();
+    await results
+      .getByRole("button", {
+        name: "Ver detalle de Maíz sintético E2E, código E2E-CULTIVO",
+      })
+      .click();
+    await expect(
+      detail.getByRole("heading", { name: "Maíz sintético E2E" }),
+    ).toBeVisible();
+    await expect(detail.getByText(/e2e-synthetic-v1/)).toBeVisible();
+    await expectNoFullUuidInDom(page);
+    await page
+      .getByRole("button", { name: "Consultar versión activa" })
+      .click();
+    await expect(
+      results.getByText("Maíz de prueba E2E", { exact: true }),
+    ).toBeVisible();
+
+    await input.fill("sin-coincidencias-sinteticas-e2e");
+    await expect(
+      results.getByText("No encontramos coincidencias"),
+    ).toBeVisible();
+    expect((await results.boundingBox())?.height).toBe(initialBounds?.height);
+    await expect(
+      page.getByRole("button", { name: "Campos", exact: true }),
+    ).toBeEnabled();
+    await input.fill("");
+    await expect(
+      results.getByText("Bovino sintético E2E", { exact: true }),
+    ).toBeVisible();
+    await expectNoSeriousAccessibilityViolations(page);
+    expect(catalogRequests.length).toBeGreaterThan(0);
+    expect(
+      catalogRequests.every(
+        ({ method, path }) =>
+          method === "GET" &&
+          (path === "/api/catalog/items" ||
+            path === "/api/catalog/versions" ||
+            path.startsWith("/api/catalog/items/")),
+      ),
+    ).toBe(true);
+  });
+
+  test("keeps catalog table scrolling inside the viewport and requires authentication", async ({
+    page,
+  }, testInfo) => {
+    await page.goto("/");
+    const anonymous = await page.request.get("/api/catalog/items?limit=50");
+    expect(anonymous.status()).toBe(401);
+    await expect(
+      page.getByRole("heading", { name: "Catálogo de actividades" }),
+    ).toBeHidden();
+    await signIn(page);
+    const organization = await createOrganization(
+      page,
+      `Viewport catálogo ${testInfo.project.name} ${Date.now()}`,
+    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(
+      `/?org=${shortId(organization.organizationId)}&view=catalog`,
+    );
+    const results = page.getByRole("region", {
+      name: "Resultados del catálogo",
+    });
+    await expect(
+      results.getByText("Maíz de prueba E2E", { exact: true }),
+    ).toBeVisible();
+    await results.focus();
+    await expect(results).toBeFocused();
+    const overflow = await results.evaluate((element) => ({
+      width: element.clientWidth,
+      content: element.scrollWidth,
+    }));
+    expect(overflow.content).toBeGreaterThan(overflow.width);
+    await results.press("ArrowRight");
+    await expect
+      .poll(() => results.evaluate((element) => element.scrollLeft))
+      .toBeGreaterThan(0);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await expectNoFullUuidInDom(page);
+    await expectNoSeriousAccessibilityViolations(page);
+  });
+
   test("cancels field archival without sending a write and restores keyboard focus", async ({
     page,
   }) => {

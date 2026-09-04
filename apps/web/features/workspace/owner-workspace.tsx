@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -16,6 +17,7 @@ import type { MembershipSummary } from "../identity/identity-types";
 
 export const WORKSPACE_VIEWS = [
   "fields",
+  "catalog",
   "team",
   "territory",
   "account",
@@ -220,6 +222,8 @@ function viewLabel(view: WorkspaceView): string {
   switch (view) {
     case "fields":
       return "Campos";
+    case "catalog":
+      return "Catálogo";
     case "team":
       return "Equipo";
     case "territory":
@@ -361,79 +365,71 @@ export function OwnerWorkspaceShell({
     };
   }, [guard]);
 
-  useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
-      const targetPosition = historyPosition(event.state);
-      const suppressedPosition = suppressedPopPositionRef.current;
-      if (
-        suppressedPosition !== null &&
-        targetPosition === suppressedPosition
-      ) {
-        suppressedPopPositionRef.current = null;
-        historyPositionRef.current = suppressedPosition;
-        return;
-      }
+  const handlePopState = useEffectEvent((event: PopStateEvent) => {
+    const targetPosition = historyPosition(event.state);
+    const suppressedPosition = suppressedPopPositionRef.current;
+    if (suppressedPosition !== null && targetPosition === suppressedPosition) {
       suppressedPopPositionRef.current = null;
-      const next = resolveCurrentLocation();
-      const currentOrganizationId =
-        location?.kind === "active" ? location.membership.organizationId : null;
-      const nextOrganizationId =
-        next.kind === "active" ? next.membership.organizationId : null;
-      const contextChanges = currentOrganizationId !== nextOrganizationId;
-      const viewChanges =
-        location?.kind === "active" &&
-        next.kind === "active" &&
-        location.view !== next.view;
-      const fieldChanges =
-        location?.kind === "active" &&
-        next.kind === "active" &&
-        fieldLocatorKey(location.field ?? NO_WORKSPACE_FIELD) !==
-          fieldLocatorKey(next.field ?? NO_WORKSPACE_FIELD);
-      const change = contextChanges
-        ? "context"
-        : viewChanges
-          ? "view"
-          : "field";
+      historyPositionRef.current = suppressedPosition;
+      return;
+    }
+    suppressedPopPositionRef.current = null;
+    const next = resolveCurrentLocation();
+    const currentOrganizationId =
+      location?.kind === "active" ? location.membership.organizationId : null;
+    const nextOrganizationId =
+      next.kind === "active" ? next.membership.organizationId : null;
+    const contextChanges = currentOrganizationId !== nextOrganizationId;
+    const viewChanges =
+      location?.kind === "active" &&
+      next.kind === "active" &&
+      location.view !== next.view;
+    const fieldChanges =
+      location?.kind === "active" &&
+      next.kind === "active" &&
+      fieldLocatorKey(location.field ?? NO_WORKSPACE_FIELD) !==
+        fieldLocatorKey(next.field ?? NO_WORKSPACE_FIELD);
+    const change = contextChanges ? "context" : viewChanges ? "view" : "field";
+    if (
+      (contextChanges || viewChanges || fieldChanges) &&
+      !canLeaveCurrentContext(change)
+    ) {
+      const currentPosition = historyPositionRef.current;
       if (
-        (contextChanges || viewChanges || fieldChanges) &&
-        !canLeaveCurrentContext(change)
+        currentPosition !== null &&
+        targetPosition !== null &&
+        currentPosition !== targetPosition
       ) {
-        const currentPosition = historyPositionRef.current;
-        if (
-          currentPosition !== null &&
-          targetPosition !== null &&
-          currentPosition !== targetPosition
-        ) {
-          suppressedPopPositionRef.current = currentPosition;
-          globalThis.history.go(currentPosition - targetPosition);
-        } else if (currentPosition !== null && targetPosition === null) {
-          suppressedPopPositionRef.current = currentPosition;
-          globalThis.history.go(1);
-        }
-        return;
+        suppressedPopPositionRef.current = currentPosition;
+        globalThis.history.go(currentPosition - targetPosition);
+      } else if (currentPosition !== null && targetPosition === null) {
+        suppressedPopPositionRef.current = currentPosition;
+        globalThis.history.go(1);
       }
-      if (targetPosition !== null) {
-        historyPositionRef.current = targetPosition;
-      }
-      commitLocation(
-        next,
-        next.kind === "active" ||
-          (next.kind === "selector" && next.reason !== "choose")
-          ? "replace"
-          : "none",
-        next.kind === "active"
-          ? invalidFieldAnnouncement(next.field ?? NO_WORKSPACE_FIELD)
-          : "",
-      );
-    };
-    globalThis.addEventListener("popstate", handlePopState);
-    return () => globalThis.removeEventListener("popstate", handlePopState);
-  }, [
-    canLeaveCurrentContext,
-    commitLocation,
-    location,
-    resolveCurrentLocation,
-  ]);
+      return;
+    }
+    if (targetPosition !== null) {
+      historyPositionRef.current = targetPosition;
+    }
+    commitLocation(
+      next,
+      next.kind === "active" ||
+        (next.kind === "selector" && next.reason !== "choose")
+        ? "replace"
+        : "none",
+      next.kind === "active"
+        ? invalidFieldAnnouncement(next.field ?? NO_WORKSPACE_FIELD)
+        : "",
+    );
+  });
+
+  useEffect(() => {
+    // Keep the subscription installed during router/parent updates. Removing a
+    // listener while another popstate listener commits a render can lose Back.
+    const onPopState = (event: PopStateEvent) => handlePopState(event);
+    globalThis.addEventListener("popstate", onPopState);
+    return () => globalThis.removeEventListener("popstate", onPopState);
+  }, []);
 
   const activeOrganizationId =
     location?.kind === "active" ? location.membership.organizationId : null;

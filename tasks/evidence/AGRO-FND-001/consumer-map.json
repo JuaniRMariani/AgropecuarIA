@@ -19,6 +19,8 @@
     { "provider": "identity-tenancy", "consumers": ["territory", "national-catalog", "productive-core", "operations", "agriculture", "livestock", "grazing-forage", "inventory-assets", "commerce-finance", "weather", "documents", "analytics-ai", "integrations"], "name": "EffectiveRequestContext", "interaction": "request-context", "scope": "tenant-or-platform-explicit", "supportedVersions": ["1.x"] },
     { "provider": "territory", "consumers": ["productive-core", "agriculture", "livestock", "grazing-forage", "weather", "analytics-ai", "integrations"], "name": "SpatialReferenceVersion", "interaction": "application-port", "scope": "tenant-or-platform-explicit", "supportedVersions": ["1.x"] },
     { "provider": "national-catalog", "consumers": ["productive-core", "integrations"], "name": "CatalogEntryRef", "interaction": "application-port", "scope": "tenant-or-platform-explicit", "supportedVersions": ["1.x"] },
+    { "provider": "national-catalog", "consumers": [], "name": "ProductCatalogPublished", "interaction": "event", "scope": "platform", "supportedVersions": ["1.x"] },
+    { "provider": "national-catalog", "consumers": [], "name": "ProductCatalogRolledBack", "interaction": "event", "scope": "platform", "supportedVersions": ["1.x"] },
     { "provider": "productive-core", "consumers": [], "name": "ManagementUnitCreated", "interaction": "event", "scope": "tenant", "supportedVersions": ["1.x"] },
     { "provider": "productive-core", "consumers": [], "name": "ManagementUnitDisplayNameChanged", "interaction": "event", "scope": "tenant", "supportedVersions": ["1.x"] },
     { "provider": "productive-core", "consumers": [], "name": "ManagementUnitArchived", "interaction": "event", "scope": "tenant", "supportedVersions": ["1.x"] },

@@ -6,6 +6,7 @@ import {
   type FieldContextGuard,
 } from "../fields/field-management";
 import { TerritoryExplorer } from "../territory/territory-explorer";
+import { CatalogReader } from "../catalog/catalog-reader";
 import {
   OwnerWorkspaceShell,
   type ActiveWorkspace,
@@ -1746,6 +1747,8 @@ function CurrentSession({
             );
           }
           if (workspace.view === "territory") return <TerritoryExplorer />;
+          if (workspace.view === "catalog")
+            return <CatalogReader key={workspace.membership.organizationId} />;
           if (workspace.view === "team") {
             return (
               <>

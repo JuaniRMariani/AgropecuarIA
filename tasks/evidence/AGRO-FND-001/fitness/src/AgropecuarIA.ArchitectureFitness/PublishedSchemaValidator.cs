@@ -22,6 +22,8 @@ public static class PublishedSchemaValidator
         "organization-owner-invitation-revoked.v1.schema.json",
         "organization-owner-membership-removed.v1.schema.json",
         "problem-details.v1.schema.json",
+        "product-catalog-published.v1.schema.json",
+        "product-catalog-rolled-back.v1.schema.json",
         "request-scope.v1.schema.json",
     };
 
@@ -253,12 +255,60 @@ public static class PublishedSchemaValidator
                     }
                 }
                 break;
+            case "product-catalog-published.v1.schema.json":
+                string[] publicationProperties = ["versionId", "versionTag", "previousActiveVersionId", "itemsCount", "candidateHash", "sourceSnapshotIds", "publishedAtUtc"];
+                ValidateClosedObject(root, fileName, publicationProperties, issues);
+                ValidateExactProperties(root, fileName, publicationProperties, issues);
+                ValidateStringProperty(root, fileName, "versionId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "versionTag", null, issues);
+                ValidateNullableUuid(root, fileName, "previousActiveVersionId", issues);
+                ValidateIntegerProperty(root, fileName, "itemsCount", 1, issues);
+                ValidateStringProperty(root, fileName, "candidateHash", null, issues);
+                ValidateStringProperty(root, fileName, "publishedAtUtc", "date-time", issues);
+                  if (!TryProperty(root, "properties", "candidateHash", out JsonElement candidateHash)
+                      || !candidateHash.TryGetProperty("pattern", out JsonElement hashPattern)
+                      || hashPattern.ValueKind != JsonValueKind.String || hashPattern.GetString() != "^[0-9a-f]{64}$")
+                {
+                    Add(issues, "schema.catalog.hash.invalid", "Publication candidate hash must be a SHA-256 hexadecimal value.");
+                }
+                if (!TryProperty(root, "properties", "sourceSnapshotIds", out JsonElement snapshots)
+                    || !snapshots.TryGetProperty("type", out JsonElement snapshotType) || snapshotType.GetString() != "array"
+                    || !snapshots.TryGetProperty("minItems", out JsonElement minSnapshots) || !minSnapshots.TryGetInt32(out int minCount) || minCount != 1
+                    || !snapshots.TryGetProperty("maxItems", out JsonElement maxSnapshots) || !maxSnapshots.TryGetInt32(out int maxCount) || maxCount != 64
+                    || !snapshots.TryGetProperty("uniqueItems", out JsonElement uniqueSnapshots) || uniqueSnapshots.ValueKind != JsonValueKind.True
+                    || !snapshots.TryGetProperty("items", out JsonElement snapshotItem)
+                    || !snapshotItem.TryGetProperty("type", out JsonElement itemType) || itemType.GetString() != "string"
+                    || !snapshotItem.TryGetProperty("format", out JsonElement itemFormat) || itemFormat.GetString() != "uuid")
+                {
+                    Add(issues, "schema.catalog.snapshots.invalid", "Publication must reference one to 64 distinct source snapshot UUIDs.");
+                }
+                break;
+            case "product-catalog-rolled-back.v1.schema.json":
+                string[] rollbackProperties = ["versionId", "previousActiveVersionId", "rolledBackAtUtc"];
+                ValidateClosedObject(root, fileName, rollbackProperties, issues);
+                ValidateExactProperties(root, fileName, rollbackProperties, issues);
+                ValidateStringProperty(root, fileName, "versionId", "uuid", issues);
+                ValidateNullableUuid(root, fileName, "previousActiveVersionId", issues);
+                ValidateStringProperty(root, fileName, "rolledBackAtUtc", "date-time", issues);
+                break;
             default:
                 Add(issues, "schema.unregistered", $"Schema '{fileName}' is not registered.");
                 break;
         }
 
         return Order(issues);
+    }
+
+    private static void ValidateNullableUuid(JsonElement root, string fileName, string propertyName, ICollection<ValidationIssue> issues)
+    {
+        if (!TryProperty(root, "properties", propertyName, out JsonElement property)
+              || !property.TryGetProperty("type", out JsonElement type) || type.ValueKind != JsonValueKind.Array
+              || type.EnumerateArray().Any(value => value.ValueKind != JsonValueKind.String)
+              || !type.EnumerateArray().Select(value => value.GetString()).ToHashSet(StringComparer.Ordinal).SetEquals(["string", "null"])
+            || !property.TryGetProperty("format", out JsonElement format) || format.GetString() != "uuid")
+        {
+            Add(issues, "schema.property-shape.invalid", $"Schema '{fileName}' property '{propertyName}' must be a nullable UUID.");
+        }
     }
 
     private static void ValidateRequestScope(JsonElement root, ICollection<ValidationIssue> issues)

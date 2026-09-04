@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.local/contracts/national-catalog/product-catalog-rolled-back.v1.schema.json",
+  "title": "ProductCatalogRolledBack v1 payload",
+  "description": "Local logical activation rollback; immutable publication items and existing historical references are preserved.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["versionId", "previousActiveVersionId", "rolledBackAtUtc"],
+  "properties": {
+    "versionId": {"type": "string", "format": "uuid"},
+    "previousActiveVersionId": {"type": ["string", "null"], "format": "uuid"},
+    "rolledBackAtUtc": {"type": "string", "format": "date-time"}
+  }
+}

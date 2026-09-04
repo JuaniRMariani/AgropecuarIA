@@ -82,7 +82,11 @@
       "moduleId": "national-catalog",
       "projectPath": "src/AgropecuarIA.Catalog/AgropecuarIA.Catalog.csproj",
       "databaseSchema": "catalog",
-      "contracts": [{ "path": "contracts/catalog.openapi.yaml", "version": "1.0.0" }]
+      "contracts": [
+        { "path": "contracts/catalog.openapi.yaml", "version": "2.0.0" },
+        { "path": "tasks/evidence/AGRO-FND-001/contracts/product-catalog-published.v1.schema.json", "version": "1.0.0" },
+        { "path": "tasks/evidence/AGRO-FND-001/contracts/product-catalog-rolled-back.v1.schema.json", "version": "1.0.0" }
+      ]
     },
     {
       "moduleId": "weather",

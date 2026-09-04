@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const workspaceMockState = vi.hoisted(() => ({
-  view: "account" as "fields" | "team" | "territory" | "account",
+  view: "account" as "fields" | "catalog" | "team" | "territory" | "account",
   field: { kind: "none" } as
     | Readonly<{ kind: "none" }>
     | Readonly<{ kind: "requested"; prefix: string }>
@@ -55,6 +55,12 @@ vi.mock("../../features/fields/field-management", () => ({
         Intentar otro campo
       </button>
     </section>
+  ),
+}));
+
+vi.mock("../../features/catalog/catalog-reader", () => ({
+  CatalogReader: () => (
+    <section data-testid="catalog-reader-bridge">Lector de catálogo</section>
   ),
 }));
 
@@ -173,7 +179,7 @@ function renderView(
     draft?: string;
     formOpen?: boolean;
     creation?: OrganizationCreationState;
-    view?: "fields" | "team" | "territory" | "account";
+    view?: "fields" | "catalog" | "team" | "territory" | "account";
   }> = {},
   invitationOptions: Partial<typeof invitationProps> = {},
   ownerMembershipOptions: Partial<typeof ownerMembershipProps> = {},
@@ -877,6 +883,33 @@ describe("IdentityView", () => {
     expect(container).not.toHaveTextContent(organizationId);
     fireEvent.click(screen.getByRole("button", { name: "Crear otra" }));
     expect(handlers.onStartOrganization).toHaveBeenCalledOnce();
+  });
+
+  it("renders the read-only catalog only in an authenticated active workspace", () => {
+    renderView(
+      {
+        kind: "authenticated",
+        capabilities: productionCapabilities,
+        session: accountSession,
+      },
+      { kind: "none" },
+      { view: "catalog" },
+    );
+    expect(screen.getByTestId("catalog-reader-bridge")).toBeVisible();
+    cleanup();
+    renderView({ kind: "loading" }, { kind: "none" }, { view: "catalog" });
+    expect(
+      screen.queryByTestId("catalog-reader-bridge"),
+    ).not.toBeInTheDocument();
+    cleanup();
+    renderView(
+      { kind: "signed-out", capabilities: productionCapabilities },
+      { kind: "none" },
+      { view: "catalog" },
+    );
+    expect(
+      screen.queryByTestId("catalog-reader-bridge"),
+    ).not.toBeInTheDocument();
   });
 
   it("forwards the workspace field locator and navigation bridge without exposing a UUID", () => {

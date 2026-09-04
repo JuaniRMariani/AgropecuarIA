@@ -15,6 +15,7 @@ El repositorio contiene la especificación, spikes R0 aislados bajo `tasks/evide
 - Contratos HTTP: los cinco OpenAPI bajo `contracts/`.
 - Operación local y configuración Auth0: `docs/runbooks/identity-local-and-test.md`.
 - Gates de CI y pruebas locales con PostGIS: [guía de verificación](docs/implementation/ci-quality-gates.md).
+- Publicación, procedencia y lector autenticado de catálogo: [alcance técnico y recuperación](docs/implementation/catalog-publication-reader.md).
 
 Los secretos reales se cargan únicamente al publicar un ambiente compartido. El proveedor sintético está limitado a `Development`/`Test`; la aplicación falla cerrada fuera de esos ambientes si OIDC no está configurado.
 

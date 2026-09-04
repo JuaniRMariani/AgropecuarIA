@@ -37,6 +37,21 @@ afterEach(() => {
 });
 
 describe("resolveWorkspaceLocation", () => {
+  it("resolves catalog within the existing authenticated workspace URL", () => {
+    expect(
+      resolveWorkspaceLocation([organizationA], "?org=126639&view=catalog"),
+    ).toMatchObject({
+      kind: "active",
+      view: "catalog",
+      membership: organizationA,
+    });
+    expect(buildWorkspaceUrl("/", organizationA, "catalog")).toBe(
+      "/?org=126639&view=catalog",
+    );
+    expect(resolveWorkspaceLocation([], "?org=126639&view=catalog")).toEqual({
+      kind: "onboarding",
+    });
+  });
   it("keeps an owner without organizations in onboarding", () => {
     expect(resolveWorkspaceLocation([], "?org=126639&view=team")).toMatchObject(
       {
@@ -326,6 +341,13 @@ describe("OwnerWorkspaceShell", () => {
         name: "Navegación del espacio de trabajo",
       }),
     ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Catálogo" }));
+    expect(screen.getByText("Vista visible: catalog")).toBeVisible();
+    expect(globalThis.location.search).toBe("?org=126639&view=catalog");
+    expect(screen.getByRole("button", { name: "Catálogo" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     await waitFor(() =>
       expect(onActiveOrganizationChange).toHaveBeenLastCalledWith(
         organizationA.organizationId,
@@ -465,6 +487,43 @@ describe("OwnerWorkspaceShell", () => {
         organizationB.organizationId,
       ),
     );
+  });
+
+  it("handles Back even when an earlier popstate listener synchronously refreshes parent callbacks", async () => {
+    globalThis.history.replaceState({}, "", "/?org=126639&view=fields");
+    const memberships = [organizationA, organizationB];
+    const onActiveOrganizationChange = vi.fn();
+    const shell = () => (
+      <OwnerWorkspaceShell
+        guard="clear"
+        memberships={memberships}
+        onActiveOrganizationChange={onActiveOrganizationChange}
+        onDiscardDraft={() => undefined}
+        onboarding={<p>Alta inicial</p>}
+      >
+        {(workspace) => <p>Vista visible: {workspace.view}</p>}
+      </OwnerWorkspaceShell>
+    );
+    let refreshParent: () => void = () => undefined;
+    const earlierListener = () => refreshParent();
+    globalThis.addEventListener("popstate", earlierListener);
+    try {
+      const view = render(shell());
+      refreshParent = () => view.rerender(shell());
+      await screen.findByText("Vista visible: fields");
+      fireEvent.click(screen.getByRole("button", { name: "Equipo" }));
+      expect(screen.getByText("Vista visible: team")).toBeVisible();
+      act(() => globalThis.history.back());
+      expect(await screen.findByText("Vista visible: fields")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Campos" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      act(() => globalThis.history.forward());
+      expect(await screen.findByText("Vista visible: team")).toBeVisible();
+    } finally {
+      globalThis.removeEventListener("popstate", earlierListener);
+    }
   });
 
   it.each([

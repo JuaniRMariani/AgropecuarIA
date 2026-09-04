@@ -22,6 +22,8 @@ public static class CatalogCategories
     public const string Fruticultura = "FRUTICULTURA";
     public const string Forestacion = "FORESTACION";
     public const string Otros = "OTROS";
+
+    public static bool IsValid(string value) => value is Agricultura or Ganaderia or Forraje or Horticultura or Fruticultura or Forestacion or Otros;
 }
 
 public sealed class CatalogPublishedVersion
@@ -34,7 +36,8 @@ public sealed class CatalogPublishedVersion
         bool isActive,
         string publishedBy,
         int itemsCount,
-        DateTimeOffset publishedAtUtc)
+        DateTimeOffset publishedAtUtc,
+        string? candidateHash = null)
     {
         if (id == Guid.Empty)
             throw new ArgumentException("Version ID is required.", nameof(id));
@@ -48,6 +51,7 @@ public sealed class CatalogPublishedVersion
         PublishedBy = publishedBy.Trim();
         ItemsCount = itemsCount;
         PublishedAtUtc = publishedAtUtc;
+        CandidateHash = candidateHash;
     }
 
     public Guid Id { get; private set; }
@@ -56,6 +60,7 @@ public sealed class CatalogPublishedVersion
     public string PublishedBy { get; private set; } = string.Empty;
     public int ItemsCount { get; private set; }
     public DateTimeOffset PublishedAtUtc { get; private set; }
+    public string? CandidateHash { get; private set; }
 
     public void SetActive(bool active)
     {
@@ -77,7 +82,8 @@ public sealed class CatalogPublishedItem
         string category,
         IReadOnlyList<string>? synonyms,
         bool isActive,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        Guid? sourceSnapshotId = null)
     {
         if (id == Guid.Empty)
             throw new ArgumentException("Item ID is required.", nameof(id));
@@ -106,6 +112,8 @@ public sealed class CatalogPublishedItem
         Synonyms = synonyms?.Select(s => s.Trim()).Where(s => s.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [];
         IsActive = isActive;
         CreatedAtUtc = createdAtUtc;
+        SourceSnapshotId = sourceSnapshotId;
+        NormalizedSynonyms = Synonyms.Select(CatalogNameNormalizer.Normalize).Distinct(StringComparer.Ordinal).ToArray();
     }
 
     public Guid Id { get; private set; }
@@ -120,6 +128,8 @@ public sealed class CatalogPublishedItem
     public List<string> Synonyms { get; private set; } = [];
     public bool IsActive { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
+    public Guid? SourceSnapshotId { get; private set; }
+    public string[] NormalizedSynonyms { get; private set; } = [];
 
     public void SetActive(bool active)
     {

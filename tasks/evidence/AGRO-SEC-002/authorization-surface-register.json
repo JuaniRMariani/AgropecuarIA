@@ -578,12 +578,15 @@
       "authentication": "session-cookie",
       "actorSource": "server-session-claims-revalidated",
       "tenantSource": "none",
-      "applicationAuthorization": "authenticated platform session; global catalog only, private tenant extensions not implemented",
-      "storageBoundary": "catalog-platform; no tenant data",
+      "applicationAuthorization": "explicit separately provisioned platform editorial actor permission; general authenticated readers cannot access staging diff",
+      "storageBoundary": "catalog-platform; shared transaction lock binds active baseline, latest complete selected snapshots and deterministic candidate hash; no tenant data",
       "neutralErrors": "authentication and permission failures reveal no private resource data",
       "owner": "Catalog",
       "tests": [
-        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy"
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#CandidateHashBindsBothReviewedSourcesAndActiveVersion",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#CrossSourceNormalizedCodesAndAliasesAreExplicitConflicts",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#ReviewedCandidatePublicationAndHistoricalReaderExposeCanonicalVersionAndProvenance"
       ]
     },
     {
@@ -597,13 +600,18 @@
       "actorSource": "server-session-claims-revalidated",
       "tenantSource": "none",
       "applicationAuthorization": "explicit separately provisioned platform editorial actor permission; tenant owner alone insufficient; antiforgery validated",
-      "storageBoundary": "catalog-platform; no tenant data",
+      "storageBoundary": "catalog-platform; bounded all-or-nothing verified source ingestion under shared transaction lock; legacy unverified hashes are not silently revalidated; no tenant data",
       "neutralErrors": "authentication and permission failures reveal no private resource data",
       "owner": "Catalog",
       "tests": [
         "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy",
         "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AnonymousReadersAndOrdinaryAuthenticatedWritersAreRejectedBeforeDatabaseAccess",
-        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#EditorialWritesRequireAntiforgeryAndRejectClientSuppliedPublicationActor"
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#EditorialWritesRequireAntiforgeryAndRejectClientSuppliedPublicationActor",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#InvalidUpdatedSourceIsRejectedWhollyAndDoesNotReplaceLastCompleteSnapshot",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#IngestionRollsBackEverySinkWithoutCreatingSuccessfulSnapshot",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#LegacySnapshotsRemainUnverifiedAndCanonicalReingestionCannotBypassReview",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#ReviewedCandidatePublicationAndHistoricalReaderExposeCanonicalVersionAndProvenance",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogIntegrityDatabaseTests.cs#CommittedSourcesAndReleasesRejectLateChildInsertionEvenDuringActivation"
       ]
     },
     {
@@ -710,14 +718,21 @@
       "authentication": "session-cookie+csrf",
       "actorSource": "server-session-claims-revalidated",
       "tenantSource": "none",
-      "applicationAuthorization": "explicit separately provisioned platform editorial actor permission; tenant owner alone insufficient; antiforgery validated",
-      "storageBoundary": "catalog-platform; no tenant data",
+      "applicationAuthorization": "explicit platform editorial permission and antiforgery; session-derived actor; strict candidateHash precondition rejects changed content or active baseline; no claimed professional approval",
+      "storageBoundary": "catalog-platform; shared publication lock, single-active constraint, immutable published items and provenance, atomic audit plus local ProductCatalogPublished outbox; no idempotency ledger or external dispatcher",
       "neutralErrors": "authentication and permission failures reveal no private resource data",
       "owner": "Catalog",
       "tests": [
         "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy",
         "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AnonymousReadersAndOrdinaryAuthenticatedWritersAreRejectedBeforeDatabaseAccess",
-        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#EditorialWritesRequireAntiforgeryAndRejectClientSuppliedPublicationActor"
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#EditorialWritesRequireAntiforgeryAndRejectClientSuppliedPublicationActor",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#PublicationAndRollbackRacesKeepOneActiveVersionAndNoLostHistory",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#PublicationRollsBackEverySinkIncludingPriorActiveDeactivation",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#CandidateHashBindsBothReviewedSourcesAndActiveVersion",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#ReviewedCandidatePublicationAndHistoricalReaderExposeCanonicalVersionAndProvenance",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#EditorialDatabaseFailureReturnsSafeUnavailableAndPreservesAllCommittedSinks",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogIntegrityDatabaseTests.cs#CommittedSourcesAndReleasesRejectLateChildInsertionEvenDuringActivation",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogIntegrityDatabaseTests.cs#DirectActivationRequiresFreshAuditOutboxAndCannotLeaveNoActiveRelease"
       ]
     },
     {
@@ -731,13 +746,18 @@
       "actorSource": "server-session-claims-revalidated",
       "tenantSource": "none",
       "applicationAuthorization": "explicit separately provisioned platform editorial actor permission; tenant owner alone insufficient; antiforgery validated",
-      "storageBoundary": "catalog-platform; no tenant data",
+      "storageBoundary": "catalog-platform; same activation lock as publication; atomic active switch, audit and local ProductCatalogRolledBack outbox; immutable historical items preserved, no automatic retry",
       "neutralErrors": "authentication and permission failures reveal no private resource data",
       "owner": "Catalog",
       "tests": [
         "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy",
         "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AnonymousReadersAndOrdinaryAuthenticatedWritersAreRejectedBeforeDatabaseAccess",
-        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#EditorialWritesRequireAntiforgeryAndRejectClientSuppliedPublicationActor"
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#EditorialWritesRequireAntiforgeryAndRejectClientSuppliedPublicationActor",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#PublicationAndRollbackRacesKeepOneActiveVersionAndNoLostHistory",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#RollbackPreservesActiveVersionWhenAnySinkFails",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#ReviewedCandidatePublicationAndHistoricalReaderExposeCanonicalVersionAndProvenance",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogIntegrityDatabaseTests.cs#CommittedSourcesAndReleasesRejectLateChildInsertionEvenDuringActivation",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogIntegrityDatabaseTests.cs#DirectActivationRequiresFreshAuditOutboxAndCannotLeaveNoActiveRelease"
       ]
     },
     {
@@ -751,11 +771,13 @@
       "actorSource": "server-session-claims-revalidated",
       "tenantSource": "none",
       "applicationAuthorization": "authenticated platform session; global catalog only, private tenant extensions not implemented",
-      "storageBoundary": "catalog-platform; no tenant data",
+      "storageBoundary": "catalog-platform; bounded authenticated active or explicitly pinned historical publication read; nullable legacy lineage remains unverified; no tenant extensions",
       "neutralErrors": "authentication and permission failures reveal no private resource data",
       "owner": "Catalog",
       "tests": [
-        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy"
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#LatestCompleteSourceDiffAndHistoryRetainProvenanceWithoutFalseSpecialization",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#ReviewedCandidatePublicationAndHistoricalReaderExposeCanonicalVersionAndProvenance"
       ]
     },
     {
@@ -769,11 +791,33 @@
       "actorSource": "server-session-claims-revalidated",
       "tenantSource": "none",
       "applicationAuthorization": "authenticated platform session; global catalog only, private tenant extensions not implemented",
-      "storageBoundary": "catalog-platform; no tenant data",
+      "storageBoundary": "catalog-platform; immutable item lookup in active or explicitly requested publication; source hash lineage is not official-source or professional approval",
       "neutralErrors": "authentication and permission failures reveal no private resource data",
       "owner": "Catalog",
       "tests": [
-        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy"
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#LatestCompleteSourceDiffAndHistoryRetainProvenanceWithoutFalseSpecialization",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#ReviewedCandidatePublicationAndHistoricalReaderExposeCanonicalVersionAndProvenance"
+      ]
+    },
+    {
+      "id": "catalog.versions.read",
+      "method": "GET",
+      "path": "/api/catalog/versions",
+      "boundary": "authenticated-platform",
+      "resource": "national-catalog",
+      "action": "read-version-history",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "authenticated platform session; published history only, no staging or editorial mutation permission implied",
+      "storageBoundary": "catalog-platform; publication history limited to 100 records with offset bounded at 10000; no tenant extensions",
+      "neutralErrors": "invalid pagination is explicit; no unpublished source content or private resource existence is disclosed",
+      "owner": "Catalog",
+      "tests": [
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEditorialDatabaseTests.cs#LatestCompleteSourceDiffAndHistoryRetainProvenanceWithoutFalseSpecialization",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#ReviewedCandidatePublicationAndHistoricalReaderExposeCanonicalVersionAndProvenance"
       ]
     },
     {

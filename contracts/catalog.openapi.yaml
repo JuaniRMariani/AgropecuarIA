@@ -1,33 +1,31 @@
 openapi: 3.1.0
 info:
   title: AgropecuarIA Catalog API
-  version: 1.0.0
-  description: "Current authenticated catalog surface. Editorial writes need separately provisioned platform authority. This contract does not certify complete editorial workflow or professional acceptance."
+  version: 2.0.0
+  description: "Integrated-local catalog. Version 2 requires the reviewed candidateHash for publication and editorial authority for diff. Historical reads/provenance are additive. verified_snapshot means validated ingestion/hash lineage, not official-source or professional approval. ADR-006 national-publication gates remain open. No mutation has an idempotency ledger; reconcile uncertain outcomes before another attempt, never automatically retry."
 security:
   - SessionCookie: []
 paths:
   /api/catalog/diff:
     get:
       operationId: GetCatalogDiff
-      description: "Authenticated staging summary; modified/removed are not yet computed against a published baseline."
+      description: "Platform editorial permission required. Latest complete verified snapshot per source, selected by database ingestion sequence; legacy unverified sources excluded. Candidate compares normalized rows against the active publication, with explicit conflicts and no invented source precedence. candidateHash binds activeVersionId, selected snapshot identities/hashes and sorted canonical rows, excluding generatedAtUtc. Maximum 64 sources and 50000 items. This hash is not an approval record."
       responses:
         '200':
-          description: "Successful response"
+          description: "Authenticated catalog result."
           content:
             application/json:
               schema: {"$ref":"#/components/schemas/EditorialDiff"}
-        '400':
-          description: "Invalid request or antiforgery token"
-        '401':
-          description: "Session authentication required"
-        '403':
-          description: "Permission denied"
-        '429':
-          description: "Rate limit exceeded"
+        '401': {"description":"Session authentication required."}
+        '403': {"description":"Separately provisioned platform editorial permission required; tenant owner alone is insufficient."}
+        '409': {"description":"catalog.candidate_conflict; bounded candidate cannot be constructed."}
+        '413': {"description":"catalog.source_too_large; candidate exceeds 64 selected sources or 50000 items."}
+        '429': {"description":"Rate limit exceeded."}
+        '503': {"description":"catalog.unavailable; commit outcome may be unknown. No automatic retry; refresh and reconcile state."}
   /api/catalog/ingest:
     post:
       operationId: PostCatalogIngest
-      description: "Platform editorial permission required; tenant owner alone is insufficient. Content is base64 JSON, not a URL."
+      description: "Platform editorial permission and antiforgery required. Base64 JSON array, not URL; limit 1 MiB decoded and 10000 rows. Empty source array is explicit. Invalid JSON, unknown members, invalid rows and normalized code/alias collisions reject the entire ingestion; no silent skipping. Ingestion does not activate a publication or accept supportLevel. Repeated legacy hashes require future audited revalidation; never alter content to bypass that restriction."
       security:
         - SessionCookie: []
           AntiforgeryCookie: []
@@ -40,24 +38,21 @@ paths:
             schema: {"$ref":"#/components/schemas/IngestSource"}
       responses:
         '200':
-          description: "Successful response"
+          description: "Committed local result; no professional publication certification."
           content:
             application/json:
-              schema: {"type":"object","required":["status","sourceId"],"properties":{"status":{"type":"string"},"sourceId":{"type":"string"}}}
-        '400':
-          description: "Invalid request or antiforgery token"
-        '401':
-          description: "Session authentication required"
-        '403':
-          description: "Permission denied"
-        '409':
-          description: "Duplicate source snapshot hash"
-        '429':
-          description: "Rate limit exceeded"
+              schema: {"type":"object","additionalProperties":false,"required":["status","sourceId"],"properties":{"status":{"type":"string","const":"ingested"},"sourceId":{"type":"string"}}}
+        '400': {"description":"catalog.invalid_source or catalog.invalid_request; invalid content/schema or antiforgery."}
+        '401': {"description":"Session authentication required."}
+        '403': {"description":"Separately provisioned platform editorial permission required; tenant owner alone is insufficient."}
+        '409': {"description":"catalog.duplicate_snapshot or catalog.legacy_snapshot_unverified; legacy evidence is not silently upgraded."}
+        '413': {"description":"catalog.source_too_large; decoded payload or row limit exceeded."}
+        '429': {"description":"Rate limit exceeded."}
+        '503': {"description":"catalog.unavailable; commit outcome may be unknown. No automatic retry; refresh and reconcile state."}
   /api/catalog/publish:
     post:
       operationId: PostCatalogPublish
-      description: "Platform editorial permission required. Publisher derives from session; client publishedBy is rejected. Professional approval is not asserted."
+      description: "Platform editorial permission and antiforgery required. Mandatory candidateHash must match the newly computed candidate under the shared publication lock, including active baseline. Publisher derives from session; publishedBy and unknown members are rejected. Immutable publication, provenance, single-active switch, audit and local outbox are atomic. New support is FLUJO_GENERICO only, not professional acceptance. No idempotency ledger or automatic retry; refresh versions and diff after an uncertain response."
       security:
         - SessionCookie: []
           AntiforgeryCookie: []
@@ -70,22 +65,21 @@ paths:
             schema: {"$ref":"#/components/schemas/PublishCatalog"}
       responses:
         '200':
-          description: "Successful response"
+          description: "Committed local result; no professional publication certification."
           content:
             application/json:
               schema: {"$ref":"#/components/schemas/Publication"}
-        '400':
-          description: "Invalid request or antiforgery token"
-        '401':
-          description: "Session authentication required"
-        '403':
-          description: "Permission denied"
-        '429':
-          description: "Rate limit exceeded"
+        '400': {"description":"catalog.invalid_request; missing/malformed candidateHash/versionTag, unmapped member or antiforgery."}
+        '401': {"description":"Session authentication required."}
+        '403': {"description":"Separately provisioned platform editorial permission required; tenant owner alone is insufficient."}
+        '409': {"description":"catalog.candidate_stale, catalog.candidate_conflict, catalog.empty_candidate or catalog.version_exists. Refresh diff for a new explicit decision."}
+        '413': {"description":"catalog.source_too_large; candidate exceeds 64 selected sources or 50000 items."}
+        '429': {"description":"Rate limit exceeded."}
+        '503': {"description":"catalog.unavailable; commit outcome may be unknown. No automatic retry; refresh and reconcile state."}
   /api/catalog/rollback/{versionId}:
     post:
       operationId: PostCatalogRollback
-      description: "Current integrated-local endpoint; parent backlog acceptance remains incomplete."
+      description: "Platform editorial permission and antiforgery required. Logical activation rollback under the same lock as publish/ingest/diff; immutable items and existing cycle references remain unchanged. Actor and correlation are server-derived; audit and local event atomic. An already-active target returns success without another transition, audit or event. No body or idempotency ledger. Refresh versions before retry after an uncertain result; no data deletion."
       security:
         - SessionCookie: []
           AntiforgeryCookie: []
@@ -94,80 +88,86 @@ paths:
         - {"name":"X-CSRF-TOKEN","in":"header","required":true,"schema":{"type":"string"}}
       responses:
         '200':
-          description: "Successful response"
+          description: "Committed local result; no professional publication certification."
           content:
             application/json:
-              schema: {"type":"object","required":["status","versionId"],"properties":{"status":{"type":"string"},"versionId":{"type":"string","format":"uuid"}}}
-        '400':
-          description: "Invalid request or antiforgery token"
-        '401':
-          description: "Session authentication required"
-        '403':
-          description: "Permission denied"
-        '404':
-          description: "Version not found"
-        '429':
-          description: "Rate limit exceeded"
+              schema: {"type":"object","additionalProperties":false,"required":["status","versionId"],"properties":{"status":{"type":"string","const":"rolled_back"},"versionId":{"type":"string","format":"uuid"}}}
+        '400': {"description":"catalog.invalid_request or antiforgery failure."}
+        '401': {"description":"Session authentication required."}
+        '403': {"description":"Separately provisioned platform editorial permission required; tenant owner alone is insufficient."}
+        '404': {"description":"catalog.version_not_found."}
+        '429': {"description":"Rate limit exceeded."}
+        '503': {"description":"catalog.unavailable; commit outcome may be unknown. No automatic retry; refresh and reconcile state."}
   /api/catalog/items:
     get:
       operationId: GetCatalogItems
-      description: "Current integrated-local endpoint; parent backlog acceptance remains incomplete."
+      description: "Authenticated published search by normalized code/name/synonyms without case/accent distinctions. Optional versionId pins immutable history; omitted selects active. Sort displayName/code/id, totalCount before limit. Jurisdiction filter includes AR entries. No active publication returns empty 200 with null version metadata, never a staging fallback."
       parameters:
-        - {"name":"query","in":"query","required":false,"schema":{"type":"string"}}
-        - {"name":"jurisdiction","in":"query","required":false,"schema":{"type":"string"}}
-        - {"name":"category","in":"query","required":false,"schema":{"type":"string"}}
-        - {"name":"supportLevel","in":"query","required":false,"schema":{"type":"string"}}
-        - {"name":"limit","in":"query","required":false,"schema":{"type":"integer","default":50}}
+        - {"name":"query","in":"query","schema":{"type":"string","maxLength":256}}
+        - {"name":"jurisdiction","in":"query","schema":{"type":"string","maxLength":64}}
+        - {"name":"category","in":"query","schema":{"$ref":"#/components/schemas/Category"}}
+        - {"name":"supportLevel","in":"query","schema":{"$ref":"#/components/schemas/SupportLevel"}}
+        - {"name":"limit","in":"query","schema":{"type":"integer","default":50,"minimum":1,"maximum":100}}
+        - {"name":"versionId","in":"query","required":false,"schema":{"type":"string","format":"uuid"}}
       responses:
         '200':
-          description: "Successful response"
+          description: "Authenticated catalog result."
           content:
             application/json:
               schema: {"$ref":"#/components/schemas/CatalogSearch"}
-        '400':
-          description: "Invalid request or antiforgery token"
-        '401':
-          description: "Session authentication required"
-        '403':
-          description: "Permission denied"
-        '429':
-          description: "Rate limit exceeded"
+        '400': {"description":"catalog.invalid_request; invalid bounds or filters."}
+        '401': {"description":"Session authentication required."}
+        '404': {"description":"catalog.version_not_found for unknown explicit version."}
+        '429': {"description":"Rate limit exceeded."}
+        '503': {"description":"catalog.unavailable; commit outcome may be unknown. No automatic retry; refresh and reconcile state."}
   /api/catalog/items/{code}:
     get:
       operationId: GetCatalogItem
-      description: "Current integrated-local endpoint; parent backlog acceptance remains incomplete."
+      description: "Authenticated exact normalized code lookup in active or explicitly requested historical version. Metadata identifies immutable publication and source lineage, not professional approval."
       parameters:
-        - {"name":"code","in":"path","required":true,"schema":{"type":"string"}}
+        - {"name":"code","in":"path","required":true,"schema":{"type":"string","maxLength":64}}
+        - {"name":"versionId","in":"query","required":false,"schema":{"type":"string","format":"uuid"}}
       responses:
         '200':
-          description: "Successful response"
+          description: "Authenticated catalog result."
           content:
             application/json:
               schema: {"$ref":"#/components/schemas/CatalogItem"}
-        '400':
-          description: "Invalid request or antiforgery token"
-        '401':
-          description: "Session authentication required"
-        '403':
-          description: "Permission denied"
-        '404':
-          description: "Code not found in active version"
-        '429':
-          description: "Rate limit exceeded"
+        '400': {"description":"catalog.invalid_request."}
+        '401': {"description":"Session authentication required."}
+        '404': {"description":"catalog.version_not_found for unknown explicit version; otherwise catalog.item_not_found, including no active publication."}
+        '429': {"description":"Rate limit exceeded."}
+        '503': {"description":"catalog.unavailable; commit outcome may be unknown. No automatic retry; refresh and reconcile state."}
+  /api/catalog/versions:
+    get:
+      operationId: GetCatalogVersions
+      description: "Authenticated bounded history discovery, sorted publishedAtUtc descending then id descending. activeVersionId is independent of page; version selection requires no manual UUID input. Empty history is an empty 200 page."
+      parameters:
+        - {"name":"limit","in":"query","schema":{"type":"integer","default":20,"minimum":1,"maximum":100}}
+        - {"name":"offset","in":"query","schema":{"type":"integer","default":0,"minimum":0,"maximum":10000}}
+      responses:
+        '200':
+          description: "Authenticated catalog result."
+          content:
+            application/json:
+              schema: {"$ref":"#/components/schemas/CatalogVersions"}
+        '400': {"description":"catalog.invalid_request; invalid pagination."}
+        '401': {"description":"Session authentication required."}
+        '429': {"description":"Rate limit exceeded."}
+        '503': {"description":"catalog.unavailable; commit outcome may be unknown. No automatic retry; refresh and reconcile state."}
 components:
   securitySchemes:
-    SessionCookie:
-      type: apiKey
-      in: cookie
-      name: __Host-agro-session
-    AntiforgeryCookie:
-      type: apiKey
-      in: cookie
-      name: __Host-agro-xsrf
+    SessionCookie: {type: apiKey, in: cookie, name: __Host-agro-session}
+    AntiforgeryCookie: {type: apiKey, in: cookie, name: __Host-agro-xsrf}
   schemas:
-    IngestSource: {"type":"object","required":["sourceId","contentBase64"],"properties":{"sourceId":{"type":"string"},"contentBase64":{"type":"string"}}}
-    PublishCatalog: {"type":"object","required":["versionTag"],"properties":{"versionTag":{"type":"string"}},"additionalProperties":false}
-    Publication: {"type":"object","required":["versionId","versionTag","itemsCount","publishedAtUtc"],"properties":{"versionId":{"type":"string","format":"uuid"},"versionTag":{"type":"string"},"itemsCount":{"type":"integer"},"publishedAtUtc":{"type":"string","format":"date-time"}}}
-    CatalogItem: {"type":"object","required":["id","code","displayName","jurisdiction","supportLevel","category","synonyms"],"properties":{"id":{"type":"string","format":"uuid"},"code":{"type":"string"},"displayName":{"type":"string"},"jurisdiction":{"type":"string"},"supportLevel":{"type":"string"},"category":{"type":"string"},"synonyms":{"type":"array","items":{"type":"string"}}}}
-    CatalogSearch: {"type":"object","required":["versionId","versionTag","totalCount","items"],"properties":{"versionId":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}]},"versionTag":{"anyOf":[{"type":"string"},{"type":"null"}]},"totalCount":{"type":"integer"},"items":{"type":"array","items":{"$ref":"#/components/schemas/CatalogItem"}}}}
-    EditorialDiff: {"type":"object","required":["totalStaged","added","modified","removed","conflicts","conflictDetails","generatedAtUtc"],"properties":{"totalStaged":{"type":"integer"},"added":{"type":"integer"},"modified":{"type":"integer"},"removed":{"type":"integer"},"conflicts":{"type":"integer"},"conflictDetails":{"type":"array","items":{"type":"string"}},"generatedAtUtc":{"type":"string","format":"date-time"}}}
+    Sha256: {"type":"string","pattern":"^[0-9a-f]{64}$","description":"Exact server-returned hash, not a signature or professional approval."}
+    SupportLevel: {"type":"string","enum":["CATALOGADA","FLUJO_GENERICO","ESPECIALIZADA_VALIDADA"],"description":"Legacy descriptors preserved; new publications use FLUJO_GENERICO only. No specialized capability is enabled."}
+    Category: {"type":"string","enum":["AGRICULTURA","GANADERIA","FORRAJE","HORTICULTURA","FRUTICULTURA","FORESTACION","OTROS"]}
+    IngestSource: {"type":"object","additionalProperties":false,"required":["sourceId","contentBase64"],"properties":{"sourceId":{"type":"string","minLength":1,"maxLength":128,"description":"Trimmed lowercase ASCII token beginning with a letter or digit; remaining characters may also be period/underscore/colon/hyphen."},"contentBase64":{"type":"string","minLength":1,"description":"Base64 JSON array of RawCatalogEntry, at most 1048576 decoded bytes and 10000 rows."}}}
+    RawCatalogEntry: {"type":"object","additionalProperties":false,"required":["code","displayName"],"properties":{"code":{"type":"string","minLength":1,"maxLength":64},"displayName":{"type":"string","minLength":1,"maxLength":256},"jurisdiction":{"type":"string","maxLength":64,"description":"Optional; defaults to AR."},"category":{"$ref":"#/components/schemas/Category","description":"Optional when omitted; defaults to OTROS. Explicit null is invalid."},"synonyms":{"type":"array","maxItems":20,"items":{"type":"string","minLength":1,"maxLength":256}}}}
+    PublishCatalog: {"type":"object","additionalProperties":false,"required":["versionTag","candidateHash"],"properties":{"versionTag":{"type":"string","minLength":1,"maxLength":64},"candidateHash":{"$ref":"#/components/schemas/Sha256"}}}
+    Publication: {"type":"object","additionalProperties":false,"required":["versionId","versionTag","itemsCount","publishedAtUtc"],"properties":{"versionId":{"type":"string","format":"uuid"},"versionTag":{"type":"string"},"itemsCount":{"type":"integer","minimum":1},"publishedAtUtc":{"type":"string","format":"date-time"}}}
+    CatalogItem: {"type":"object","additionalProperties":false,"required":["id","code","displayName","jurisdiction","supportLevel","category","synonyms","versionId","versionTag","activeVersionId","sourceSnapshotId","sourceId","sourceHash","sourceIngestedAtUtc","provenanceStatus","capabilities","absentCapabilities"],"properties":{"id":{"type":"string","format":"uuid"},"code":{"type":"string"},"displayName":{"type":"string"},"jurisdiction":{"type":"string"},"supportLevel":{"$ref":"#/components/schemas/SupportLevel"},"category":{"$ref":"#/components/schemas/Category"},"synonyms":{"type":"array","items":{"type":"string"}},"versionId":{"type":"string","format":"uuid"},"versionTag":{"type":"string"},"activeVersionId":{"type":["string","null"],"format":"uuid"},"sourceSnapshotId":{"type":["string","null"],"format":"uuid"},"sourceId":{"type":["string","null"]},"sourceHash":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"},"sourceIngestedAtUtc":{"type":["string","null"],"format":"date-time","description":"Ingestion time, not source validity or professional approval."},"provenanceStatus":{"type":"string","enum":["verified_snapshot","legacy_unavailable"],"description":"Validated ingested snapshot lineage only; legacy provenance remains null without invented backfill."},"capabilities":{"type":"array","maxItems":0,"items":{"type":"string"}},"absentCapabilities":{"type":"array","const":["specialized_rules","specialized_kpis","ai_recommendations"],"items":{"type":"string"}}}}
+    CatalogSearch: {"type":"object","additionalProperties":false,"required":["versionId","versionTag","activeVersionId","publishedAtUtc","isHistorical","totalCount","items"],"properties":{"versionId":{"type":["string","null"],"format":"uuid"},"versionTag":{"type":["string","null"]},"activeVersionId":{"type":["string","null"],"format":"uuid"},"publishedAtUtc":{"type":["string","null"],"format":"date-time"},"isHistorical":{"type":"boolean"},"totalCount":{"type":"integer","minimum":0},"items":{"type":"array","maxItems":100,"items":{"$ref":"#/components/schemas/CatalogItem"}}}}
+    CatalogVersions: {"type":"object","additionalProperties":false,"required":["activeVersionId","totalCount","hasMore","versions"],"properties":{"activeVersionId":{"type":["string","null"],"format":"uuid"},"totalCount":{"type":"integer","minimum":0},"hasMore":{"type":"boolean"},"versions":{"type":"array","maxItems":100,"items":{"type":"object","additionalProperties":false,"required":["id","versionTag","publishedAtUtc","isActive","itemsCount"],"properties":{"id":{"type":"string","format":"uuid"},"versionTag":{"type":"string"},"publishedAtUtc":{"type":"string","format":"date-time"},"isActive":{"type":"boolean"},"itemsCount":{"type":"integer","minimum":0}}}}}}
+    EditorialDiff: {"type":"object","additionalProperties":false,"required":["totalStaged","added","modified","removed","conflicts","conflictDetails","generatedAtUtc","candidateHash","activeVersionId","selectedSnapshots"],"properties":{"totalStaged":{"type":"integer","minimum":0},"added":{"type":"integer","minimum":0},"modified":{"type":"integer","minimum":0},"removed":{"type":"integer","minimum":0},"conflicts":{"type":"integer","minimum":0},"conflictDetails":{"type":"array","maxItems":100,"items":{"type":"string"}},"generatedAtUtc":{"type":"string","format":"date-time"},"candidateHash":{"$ref":"#/components/schemas/Sha256"},"activeVersionId":{"type":["string","null"],"format":"uuid"},"selectedSnapshots":{"type":"array","maxItems":64,"items":{"type":"object","additionalProperties":false,"required":["snapshotId","sourceId","contentHash","ingestedAtUtc","entryCount"],"properties":{"snapshotId":{"type":"string","format":"uuid"},"sourceId":{"type":"string"},"contentHash":{"$ref":"#/components/schemas/Sha256"},"ingestedAtUtc":{"type":"string","format":"date-time"},"entryCount":{"type":"integer","minimum":0,"maximum":10000}}}}}}

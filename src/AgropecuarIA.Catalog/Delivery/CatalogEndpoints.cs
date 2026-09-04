@@ -14,13 +14,23 @@ public static class CatalogEndpoints
     public const string EditorialPolicy = "CatalogEditorial";
 
     [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-    public sealed record PublishCatalogRequest(string VersionTag);
+    public sealed record PublishCatalogRequest(string VersionTag, string CandidateHash);
 
     public static IEndpointRouteBuilder MapCatalogEndpoints(this IEndpointRouteBuilder endpoints)
     {
         RouteGroupBuilder catalog = endpoints.MapGroup("/api/catalog")
             .RequireAuthorization()
             .RequireRateLimiting(RateLimitPolicy);
+        catalog.AddEndpointFilter(async (context, next) =>
+        {
+            context.HttpContext.Response.Headers.CacheControl = "no-store, private";
+            try { return await next(context); }
+            catch (CatalogOperationException error)
+            {
+                return Results.Problem(statusCode: error.StatusCode, title: error.Message,
+                    extensions: new Dictionary<string, object?> { ["code"] = error.Code, ["retryable"] = false });
+            }
+        });
 
         // Map ingestion endpoint
         catalog.MapPost("/ingest", async (
@@ -31,10 +41,10 @@ public static class CatalogEndpoints
             CancellationToken cancellationToken) =>
         {
             await antiforgery.ValidateRequestAsync(context);
-            bool ingested = await ingestionService.IngestAsync(command, cancellationToken);
+            bool ingested = await ingestionService.IngestAsync(command, EditorialContext(context), cancellationToken);
             return ingested
                 ? Results.Ok(new { status = "ingested", sourceId = command.SourceId })
-                : Results.Conflict(new { status = "duplicate_snapshot", message = "Source snapshot with identical hash already exists." });
+                : Results.Problem(statusCode: 409, title: "Source snapshot with identical hash already exists.", extensions: new Dictionary<string, object?> { ["code"] = "catalog.duplicate_snapshot" });
         }).RequireAuthorization(EditorialPolicy);
 
         // Map diff endpoint
@@ -44,7 +54,7 @@ public static class CatalogEndpoints
         {
             var report = await diffService.GenerateDiffAsync(cancellationToken);
             return Results.Ok(report);
-        });
+        }).RequireAuthorization(EditorialPolicy);
 
         // Map publish endpoint
         catalog.MapPost("/publish", async (
@@ -55,9 +65,8 @@ public static class CatalogEndpoints
             CancellationToken cancellationToken) =>
         {
             await antiforgery.ValidateRequestAsync(context);
-            Guid actorUserId = AuthenticatedSessionClaims.Read(context.User).UserId;
-            PublishVersionCommand command = new(request.VersionTag, actorUserId.ToString("D"));
-            var result = await publicationService.PublishAsync(command, cancellationToken);
+            PublishVersionCommand command = new(request.VersionTag, request.CandidateHash);
+            var result = await publicationService.PublishAsync(command, EditorialContext(context), cancellationToken);
             return Results.Ok(result);
         }).RequireAuthorization(EditorialPolicy);
 
@@ -70,10 +79,10 @@ public static class CatalogEndpoints
             CancellationToken cancellationToken) =>
         {
             await antiforgery.ValidateRequestAsync(context);
-            bool rolledBack = await publicationService.RollbackAsync(new RollbackVersionCommand(versionId), cancellationToken);
+            bool rolledBack = await publicationService.RollbackAsync(new RollbackVersionCommand(versionId), EditorialContext(context), cancellationToken);
             return rolledBack
                 ? Results.Ok(new { status = "rolled_back", versionId })
-                : Results.NotFound(new { status = "version_not_found", message = $"Version '{versionId}' not found." });
+                : throw CatalogErrors.VersionNotFound();
         }).RequireAuthorization(EditorialPolicy);
 
         // Map search items endpoint
@@ -83,11 +92,12 @@ public static class CatalogEndpoints
             string? category,
             string? supportLevel,
             int? limit,
+            Guid? versionId,
             CatalogSearchApplicationService searchService,
             CancellationToken cancellationToken) =>
         {
             var result = await searchService.SearchAsync(
-                new SearchCatalogQuery(query, jurisdiction, category, supportLevel, limit ?? 50),
+                new SearchCatalogQuery(query, jurisdiction, category, supportLevel, limit ?? 50, versionId),
                 cancellationToken);
             return Results.Ok(result);
         });
@@ -95,15 +105,25 @@ public static class CatalogEndpoints
         // Map item detail endpoint
         catalog.MapGet("/items/{code}", async (
             string code,
+            Guid? versionId,
             CatalogSearchApplicationService searchService,
             CancellationToken cancellationToken) =>
         {
-            var item = await searchService.GetItemByCodeAsync(code, cancellationToken);
+            var item = await searchService.GetItemByCodeAsync(code, cancellationToken, versionId);
             return item is not null
                 ? Results.Ok(item)
-                : Results.NotFound(new { status = "item_not_found", message = $"Item '{code}' was not found in the active catalog." });
+                : throw CatalogErrors.ItemNotFound();
         });
 
+        catalog.MapGet("/versions", async (int? limit, int? offset, CatalogSearchApplicationService searchService, CancellationToken cancellationToken) =>
+            Results.Ok(await searchService.ListVersionsAsync(limit ?? 20, offset ?? 0, cancellationToken)));
+
         return endpoints;
+    }
+
+    private static CatalogEditorialContext EditorialContext(HttpContext context)
+    {
+        var session = AuthenticatedSessionClaims.Read(context.User);
+        return new(session.UserId, session.SessionId, context.TraceIdentifier);
     }
 }

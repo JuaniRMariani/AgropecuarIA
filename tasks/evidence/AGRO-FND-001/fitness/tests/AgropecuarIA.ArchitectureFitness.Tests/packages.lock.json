@@ -370,6 +370,13 @@
       "agropecuaria.architecturefitness": {
         "type": "Project"
       },
+      "agropecuaria.catalog": {
+        "type": "Project",
+        "dependencies": {
+          "AgropecuarIA.Identity": "[1.0.0, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
       "agropecuaria.identity": {
         "type": "Project",
         "dependencies": {

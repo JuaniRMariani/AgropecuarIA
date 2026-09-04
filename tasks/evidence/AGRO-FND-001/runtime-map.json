@@ -8,7 +8,7 @@
       "contracts": [
         {
           "path": "contracts/identity.openapi.yaml",
-          "version": "2.0.0"
+          "version": "1.6.0"
         },
         {
           "path": "tasks/evidence/AGRO-FND-001/contracts/identity-linked.v1.schema.json",
@@ -58,7 +58,7 @@
       "contracts": [
         {
           "path": "contracts/productive-core.openapi.yaml",
-          "version": "1.3.0"
+          "version": "2.0.0"
         },
         {
           "path": "tasks/evidence/AGRO-FND-001/contracts/management-unit-created.v1.schema.json",

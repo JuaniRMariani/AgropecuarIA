@@ -7,6 +7,28 @@ namespace AgropecuarIA.ArchitectureFitness.Tests;
 public sealed class RuntimeArchitectureValidatorTests
 {
     [TestMethod]
+    public void EveryRegisteredOpenApiVersionMatchesItsActualInfoVersion()
+    {
+        foreach (RuntimeModule module in EvidenceFixture.RuntimeMap().Modules)
+        {
+            foreach (RuntimeContract contract in module.Contracts.Where(contract =>
+                contract.Path.EndsWith(".openapi.yaml", StringComparison.Ordinal)))
+            {
+                // These repository-owned contracts use a block-form info header,
+                // as required by the existing per-module OpenAPI guards.
+                string[] versions = File.ReadLines(Path.Combine(EvidenceFixture.RepositoryRoot(), contract.Path))
+                    .SkipWhile(line => line != "info:")
+                    .Skip(1)
+                    .TakeWhile(line => line.Length == 0 || char.IsWhiteSpace(line[0]))
+                    .Where(line => line.StartsWith("  version: ", StringComparison.Ordinal))
+                    .ToArray();
+                Assert.HasCount(1, versions, contract.Path);
+                Assert.AreEqual(versions[0]["  version: ".Length..].Trim(), contract.Version, contract.Path);
+            }
+        }
+    }
+
+    [TestMethod]
     public void PublishedRuntimeMapMatchesRepositoryProjectsAndAllowedDependencies()
     {
         var issues = RuntimeArchitectureValidator.Validate(

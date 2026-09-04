@@ -2039,3 +2039,20 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 - Inventario actualizado sin falsos cierres: **81 filas únicas**, coincidencia exacta con los 81 IDs del índice. El pipeline pasa de ausente a parcial, no a CI/CD completo. La paginación del historial y los residuos de N/N-1, idempotencia, DOC/FIN y validación profesional siguen explícitos.
 - Gate backend integrado final: **635/635 PASS**, 0 fallos/omitidos, **5m20s**, con PostgreSQL/PostGIS reales; incluye la regresión determinista del cupo y todos los nuevos tests de contratos, HTTP, migración y MVCC. Navegador integrado iniciado sobre ese mismo estado.
 - Gate navegador final: **20/20 PASS**, escritorio/móvil, **2.0m**, sin mocks de HTTP ni reintentos. El wrapper cerró su API y cluster efímeros y retiró el directorio de ejecución; se verifican puertos libres y ausencia de artefactos temporales antes del commit. Con 635 backend y 346 web, checkpoint listo para publicación con la identidad solicitada. CI remoto posterior al push se inspecciona separadamente; no se declara verde por los resultados locales.
+- Publicado `054f386cee9e74b8e9738c7fa3027e7f7e8f25e4`, author/committer `JuaniRMariani <juanirmariani@gmail.com>` y hash remoto verificados; worktree limpio al finalizar. CI `33928826921` en curso al iniciar la planificación siguiente.
+- Revisión posterior encontró drift de metadata no cubierto por los guards: runtime-map declaraba Identity 2.0.0 (su OpenAPI es 1.6.0) y Productive 1.3.0 (su OpenAPI es 2.0.0). Nueva prueba cruza todos los registros OpenAPI con `info.version`: RED confirmado antes del ajuste. Se corrigen los dos registros, sin cambiar endpoints ni versiones reales; gate de arquitectura en ejecución. La implementación de Iteración 56 permanece pausada hasta cerrar este hallazgo.
+- Corrección de metadata verificada: arquitectura **215/215 PASS**, 0 fallos/omitidos. La nueva prueba compara todos los contratos OpenAPI registrados, no solo Productive; previene que un reemplazo de versión afecte al módulo equivocado. El runtime, frontend y migraciones no cambiaron desde los gates 635/346/20. Se publica esta corrección acotada antes de implementar la paginación.
+
+## Iteración 56 — Lecturas acotadas del historial de ciclos
+
+### Plan y aceptación
+
+- [ ] Agregar endpoints GET paginados aditivos (`/fields/{fieldId}/cycles/page` y `/cycles/{cycleId}/timeline/page`) sin cambiar silenciosamente los envelopes 2.0 existentes. Documentar los GET anteriores como legado pendiente de retiro; este slice no certifica que todo el runtime tenga lecturas acotadas.
+- [ ] Aplicar límites en PostgreSQL: 20 por defecto, máximo 100, consulta de una fila adicional para `hasMore` y cursor de continuación contextual. Orden estable por fecha de registro descendente y UUID; índices correspondientes. No descargar todo para recortar en memoria.
+- [ ] Revalidar owner/organización/campo/ciclo en cada página con RLS y `private, no-store`; cursor no es autorización y se rechaza si pertenece a otro contexto. Parseo acotado/versionado y errores 400 neutros. Las páginas no prometen un snapshot transaccional entre solicitudes.
+- [ ] Conservar snapshot histórico de catálogo y distinguir fecha efectiva de fecha de registro en eventos; ninguna lectura consulta el catálogo activo ni habilita soporte especializado.
+- [ ] Probar límites, empates de orden, paginación completa sin duplicados, cursores inválidos/cruzados, autorización, archivo, cancelación y persistencia real; actualizar OpenAPI/fitness/registros y ejecutar gates.
+
+### Decisión
+
+- El análisis independiente confirmó `ToArrayAsync()` ilimitado en ambas lecturas actuales. Primero se implementa el contrato paginado de servidor; la integración UI se hará después sobre ese contrato probado, no con recortes locales ni nuevas mutaciones. Se conserva explícita la deuda de los endpoints anteriores para no inventar compatibilidad ni ocultar un cambio mayor. Trabajo local autorizado; sin deploy, credenciales ni nuevos privilegios.

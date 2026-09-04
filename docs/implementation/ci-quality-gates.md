@@ -4,6 +4,8 @@
 
 Backend uses the SDK selected by `global.json`, locked restore, high/critical NuGet dependency auditing, warnings-as-errors Release build, and the entire Microsoft.Testing.Platform solution suite. Testcontainers provides isolated PostgreSQL/PostGIS instances with generated ephemeral passwords. `AGRO_TEST_POSTGIS=true` provisions the extension only in fresh disposable test databases; application runtime does not install extensions.
 
+The backend runner emits TRX reports. An always-run diagnostic step publishes only bounded static class/method names for failed cases as check annotations; it excludes parameter/display values, stdout, failure messages and stack traces. The parser rejects DTDs and is tested independently. It does not replace or suppress the test runner's failing exit status, and no raw report artifacts are uploaded.
+
 Frontend uses Node 24 and the exact pnpm version declared by `apps/web/package.json`, frozen lockfile install, formatting, lint, type checking, all unit/component tests, production build, and high/critical package audit. Actions are pinned to reviewed commit SHAs, repository-token access is read-only, and checkout does not persist credentials. See official [checkout](https://github.com/actions/checkout), [setup-dotnet](https://github.com/actions/setup-dotnet), [setup-node](https://github.com/actions/setup-node), and [pnpm v10 setup](https://github.com/pnpm/action-setup) documentation for their respective inputs.
 
 `pnpm exec next typegen` runs before the standalone type check so a clean checkout generates its route declarations rather than relying on a developer's existing `.next` directory. The generated `next-env.d.ts` rewrite is not a hand-maintained source change.

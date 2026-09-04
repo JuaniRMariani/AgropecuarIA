@@ -35,8 +35,16 @@ jobs:
         run: dotnet restore AgropecuarIA.slnx --locked-mode -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=high
       - name: Release build (warnings are errors)
         run: dotnet build AgropecuarIA.slnx --configuration Release --no-restore
+      - name: Verify the payload-free test diagnostic parser
+        shell: pwsh
+        run: ./scripts/ci/report-test-failures.Tests.ps1
       - name: All backend, real PostgreSQL/PostGIS and architecture tests
-        run: dotnet test --solution AgropecuarIA.slnx --configuration Release --no-restore --no-build
+        id: backend-tests
+        run: dotnet test --solution AgropecuarIA.slnx --configuration Release --no-restore --no-build --report-trx --results-directory "${{ github.workspace }}/TestResults/ci"
+      - name: Report failed test methods without private test payloads
+        if: always() && (steps.backend-tests.outcome == 'failure' || steps.backend-tests.outcome == 'success')
+        shell: pwsh
+        run: ./scripts/ci/report-test-failures.ps1 -ResultsDirectory ./TestResults/ci
 
   frontend:
     name: Frontend quality and build

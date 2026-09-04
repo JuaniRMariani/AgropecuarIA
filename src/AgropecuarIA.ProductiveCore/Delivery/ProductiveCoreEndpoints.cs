@@ -188,11 +188,10 @@ public static class ProductiveCoreEndpoints
                     organizationId,
                     fieldId,
                     request.CatalogCode,
-                    request.CatalogDisplayName,
                     request.Purpose,
                     request.System,
-                    request.SupportLevel,
-                    request.StartDateUtc),
+                    request.StartDateUtc,
+                    request.ExpectedCatalogVersionId),
                 RequestContext(context, session, organizationId),
                 cancellationToken);
             return Results.Created(

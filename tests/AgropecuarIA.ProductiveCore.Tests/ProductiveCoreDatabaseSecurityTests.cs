@@ -1206,9 +1206,10 @@ public sealed partial class ProductiveCoreDatabaseSecurityTests
             await transaction.CommitAsync();
         }
 
+        var capacityRace = new CapacityRaceCoordinator();
         ProductiveCoreApplicationService service = CreateApplicationService(
             new PostgresProductiveCoreUnitOfWorkFactory(
-                new TestProductiveDbContextFactory(scenario.RuntimeConnectionString)));
+                new CapacityRaceDbContextFactory(scenario.RuntimeConnectionString, capacityRace)));
         var requestContext = new ProductiveRequestContext(
             "capacity-boundary",
             scenario.FirstActorId,
@@ -1230,11 +1231,17 @@ public sealed partial class ProductiveCoreDatabaseSecurityTests
             requestContext);
         CreateAttempt[] attempts = await Task.WhenAll(first, second);
 
+        Assert.IsInstanceOfType<InvalidOperationException>(capacityRace.SaveFailure);
+        Assert.IsInstanceOfType<DbUpdateException>(capacityRace.SaveFailure.InnerException);
+        PostgresException serializationFailure = Assert.IsInstanceOfType<PostgresException>(
+            capacityRace.SaveFailure.InnerException.InnerException);
+        Assert.AreEqual(PostgresErrorCodes.SerializationFailure, serializationFailure.SqlState);
         Assert.AreEqual(1, attempts.Count(attempt => attempt.Created));
         Assert.AreEqual(
             1,
             attempts.Count(attempt =>
-                attempt.ErrorCode == "productive_core.management_unit_capacity_reached"));
+                attempt.ErrorCode == "productive_core.management_unit_capacity_reached"),
+            string.Join(", ", attempts.Select(attempt => attempt.ErrorCode ?? "created")));
         IReadOnlyList<ManagementUnitResult> fields = await service.ListFieldsAsync(
             scenario.FirstOrganizationId,
             requestContext,

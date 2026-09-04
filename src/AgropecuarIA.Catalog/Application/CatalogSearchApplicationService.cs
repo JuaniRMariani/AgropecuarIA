@@ -12,10 +12,33 @@ public sealed record CatalogSearchResult(Guid? VersionId, string? VersionTag, in
     Guid? ActiveVersionId, DateTimeOffset? PublishedAtUtc, bool IsHistorical);
 public sealed record CatalogVersionDto(Guid Id, string VersionTag, DateTimeOffset PublishedAtUtc, bool IsActive, int ItemsCount);
 public sealed record CatalogVersionsResult(Guid? ActiveVersionId, int TotalCount, bool HasMore, IReadOnlyList<CatalogVersionDto> Versions);
+public enum CatalogActiveItemResolutionStatus { Resolved, NotPublished, VersionStale, ItemNotFound }
+public sealed record CatalogActiveItemResolution(CatalogActiveItemResolutionStatus Status, CatalogPublishedItemDto? Item, DateTimeOffset ResolvedAtUtc);
 
 public sealed class CatalogSearchApplicationService(CatalogDbContext dbContext)
 {
     private static readonly IReadOnlyList<string> MissingCapabilities = Array.AsReadOnly(new[] { "specialized_rules", "specialized_kpis", "ai_recommendations" });
+
+    /// <summary>Resolves the active publication as observed by one MVCC read snapshot. Expected version is a precondition, never a historical selector.</summary>
+    public Task<CatalogActiveItemResolution> ResolveActiveItemAsync(string code, Guid? expectedVersionId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(code) || code.Length > 64 || code.Any(char.IsControl) || expectedVersionId == Guid.Empty)
+            throw CatalogErrors.InvalidRequest();
+        string normalized = CatalogNameNormalizer.Normalize(code);
+        return CatalogTransaction.RunAsync(dbContext, false, async ct =>
+        {
+            CatalogPublishedVersion? active = await dbContext.CatalogPublishedVersions.AsNoTracking().SingleOrDefaultAsync(v => v.IsActive, ct);
+            DateTimeOffset resolvedAt = CatalogTransaction.UtcNow();
+            if (expectedVersionId is not null && expectedVersionId != active?.Id)
+                return new CatalogActiveItemResolution(CatalogActiveItemResolutionStatus.VersionStale, null, resolvedAt);
+            if (active is null) return new CatalogActiveItemResolution(CatalogActiveItemResolutionStatus.NotPublished, null, resolvedAt);
+            CatalogPublishedItem? item = await dbContext.CatalogPublishedItems.AsNoTracking()
+                .SingleOrDefaultAsync(i => i.VersionId == active.Id && i.NormalizedCode == normalized && i.IsActive, ct);
+            if (item is null) return new CatalogActiveItemResolution(CatalogActiveItemResolutionStatus.ItemNotFound, null, resolvedAt);
+            Dictionary<Guid, CatalogSourceSnapshot> sources = await SourcesAsync([item], ct);
+            return new CatalogActiveItemResolution(CatalogActiveItemResolutionStatus.Resolved, ToDto(item, active, active.Id, sources), resolvedAt);
+        }, cancellationToken);
+    }
 
     public Task<CatalogSearchResult> SearchAsync(SearchCatalogQuery query, CancellationToken cancellationToken)
     {

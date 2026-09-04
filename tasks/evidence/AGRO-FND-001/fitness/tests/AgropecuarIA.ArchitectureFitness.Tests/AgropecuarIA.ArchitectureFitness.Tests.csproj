@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\..\..\..\..\src\AgropecuarIA.ProductiveCore\AgropecuarIA.ProductiveCore.csproj" />
     <ProjectReference Include="..\..\..\..\..\..\src\AgropecuarIA.Territory\AgropecuarIA.Territory.csproj" />
     <ProjectReference Include="..\..\..\..\..\..\src\AgropecuarIA.Catalog\AgropecuarIA.Catalog.csproj" />
+    <ProjectReference Include="..\..\..\..\..\..\apps\AgropecuarIA.Api\AgropecuarIA.Api.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\..\module-boundaries.json" Link="evidence\module-boundaries.json" CopyToOutputDirectory="PreserveNewest" />

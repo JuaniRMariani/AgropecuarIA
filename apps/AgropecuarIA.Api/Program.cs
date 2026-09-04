@@ -70,6 +70,7 @@ builder.Services.AddProblemDetails(options =>
 builder.Services.AddTerritoryModule(builder.Configuration);
 builder.Services.AddProductiveCoreModule(builder.Configuration);
 builder.Services.AddCatalogModule(builder.Configuration);
+builder.Services.AddScoped<AgropecuarIA.ProductiveCore.Application.IProductionCatalogResolver, ProductionCatalogResolver>();
 builder.Services.AddAgropecuariaWeather(builder.Configuration);
 builder.Services.AddScoped<IWeatherResourceAuthorization, WeatherResourceAuthorization>();
 builder.Services.AddPlatformEditorialAuthorization(builder.Configuration);

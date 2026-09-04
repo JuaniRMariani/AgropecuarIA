@@ -71,6 +71,12 @@ public sealed class ProductiveCoreDbContext(DbContextOptions<ProductiveCoreDbCon
             entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
             entity.Property(item => item.StartDateUtc).IsRequired();
             entity.Property(item => item.CreatedAtUtc).IsRequired();
+            entity.Property(item => item.CatalogReferenceStatus).HasMaxLength(32).HasDefaultValue(ProductionCatalogReferenceStatuses.LegacyUnresolved).IsRequired();
+            entity.Property(item => item.CatalogVersionTag).HasMaxLength(64);
+            entity.Property(item => item.DeclaredCatalogSupportLevel).HasMaxLength(64);
+            entity.Property(item => item.CatalogSourceId).HasMaxLength(128);
+            entity.Property(item => item.CatalogSourceHash).HasMaxLength(64);
+            entity.Property(item => item.CatalogProvenanceStatus).HasMaxLength(32);
             entity.HasIndex(item => new { item.OrganizationId, item.ManagementUnitId, item.Status });
         });
 

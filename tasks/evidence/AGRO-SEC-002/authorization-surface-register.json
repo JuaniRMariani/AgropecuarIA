@@ -873,8 +873,8 @@
       "authentication": "session-cookie+csrf",
       "actorSource": "server-session-claims-revalidated",
       "tenantSource": "server-derived-route-revalidated",
-      "applicationAuthorization": "live session and active owner membership before locked field lookup; archived fields reject new cycles with productive_core.field_archived (409) while existing history remains readable",
-      "storageBoundary": "force-rls:actor+tenant+live-session; additional restrictive INSERT policy denies cycles on archived fields without restricting historical reads",
+      "applicationAuthorization": "live session and active owner membership before locked field lookup; archived fields reject new cycles with productive_core.field_archived (409) while existing history remains readable; strict request excludes caller display/support/snapshot; after field authorization API composition calls public Catalog active-snapshot resolver, expected-version mismatch precedes item lookup",
+      "storageBoundary": "force-rls:actor+tenant+live-session; additional restrictive INSERT policy denies cycles on archived fields without restricting historical reads; immutable stored publication snapshot or explicit unresolved legacy metadata; historical reads never resolve against current Catalog; new INSERT requires coherent snapshot, effective support remains generic; no Productive-to-Catalog assembly dependency or private foreign key; no idempotency ledger or active-at-cycle-commit guarantee",
       "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
       "owner": "Productive Core",
       "tests": [
@@ -882,7 +882,15 @@
         "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs#RoutesMatchFrozenContractAndRequireAuthorizationAndRateLimiting",
         "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleOwnerCanCreateRecordListAndClose",
         "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleForeignMembershipDeniesEveryOperationWithoutWriting",
-        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleRlsRequiresContextAndEventsCannotBeOverwritten"
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleRlsRequiresContextAndEventsCannotBeOverwritten",
+        "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.cs#CycleStartRequiresSessionCsrfStrictPayloadAndOwnerBeforeCatalogResolution",
+        "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.cs#CycleCatalogErrorsHaveNoEffectsAndHistoricalReadsDoNotConsultUnavailableCatalog",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.CatalogReference.cs#CycleMigrationPreservesLegacyMetadataAndNeverResolvesItFromCurrentCatalog",
+        "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.cs#CycleRetainsObservedPublicationWhenNewCatalogCommitsAfterResolutionBeforeCycleCommit",
+        "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.cs#LegacyPublicationProvidesRealReferenceWithoutSourceProofOrEffectiveSpecialization",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogActiveResolutionDatabaseTests.cs#ActiveResolutionChecksExpectedVersionBeforeMissingItemIncludingAbsentPublication",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogActiveResolutionDatabaseTests.cs#ActiveResolutionRetainsOneMvccSnapshotWhenPublicationChangesAfterActiveRead",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.CatalogReference.cs#CycleCatalogReferenceIsMandatoryForNewRowsAndImmutableThroughClose"
       ]
     },
     {
@@ -896,14 +904,17 @@
       "actorSource": "server-session-claims-revalidated",
       "tenantSource": "server-derived-route-revalidated",
       "applicationAuthorization": "live session and active owner membership authorization before resource lookup",
-      "storageBoundary": "force-rls:actor+tenant+live-session",
+      "storageBoundary": "force-rls:actor+tenant+live-session; immutable stored publication snapshot or explicit unresolved legacy metadata; historical reads never resolve against current Catalog",
       "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
       "owner": "Productive Core",
       "tests": [
         "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs#RoutesMatchFrozenContractAndRequireAuthorizationAndRateLimiting",
         "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleOwnerCanCreateRecordListAndClose",
         "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleForeignMembershipDeniesEveryOperationWithoutWriting",
-        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleRlsRequiresContextAndEventsCannotBeOverwritten"
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleRlsRequiresContextAndEventsCannotBeOverwritten",
+        "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.cs#CycleStartRequiresSessionCsrfStrictPayloadAndOwnerBeforeCatalogResolution",
+        "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.cs#CycleCatalogErrorsHaveNoEffectsAndHistoricalReadsDoNotConsultUnavailableCatalog",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.CatalogReference.cs#CycleMigrationPreservesLegacyMetadataAndNeverResolvesItFromCurrentCatalog"
       ]
     },
     {
@@ -938,14 +949,17 @@
       "actorSource": "server-session-claims-revalidated",
       "tenantSource": "server-derived-route-revalidated",
       "applicationAuthorization": "live session and active owner membership authorization before resource lookup",
-      "storageBoundary": "force-rls:actor+tenant+live-session",
+      "storageBoundary": "force-rls:actor+tenant+live-session; immutable stored publication snapshot or explicit unresolved legacy metadata; historical reads never resolve against current Catalog",
       "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
       "owner": "Productive Core",
       "tests": [
         "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs#RoutesMatchFrozenContractAndRequireAuthorizationAndRateLimiting",
         "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleOwnerCanCreateRecordListAndClose",
         "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleForeignMembershipDeniesEveryOperationWithoutWriting",
-        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleRlsRequiresContextAndEventsCannotBeOverwritten"
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleRlsRequiresContextAndEventsCannotBeOverwritten",
+        "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.cs#CycleStartRequiresSessionCsrfStrictPayloadAndOwnerBeforeCatalogResolution",
+        "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.cs#CycleCatalogErrorsHaveNoEffectsAndHistoricalReadsDoNotConsultUnavailableCatalog",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.CatalogReference.cs#CycleMigrationPreservesLegacyMetadataAndNeverResolvesItFromCurrentCatalog"
       ]
     },
     {

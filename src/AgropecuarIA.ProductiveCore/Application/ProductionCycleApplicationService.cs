@@ -7,11 +7,10 @@ public sealed record StartProductionCycleCommand(
     Guid OrganizationId,
     Guid ManagementUnitId,
     string CatalogCode,
-    string CatalogDisplayName,
     string Purpose,
     string System,
-    string SupportLevel,
-    DateTimeOffset StartDateUtc);
+    DateTimeOffset StartDateUtc,
+    Guid? ExpectedCatalogVersionId = null);
 
 public sealed record RecordProductionEventCommand(
     Guid OrganizationId,
@@ -40,7 +39,12 @@ public sealed record ProductionCycleDto(
     string Status,
     DateTimeOffset StartDateUtc,
     DateTimeOffset? EndDateUtc,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    string CatalogReferenceStatus,
+    ProductionCatalogSnapshot? CatalogSnapshot,
+    string EffectiveSupportLevel,
+    IReadOnlyList<string> Capabilities,
+    IReadOnlyList<string> AbsentCapabilities);
 
 public sealed record ProductionEventDto(
     Guid Id,
@@ -60,8 +64,11 @@ public sealed record ProductionTimelineResult(
 
 public sealed class ProductionCycleApplicationService(
     IProductiveCoreUnitOfWorkFactory unitOfWorkFactory,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IProductionCatalogResolver catalogResolver)
 {
+    private static readonly IReadOnlyList<string> AbsentCapabilities = Array.AsReadOnly(
+        new[] { "specialized_rules", "specialized_kpis", "ai_recommendations" });
     public Task<ProductionCycleDto> StartCycleAsync(
         StartProductionCycleCommand command,
         ProductiveRequestContext requestContext,
@@ -82,11 +89,15 @@ public sealed class ProductionCycleApplicationService(
                         "New production cycles cannot start on an archived field.");
                 }
 
+                ValidateStartCommand(command);
+                ProductionCatalogResolution resolution = await catalogResolver.ResolveActiveAsync(
+                    command.CatalogCode, command.ExpectedCatalogVersionId, cancellationToken);
+                ProductionCatalogSnapshot snapshot = RequireCatalogSnapshot(resolution);
+                DateTimeOffset now = timeProvider.GetUtcNow();
+                now = new DateTimeOffset(now.UtcTicks - (now.UtcTicks % 10), TimeSpan.Zero);
                 var cycle = new ProductionCycle(
                     Guid.NewGuid(), command.OrganizationId, command.ManagementUnitId,
-                    command.CatalogCode, command.CatalogDisplayName, command.Purpose,
-                    command.System, command.SupportLevel, command.StartDateUtc,
-                    timeProvider.GetUtcNow());
+                    snapshot, command.Purpose, command.System, command.StartDateUtc, now);
                 unitOfWork.AddProductionCycle(cycle);
                 return ToDto(cycle);
             }, cancellationToken);
@@ -252,7 +263,37 @@ public sealed class ProductionCycleApplicationService(
 
     private static ProductionCycleDto ToDto(ProductionCycle c) =>
         new(c.Id, c.OrganizationId, c.ManagementUnitId, c.CatalogCode, c.CatalogDisplayName,
-            c.Purpose, c.System, c.SupportLevel, c.Status, c.StartDateUtc, c.EndDateUtc, c.CreatedAtUtc);
+            c.Purpose, c.System, c.SupportLevel, c.Status, c.StartDateUtc, c.EndDateUtc, c.CreatedAtUtc,
+            c.CatalogReferenceStatus,
+            c.CatalogReferenceStatus == ProductionCatalogReferenceStatuses.ResolvedPublication
+                ? new ProductionCatalogSnapshot(c.CatalogVersionId!.Value, c.CatalogItemId!.Value, c.CatalogVersionTag!,
+                    c.CatalogCode, c.CatalogDisplayName, c.DeclaredCatalogSupportLevel!, c.CatalogSourceSnapshotId,
+                    c.CatalogSourceId, c.CatalogSourceHash, c.CatalogSourceIngestedAtUtc, c.CatalogProvenanceStatus!, c.CatalogResolvedAtUtc!.Value)
+                : null,
+            "FLUJO_GENERICO", [], AbsentCapabilities);
+
+    private static void ValidateStartCommand(StartProductionCycleCommand command)
+    {
+        if (string.IsNullOrWhiteSpace(command.CatalogCode) || command.CatalogCode.Length > 64 || command.CatalogCode.Any(char.IsControl)
+            || string.IsNullOrWhiteSpace(command.Purpose) || command.Purpose.Length > 128 || command.Purpose.Any(char.IsControl)
+            || string.IsNullOrWhiteSpace(command.System) || command.System.Length > 128 || command.System.Any(char.IsControl)
+            || command.ExpectedCatalogVersionId == Guid.Empty || command.StartDateUtc == default)
+            throw new ArgumentException("The production cycle request is invalid.");
+    }
+
+    private static ProductionCatalogSnapshot RequireCatalogSnapshot(ProductionCatalogResolution resolution)
+    {
+        if (resolution.Status == ProductionCatalogResolutionStatus.Resolved && resolution.Snapshot is not null)
+            return resolution.Snapshot;
+        (string code, int status, string title) = resolution.Status switch
+        {
+            ProductionCatalogResolutionStatus.NotPublished => ("catalog_not_published", 409, "No active catalog publication is available."),
+            ProductionCatalogResolutionStatus.VersionStale => ("catalog_version_stale", 409, "The observed active catalog version differs from the expected version."),
+            ProductionCatalogResolutionStatus.ItemNotFound => ("catalog_item_not_found", 404, "The catalog item is not available in the observed active publication."),
+            _ => ("catalog_unavailable", 503, "The catalog could not be resolved. Refresh before submitting again."),
+        };
+        throw new ProductiveCoreOperationException("productive_core." + code, status, title);
+    }
 
     private static ProductionEventDto ToEventDto(ProductionEvent e) =>
         new(e.Id, e.OrganizationId, e.ProductionCycleId, e.EventType, e.EffectiveDateUtc,

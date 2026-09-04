@@ -4,13 +4,13 @@ namespace AgropecuarIA.ProductiveCore.Application;
 
 public sealed record CreateFieldCommand(Guid OrganizationId, string DisplayName, string IdempotencyKey);
 
+[global::System.Text.Json.Serialization.JsonUnmappedMemberHandling(global::System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow)]
 public sealed record StartProductionCycleRequest(
     string CatalogCode,
-    string CatalogDisplayName,
     string Purpose,
     string System,
-    string SupportLevel,
-    DateTimeOffset StartDateUtc);
+    DateTimeOffset StartDateUtc,
+    Guid? ExpectedCatalogVersionId = null);
 
 public sealed record RecordProductionEventRequest(
     string EventType,

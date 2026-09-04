@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.local/contracts/national-catalog/catalog-entry-ref.v1.schema.json",
+  "title": "CatalogEntryRef",
+  "description": "Platform-scoped authoritative publication reference returned by the Catalog application port. No tenant extensions, active-at-cycle-commit guarantee, professional approval or specialized execution is implied.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "versionId",
+    "itemId",
+    "versionTag",
+    "code",
+    "displayName",
+    "declaredCatalogSupportLevel",
+    "sourceSnapshotId",
+    "sourceId",
+    "sourceHash",
+    "sourceIngestedAtUtc",
+    "provenanceStatus",
+    "resolvedAtUtc"
+  ],
+  "properties": {
+    "versionId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "itemId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "versionTag": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "declaredCatalogSupportLevel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Published label only; does not confer specialized capabilities."
+    },
+    "sourceSnapshotId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid"
+    },
+    "sourceId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "sourceHash": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceIngestedAtUtc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "provenanceStatus": {
+      "type": "string",
+      "enum": [
+        "verified_snapshot",
+        "legacy_unavailable"
+      ]
+    },
+    "resolvedAtUtc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Server observation time; not source validity or an assertion of active publication at cycle commit."
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "provenanceStatus": {
+          "const": "verified_snapshot"
+        },
+        "sourceSnapshotId": {
+          "type": "string"
+        },
+        "sourceId": {
+          "type": "string"
+        },
+        "sourceHash": {
+          "type": "string"
+        },
+        "sourceIngestedAtUtc": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "properties": {
+        "provenanceStatus": {
+          "const": "legacy_unavailable"
+        },
+        "sourceSnapshotId": {
+          "type": "null"
+        },
+        "sourceId": {
+          "type": "null"
+        },
+        "sourceHash": {
+          "type": "null"
+        },
+        "sourceIngestedAtUtc": {
+          "type": "null"
+        }
+      }
+    }
+  ]
+}

@@ -15,7 +15,7 @@ public sealed class ProductiveCoreOpenApiContractTests
     }
 
     [TestMethod]
-    [DataRow("  version: 1.3.0", "  version: 2.0.0", "productive-openapi.version.invalid")]
+    [DataRow("  version: 2.0.0", "  version: 1.3.0", "productive-openapi.version.invalid")]
     [DataRow("/{organizationId}/fields/{fieldId}:", "/{organizationId}/units/{fieldId}:", "productive-openapi.detail.missing")]
     [DataRow(
         "        - SessionCookie: []\n          AntiforgeryCookie: []",

@@ -2,7 +2,7 @@
 
 ## Alcance y criterio
 
-Inventario de código y evidencia sobre el baseline Git `dd808e4`, previo a las reparaciones de la iteración 50. No es una certificación de release ni afirma que se hayan repetido los gates históricos. Las reparaciones posteriores deben enlazar sus pruebas desde el plan de trabajo; no convierten automáticamente el padre en completado.
+Inventario iniciado sobre el baseline Git `dd808e4`, actualizado con las entregas verificadas `3023288`, `8f25ed6` y los gates locales de la iteración 55 (635 backend, 346 web, 20 navegador). Publicación y CI remoto se distinguen en el [plan](../../tasks/todo%20.md). No es una certificación de release completo y las reparaciones no convierten automáticamente el padre en completado. Los hallazgos del baseline se conservan abajo como historia, no como defectos todos vigentes.
 
 El [índice vigente al inicio](../../tasks/backlog/00-index.md) contiene 81 tareas: 1 `Completada`, 6 `En revisión`, 10 `En curso` y 64 `Propuesto`. Las iteraciones 38–49 agregaron implementación que el índice no refleja, pero compilación y tests unitarios no prueban una VSA de extremo a extremo.
 
@@ -21,6 +21,7 @@ Las dependencias son de implementación/verificación, no pedidos de reconfirmac
 - Runtime: `src/AgropecuarIA.Identity`, `src/AgropecuarIA.Territory`, `src/AgropecuarIA.ProductiveCore`, `src/AgropecuarIA.Catalog`, `src/AgropecuarIA.Weather`, `apps/AgropecuarIA.Api`.
 - Frontend: `apps/web/features/identity`, `territory`, `fields` y `workspace`; no había superficies productivas Catalog, Weather, Agriculture, Livestock, Grazing, Inventory, Finance, Documents o AI al baseline.
 - Pruebas bajo `tests/`, pruebas web bajo `apps/web/tests/`, wrapper local bajo `scripts/identity/`. No existía `.github` con pipeline del proyecto al baseline.
+- Actualización: `3023288` pasó 521 pruebas backend, 286 web y 16 de navegador; `8f25ed6`, 593 backend, 346 web y 20 de navegador local. Se agregó el lector Catalog y CI de verificación sin despliegue. CI remoto `33918321239` falló en concurrencia de cupo; la iteración 55 incluye una regresión determinista y su corrección, todavía pendiente de un nuevo run remoto.
 
 ## Las 81 tareas
 
@@ -36,26 +37,26 @@ Los IDs siguientes usan su prefijo completo para permitir validar unicidad y cob
 | AGRO-DIS-006 | A | Contrato económico y políticas no firmados por contador. | Ejemplos canónicos conciliables sin inventar validación fiscal. | E2 |
 | AGRO-DIS-007 | P | Escenarios sintéticos de capacidad/SLO/FinOps. | Separar targets locales de capacidad/costo medidos del piloto. | E1, E3 |
 | AGRO-FND-001 | C | Único padre formalmente completado: límites, ownership y compatibilidad. | Repetir fitness contra nuevas dependencias y endpoints. | — |
-| AGRO-FND-002 | P | Productores transaccionales existentes; inbox nuevo sin transacción explícita ni consumidor real. | Consumidor de negocio, entrega/reintento/deduplicación y fallos PG reales. | — |
+| AGRO-FND-002 | P | Productores transaccionales e inbox con marcador previo al callback en la misma transacción/contexto, probados; no consumidor de negocio ni entrega externa. | Consumidor real, despacho/reintento/deduplicación y fallos de sink; no prometer exactly-once externo. | — |
 | AGRO-FND-003 | P | Rename/ETag/migraciones parciales; no evolución y rectificación general. | Expand/contract N/N-1, backfill y restauración verificable. | — |
 | AGRO-ID-001 | P | Login/OIDC/linking local y pruebas; integración real pendiente. | Regresión local y comprobación con IdP compartido. | E3 |
-| AGRO-ID-002 | P | TOTP/recovery parciales; passkeys ausentes, refuerzo/antiforgery incompletos en handlers nuevos. | Cerrar flujo de factor y recuperación segura, no solo almacenar credenciales. | E3 |
+| AGRO-ID-002 | P | TOTP local con enrollment protegido/session-bound, CSRF y autenticación reciente; recovery atómico y 16 pruebas HTTP reales. | Step-up de login y ciclo productivo/auditoría/RLS completos, passkeys y recuperación sin sesión; no activar el proveedor local en producción. | E3 |
 | AGRO-ID-003 | P | Organización/owners/invitaciones funcionales; servicio multirol/scope no integrado a API ni autorizaciones de recursos. | Endpoints autorizados, matriz por acción, scopes y pruebas cross-tenant. | — |
 | AGRO-ID-004 | P | Revocación local propia/otras/todas demostrada históricamente. | Dispositivos/familias/notificación/propagación/SLO del padre. | E3, E4 |
 | AGRO-ID-005 | A | Sin soporte JIT productivo. | ID-004 y SEC-002/004; consentimiento, caducidad y auditoría. | E4 |
-| AGRO-CAT-001 | P | Ingesta/diff backend; sin VSA editorial autorizada y reproducible. | FND-002, ingesta acotada, actor editorial y UI/tests reales. | E1 |
-| AGRO-CAT-002 | P | Publicación/búsqueda backend; tablas publicadas faltan en migración y UI ausente. | CAT-001, migraciones, activación concurrente, rollback y búsqueda end-to-end. | E1 |
-| AGRO-CAT-003 | P | Ciclos/eventos backend sin resolver catálogo autoritativo ni journaling/idempotencia completo. | CAT-002, FND-002/003, contratos mínimos DOC/FIN y UI genérica. | — |
+| AGRO-CAT-001 | P | Ingesta JSON acotada y completamente validada, snapshots completos, diff/fingerprint y editor explícito separados del owner tenant, probados por HTTP/PG. | UI editorial, fuentes nacionales reales y acta de aprobación; no publicar el fixture sintético como baseline nacional. | E1 |
+| AGRO-CAT-002 | P | Migración publicada, activación serializada, versiones/procedencia inmutables, rollback lógico, auditoría/outbox local y lector autenticado con E2E escritorio/móvil. | Gobierno/aceptación de baseline nacional y operación externa de publicación; el padre no cierra solo por la implementación local. | E1 |
+| AGRO-CAT-003 | P | Ciclos/eventos autorizados; iteración 55 agrega puerto de resolución y snapshot histórico inmutable, con HTTP/PG y gates integrados locales aprobados. | Lecturas paginadas/UI, idempotencia/journal/eventos, contratos mínimos DOC/FIN y ciclo de vida completo. | — |
 | AGRO-CAT-004 | A | Extensiones privadas/propuestas editoriales sin runtime. | CAT-002, ID-003; separar edición global y tenant. | — |
 | AGRO-CAT-005 | A | Especialización validada/abstención no implementada. | DIS-002, CAT-002/003; perfil versionado con aprobación competente. | E1 |
 | AGRO-GIS-001 | P | Georef/cache/territorio/UI y evidencia de fixtures nacionales. | Repetir 24 casos, fallback/versionado y verificar integración vigente. | — |
-| AGRO-GIS-002 | P | Crear/listar/renombrar/ficha draft; archive/geometry no cierran mapa/validación espacial. | RLS/migraciones archive, área calculada por servidor, PostGIS y UI/mapa accesible. | E3 |
+| AGRO-GIS-002 | P | Crear/listar/renombrar/archivar/ficha con E2E; geometría inicial PostGIS validada, área esferoidal y centroide de servidor, RLS/ETag/journal/outbox probados. | UI/mapa de configuración, edición/versionado espacial y criterios territoriales/profesionales; no equiparar geometría válida con catastro. | E3 |
 | AGRO-GIS-003 | A | Sin subdivisión/fusión/historia espacial productiva. | GIS-002 y FND-003; versiones temporales y vínculos históricos. | — |
 | AGRO-GIS-004 | A | Sin intercambio GIS/capas opcionales. | GIS-002/003; importación con límites y compatibilidad. | E3, E6 |
-| AGRO-CLI-001 | P | Cliente Open-Meteo/cache backend; sin migraciones, autorización de recurso ni UI completa. | GIS-001/002, FND-002, persistencia y degradación operacional. | E3 |
-| AGRO-CLI-002 | P | Lluvia observada/rectificación backend; no VSA autorizada/verificada. | CLI-001 y ubicación autorizada, journal/idempotencia/UI. | — |
+| AGRO-CLI-001 | P | Cliente/cache con configuración explícita, migraciones y owner/recurso verificados; aún acepta coordenadas del cliente y no tiene UI completa. | Derivar ubicación del campo, corregir metadata de modelo/tiempo/frescura y agregar lector con degradación. | E3 |
+| AGRO-CLI-002 | P | Lluvia/rectificación con autorización, FORCE RLS y pruebas HTTP/PG; aún sin protocolo idempotente ni control completo de correcciones concurrentes. | Historial paginado, journal/idempotencia y UI sin duplicar observaciones rectificadas. | — |
 | AGRO-CLI-003 | P | JSON de alerta y bbox; no ingesta oficial CAP y geometría/lifecycle completos. | GIS-002; parser/fetch oficial, references/update/cancel, intersección real. | E3 |
-| AGRO-CLI-004 | P | Comparador de umbrales con defaults inventados al baseline. | Abstención sin regla; CLI-001/003, reglas explícitas/versionadas y aceptación agronómica. | E1 |
+| AGRO-CLI-004 | P | Se retiraron defaults inventados: abstención explícita sin regla; reglas editoriales y aislamiento probados. | CLI-001/003, datos/frescura autoritativos y reglas versionadas con aceptación agronómica; no recomendaciones implícitas. | E1 |
 | AGRO-CLI-005 | A | WRF existe como spike, no como servicio productivo. | Evidencia costo/calidad de DIS-004 y CLI-001/002. | E3, E6 |
 | AGRO-AGR-001 | A | Sin campañas/presupuestos/órdenes aprobables. | CAT-003/005, GIS-002 e ID-003. | E1 para especialización |
 | AGRO-AGR-002 | A | Sin parte confirmado con stock/costo único. | AGR-001, FND-002, INV-001, FIN-001. | E2 para política económica |
@@ -98,16 +99,16 @@ Los IDs siguientes usan su prefijo completo para permitir validar unicidad y cob
 | AGRO-INT-002 | A | Sin plantillas/preview/importación idempotente. | DOC-001, INT-001 y módulo destino. | E5 para formato real |
 | AGRO-INT-003 | P | Fragmentos Catalog/Georef; no sincronización programada end-to-end. | INT-001, CAT-001, GIS-001. | E3 |
 | AGRO-INT-004 | A | Sin evaluación posterior completa de factibilidad/prioridad. | Evidencia piloto y mecanismo oficial disponible. | E5, E6 |
-| AGRO-SEC-001 | P | Threat model/clasificación histórica; nuevos módulos requieren actualización. | Inventario real de superficies/datos/proveedores. | E4 donde corresponda |
-| AGRO-SEC-002 | P | Tests tenant/RLS históricos; rutas/tablas nuevas no mantienen todos los controles. | ID-003, FND-002; HTTP y PG sin bypass, positivos y negativos. | — |
-| AGRO-SEC-003 | P | Hardening en superficies anteriores, incompleto en módulos nuevos. | SEC-001, PLT-002; auth/CSRF/egress/archivos/supply chain. | — |
+| AGRO-SEC-001 | P | Registros runtime y de autorización actualizados por cada slice; no reemplazan la revisión completa del release/proveedores. | Inventario y threat model de capacidades nuevas, clasificación/retención y evidencia independiente. | E4 donde corresponda |
+| AGRO-SEC-002 | P | HTTP/PG tenant, RLS y CSRF reales ampliados a Catalog, Weather, archivo, geometría y ciclos; revisión de cada slice. | Multirol/scopes ID-003, consumidor FND-002 y matriz completa de futuras superficies. | — |
+| AGRO-SEC-003 | P | Nuevos módulos fail-closed, CSRF/editor separado, límites de ingesta y auditoría de dependencias; no certificación total. | SEC-001 y hardening de egress/archivos/proveedores/capacidades todavía ausentes. | — |
 | AGRO-SEC-004 | A | Sin operaciones completas de privacidad/retención/incidentes. | SEC-001, DOC-001/002 e inventario de proveedores. | E4 |
 | AGRO-PLT-001 | A | Bootstrap local no es promoción compatible entre entornos. | DIS-007, FND-001/003; empaquetado/configuración verificables. | E3 para aprovisionar |
-| AGRO-PLT-002 | A | Sin pipeline CI/CD del proyecto. | PLT-001; ejecutar gates reproducibles y artefactos. | E3 para runner/servicios externos |
+| AGRO-PLT-002 | P | CI GitHub Actions de backend/arquitectura/frontend, lockfiles/auditorías y diagnósticos sin payloads; sin despliegue. | Resolver intermitencia detectada y verificar nuevo run; artefactos/promoción compatible y CD siguen pendientes. | E3 para servicios/despliegue externo |
 | AGRO-PLT-003 | P | Instrumentación limitada Identity/Territory/ProductiveCore. | PLT-001 y DIS-007; métricas/alertas/SLO por integración. | E3 para backend compartido |
 | AGRO-PLT-004 | P | Restore/capacidad en spikes; no DR del producto actual integrado. | DIS-005/007, PLT-001/003 y todos los almacenes efectivos. | E3 para restore compartido |
 | AGRO-QA-001 | P | Existen fixtures/trazabilidad/tests; cobertura81 no cerrada. | DIS-001/002/007 y matriz AC→evidencia vigente. | E1 para oráculos reales |
-| AGRO-QA-002 | P | Suites históricas reales, pero módulos recientes sin gates equivalentes. | QA-001 y slices de cada release. | E1/E3 para pruebas externas |
+| AGRO-QA-002 | P | Gates locales reales backend/PostGIS/web/navegador de las últimas entregas, con fixtures sintéticos y diagnóstico CI. | QA-001, cobertura de módulos restantes, matriz/piloto y repetición de gates por release. | E1/E3 para pruebas externas |
 | AGRO-QA-003 | A | No hay cierre independiente de release completo. | QA-001/002, todas las tareas y riesgos explícitos del release. | E1/E2/E3/E4 según release |
 
 ## Hallazgos concretos del baseline
@@ -122,13 +123,15 @@ Los IDs siguientes usan su prefijo completo para permitir validar unicidad y cob
 8. El nuevo servicio de membresías/alcances está registrado pero sin endpoints ni integración con autorización por recurso. Los ciclos aceptan soporte/nombre/código de catálogo del cliente.
 9. Los nuevos handlers de TOTP no realizan la validación antiforgery/step-up explícita presente en operaciones sensibles anteriores. Los cuatro métodos de `MfaApiIntegrationTests.cs` tenían cuerpos vacíos: esos tests verdes no prueban HTTP, persistencia ni recuperación; deben reemplazarse por pruebas con acciones y aserciones reales.
 
-## Primeras tres entregas ejecutables
+## Primeras tres entregas seleccionadas en el baseline
 
 1. **Baseline de seguridad de nuevas superficies:** declarar autoridad fail-closed, CSRF y permisos por recurso; asegurar limiters/configuración y abstención explícita cuando faltan reglas. Tests de rutas positivas/negativas y regresión del runtime existente.
 2. **ArchiveFieldDraft completo:** reparar políticas/migraciones y sinks, demostrar rollback transaccional en PostgreSQL y cuota/concurrencia; cerrar contrato, cliente y UI/E2E sin pérdida de datos históricos.
 3. **Catálogo vertical:** tablas migradas, actor editorial explícito separado del owner tenant, ingesta/diff reproducibles, publicación/rollback concurrentes y búsqueda/UI verificadas. Un baseline sintético local no se etiqueta como aprobación nacional profesional.
 
 Después: normalizar roles/scopes y geometría, cerrar clima operativo, documentos y consumidor real de outbox, inventario/kernel de costos/operaciones y los módulos restantes en orden de dependencias. Las reparaciones concretas elegidas por el líder pueden reordenarse según hallazgos de gates; la prioridad no autoriza ampliar credenciales, publicar datos o inventar políticas profesionales.
+
+Las tres primeras entregas ya cuentan con implementación y gates locales, con los límites indicados en la tabla. Próximos residuos concretos: las lecturas de ciclos/timeline siguen ilimitadas y deben paginarse antes de agregar UI; algunas lecturas/autorizaciones del UOW traducen SQLSTATE 40001 a indisponibilidad (hallazgo estático separado del fallo de doble envoltorio reproducido al guardar). La evolución de escritores N/N-1 no está demostrada por las columnas aditivas del snapshot de ciclos: Productive 2.0 requiere despliegue coordinado, no realizado aquí.
 
 ## Gates externos reales
 
@@ -144,4 +147,4 @@ Después: normalizar roles/scopes y geometría, cerrar clima operativo, document
 - Las 81 filas son únicas y corresponden al índice inicial; no se cambia el estado del backlog desde este documento.
 - No se equipara un test unitario, un README de spike o una clase registrada con una VSA completada.
 - La ausencia de credenciales/profesionales limita validación externa, no cancela la implementación local restante.
-- Los resultados de tests de la iteración 50 se registran por separado en el [plan](../../tasks/todo%20.md); este documento conserva las observaciones del baseline identificado.
+- Los resultados exactos de cada iteración y su estado remoto se registran en el [plan](../../tasks/todo%20.md); se conservan separados los hallazgos históricos, la implementación verificada y lo que sigue en verificación.

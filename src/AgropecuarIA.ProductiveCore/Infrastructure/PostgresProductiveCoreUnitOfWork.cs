@@ -943,16 +943,21 @@ internal sealed partial class PostgresProductiveCoreUnitOfWork(
             """;
     }
 
-    private static bool IsSerializationFailure(Exception exception) =>
-        exception is PostgresException
+    private static bool IsSerializationFailure(Exception exception)
+    {
+        // EF's execution strategy can wrap DbUpdateException in an
+        // InvalidOperationException. Inspect the provider cause, not a fixed depth.
+        for (Exception? current = exception; current is not null; current = current.InnerException)
         {
-            SqlState: PostgresErrorCodes.SerializationFailure or
-                PostgresErrorCodes.DeadlockDetected,
-        } || exception.InnerException is PostgresException
-        {
-            SqlState: PostgresErrorCodes.SerializationFailure or
-                PostgresErrorCodes.DeadlockDetected,
-        };
+            if (current is PostgresException postgres)
+            {
+                return postgres.SqlState is PostgresErrorCodes.SerializationFailure or
+                    PostgresErrorCodes.DeadlockDetected;
+            }
+        }
+
+        return false;
+    }
 
     private static bool IsPersistenceFailure(Exception exception) =>
         exception is NpgsqlException or DbUpdateException or InvalidOperationException or

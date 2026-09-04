@@ -7,6 +7,38 @@ namespace AgropecuarIA.ProductiveCore.Tests;
 public sealed class ProductionCycleTests
 {
     [TestMethod]
+    public void ResolvedCyclePreservesCanonicalSnapshotWithoutPromotingDeclaredSpecialization()
+    {
+        DateTimeOffset now = new(2026, 9, 4, 0, 0, 0, TimeSpan.Zero);
+        var snapshot = new ProductionCatalogSnapshot(Guid.NewGuid(), Guid.NewGuid(), "legacy-real-version", "MiXeD",
+            "Canonical source name", "ESPECIALIZADA_VALIDADA", null, null, null, null, "legacy_unavailable", now);
+        var cycle = new ProductionCycle(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), snapshot, "grano", "secano", now, now);
+        Assert.AreEqual("resolved_publication", cycle.CatalogReferenceStatus);
+        Assert.AreEqual(snapshot.VersionId, cycle.CatalogVersionId);
+        Assert.AreEqual(snapshot.ItemId, cycle.CatalogItemId);
+        Assert.AreEqual(snapshot.Code, cycle.CatalogCode);
+        Assert.AreEqual(snapshot.DisplayName, cycle.CatalogDisplayName);
+        Assert.AreEqual(snapshot.DeclaredCatalogSupportLevel, cycle.DeclaredCatalogSupportLevel);
+        Assert.AreEqual("FLUJO_GENERICO", cycle.SupportLevel);
+        cycle.Close(now.AddDays(1));
+        Assert.AreEqual(snapshot.VersionId, cycle.CatalogVersionId);
+        Assert.AreEqual(snapshot.ResolvedAtUtc, cycle.CatalogResolvedAtUtc);
+    }
+
+    [TestMethod]
+    public void CatalogSnapshotRequiresCompleteOrExplicitlyUnavailableSourceProvenance()
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        var verified = new ProductionCatalogSnapshot(Guid.NewGuid(), Guid.NewGuid(), "v1", "X", "Synthetic", "FLUJO_GENERICO",
+            Guid.NewGuid(), "fixture", new string('a', 64), now, "verified_snapshot", now);
+        verified.Validate();
+        Assert.ThrowsExactly<ArgumentException>(() => (verified with { SourceHash = null }).Validate());
+        Assert.ThrowsExactly<ArgumentException>(() => (verified with { VersionId = Guid.Empty }).Validate());
+        Assert.ThrowsExactly<ArgumentException>(() => (verified with { ProvenanceStatus = "legacy_unavailable" }).Validate());
+        Assert.ThrowsExactly<ArgumentException>(() => (verified with { SourceHash = new string('A', 64) }).Validate());
+    }
+
+    [TestMethod]
     public void CycleCreationSetsPropertiesCorrectly()
     {
         Guid id = Guid.NewGuid();

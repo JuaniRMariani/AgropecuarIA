@@ -8,7 +8,7 @@
       "contracts": [
         {
           "path": "contracts/identity.openapi.yaml",
-          "version": "1.3.0"
+          "version": "2.0.0"
         },
         {
           "path": "tasks/evidence/AGRO-FND-001/contracts/identity-linked.v1.schema.json",
@@ -84,6 +84,7 @@
       "databaseSchema": "catalog",
       "contracts": [
         { "path": "contracts/catalog.openapi.yaml", "version": "2.0.0" },
+        { "path": "tasks/evidence/AGRO-FND-001/contracts/catalog-entry-ref.v1.schema.json", "version": "1.0.0" },
         { "path": "tasks/evidence/AGRO-FND-001/contracts/product-catalog-published.v1.schema.json", "version": "1.0.0" },
         { "path": "tasks/evidence/AGRO-FND-001/contracts/product-catalog-rolled-back.v1.schema.json", "version": "1.0.0" }
       ]

@@ -41,8 +41,7 @@ public sealed partial class ProductiveCoreDatabaseSecurityTests
             ProductiveTransactionMode.SerializableWrite, CancellationToken.None);
         Assert.IsNotNull(await unitOfWork.AuthorizeOwnerAsync(context, CancellationToken.None));
         unitOfWork.AddProductionCycle(new ProductionCycle(
-            Guid.NewGuid(), scenario.FirstOrganizationId, fieldId, "SOJ", "Soja", "grano", "secano",
-            "FLUJO_GENERICO", CycleDate, CycleDate));
+            Guid.NewGuid(), scenario.FirstOrganizationId, fieldId, TestCatalogSnapshot(), "grano", "secano", CycleDate, CycleDate));
         ProductivePersistenceUnavailableException blocked = await Assert.ThrowsExactlyAsync<ProductivePersistenceUnavailableException>(
             () => unitOfWork.SaveChangesAsync(CancellationToken.None));
         Assert.IsInstanceOfType<PostgresException>(blocked.InnerException?.InnerException);
@@ -157,8 +156,7 @@ public sealed partial class ProductiveCoreDatabaseSecurityTests
             ProductiveTransactionMode.SerializableWrite, CancellationToken.None);
         Assert.IsNotNull(await unitOfWork.AuthorizeOwnerAsync(context, CancellationToken.None));
         unitOfWork.AddProductionCycle(new ProductionCycle(
-            Guid.NewGuid(), scenario.FirstOrganizationId, foreignField, "SOJ", "Soja", "grano", "secano",
-            "FLUJO_GENERICO", CycleDate, CycleDate));
+            Guid.NewGuid(), scenario.FirstOrganizationId, foreignField, TestCatalogSnapshot(), "grano", "secano", CycleDate, CycleDate));
         ProductivePersistenceUnavailableException blocked = await Assert.ThrowsExactlyAsync<ProductivePersistenceUnavailableException>(
             () => unitOfWork.SaveChangesAsync(CancellationToken.None));
         Assert.IsInstanceOfType<PostgresException>(blocked.InnerException?.InnerException);
@@ -235,13 +233,23 @@ public sealed partial class ProductiveCoreDatabaseSecurityTests
     private static DateTimeOffset CycleDate => new(2026, 8, 1, 0, 0, 0, TimeSpan.Zero);
 
     private static ProductionCycleApplicationService CreateCycleService(DatabaseScenario scenario) =>
-        new(new PostgresProductiveCoreUnitOfWorkFactory(new TestProductiveDbContextFactory(scenario.RuntimeConnectionString)), TimeProvider.System);
+        new(new PostgresProductiveCoreUnitOfWorkFactory(new TestProductiveDbContextFactory(scenario.RuntimeConnectionString)), TimeProvider.System, new TestCatalogResolver());
 
     private static ProductiveRequestContext CycleContext(DatabaseScenario scenario) =>
         new("cycle-security", scenario.FirstActorId, scenario.FirstSessionId, scenario.FirstOrganizationId);
 
     private static StartProductionCycleCommand CycleCommand(Guid organizationId, Guid fieldId) =>
-        new(organizationId, fieldId, "SOJ", "Soja", "grano", "secano", "FLUJO_GENERICO", CycleDate);
+        new(organizationId, fieldId, "SOJ", "grano", "secano", CycleDate);
+
+    private static ProductionCatalogSnapshot TestCatalogSnapshot() => new(
+        Guid.Parse("e80f1342-7ef8-45dc-baf5-90bfbc260fca"), Guid.Parse("bf42c676-8105-48ab-adde-2f308fa72ea0"),
+        "synthetic-port-fixture", "SOJ", "Soja", "FLUJO_GENERICO", null, null, null, null, "legacy_unavailable", CycleDate);
+
+    private sealed class TestCatalogResolver : IProductionCatalogResolver
+    {
+        public Task<ProductionCatalogResolution> ResolveActiveAsync(string catalogCode, Guid? expectedCatalogVersionId, CancellationToken cancellationToken) =>
+            Task.FromResult(new ProductionCatalogResolution(ProductionCatalogResolutionStatus.Resolved, TestCatalogSnapshot()));
+    }
 
     private static RecordProductionEventCommand EventCommand(Guid organizationId, Guid cycleId) =>
         new(organizationId, cycleId, "siembra", CycleDate.AddDays(1), 100m, "kg", "Local test observation");

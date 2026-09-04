@@ -10,7 +10,7 @@ public static class ProductiveCoreOpenApiContractGuard
 
         if (!HasSupportedMajorVersion(text))
         {
-            Add(issues, "productive-openapi.version.invalid", "Productive Core OpenAPI version must be semantic 1.x.");
+            Add(issues, "productive-openapi.version.invalid", "Authoritative cycle catalog binding requires Productive Core OpenAPI semantic 2.x.");
         }
 
         Require(text, "/api/organizations/{organizationId}/fields:", "productive-openapi.collection.missing", issues);
@@ -55,6 +55,7 @@ public static class ProductiveCoreOpenApiContractGuard
         Require(text, "        spatialStatus: { type: string, const: not_configured }", "productive-openapi.spatial-status.open", issues);
         Require(text, "configured does not certify cadastral status, official territorial containment or agronomic suitability", "productive-openapi.non-spatial-boundary.missing", issues);
         ValidateGeometryContract(text, issues);
+        issues.AddRange(ProductiveCycleOpenApiContractGuard.Validate(text));
         Require(text, "        spatialStatus: { type: string, enum: [not_configured, configured] }", "productive-openapi.read-spatial-status.open", issues);
         Require(text, "        retryable: { type: boolean }", "productive-openapi.problem.retryable.missing", issues);
         Require(text, "organization field capacity reached (productive_core.management_unit_capacity_reached)", "productive-openapi.capacity-conflict.missing", issues);
@@ -188,7 +189,7 @@ public static class ProductiveCoreOpenApiContractGuard
                 .SingleOrDefault(line => line.StartsWith("  version: ", StringComparison.Ordinal));
         return versionLine is not null &&
             Version.TryParse(versionLine["  version: ".Length..], out Version? version) &&
-            version.Major == 1;
+            version.Major == 2;
     }
 
     private static int Count(string text, string token)

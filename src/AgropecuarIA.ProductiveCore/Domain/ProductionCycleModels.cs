@@ -27,6 +27,29 @@ public sealed class ProductionCycle
     private ProductionCycle() { }
 
     public ProductionCycle(
+        Guid id, Guid organizationId, Guid managementUnitId, ProductionCatalogSnapshot snapshot,
+        string purpose, string system, DateTimeOffset startDateUtc, DateTimeOffset createdAtUtc)
+        : this(id, organizationId, managementUnitId, snapshot.Code, snapshot.DisplayName, purpose, system,
+            "FLUJO_GENERICO", startDateUtc, createdAtUtc)
+    {
+        snapshot.Validate();
+        // Preserve the exact canonical metadata observed, including legacy publication spelling.
+        CatalogCode = snapshot.Code;
+        CatalogDisplayName = snapshot.DisplayName;
+        CatalogReferenceStatus = ProductionCatalogReferenceStatuses.ResolvedPublication;
+        CatalogVersionId = snapshot.VersionId;
+        CatalogItemId = snapshot.ItemId;
+        CatalogVersionTag = snapshot.VersionTag;
+        DeclaredCatalogSupportLevel = snapshot.DeclaredCatalogSupportLevel;
+        CatalogSourceSnapshotId = snapshot.SourceSnapshotId;
+        CatalogSourceId = snapshot.SourceId;
+        CatalogSourceHash = snapshot.SourceHash;
+        CatalogSourceIngestedAtUtc = snapshot.SourceIngestedAtUtc;
+        CatalogProvenanceStatus = snapshot.ProvenanceStatus;
+        CatalogResolvedAtUtc = snapshot.ResolvedAtUtc;
+    }
+
+    public ProductionCycle(
         Guid id,
         Guid organizationId,
         Guid managementUnitId,
@@ -75,6 +98,18 @@ public sealed class ProductionCycle
     public DateTimeOffset StartDateUtc { get; private set; }
     public DateTimeOffset? EndDateUtc { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
+
+    public string CatalogReferenceStatus { get; private set; } = ProductionCatalogReferenceStatuses.LegacyUnresolved;
+    public Guid? CatalogVersionId { get; private set; }
+    public Guid? CatalogItemId { get; private set; }
+    public string? CatalogVersionTag { get; private set; }
+    public string? DeclaredCatalogSupportLevel { get; private set; }
+    public Guid? CatalogSourceSnapshotId { get; private set; }
+    public string? CatalogSourceId { get; private set; }
+    public string? CatalogSourceHash { get; private set; }
+    public DateTimeOffset? CatalogSourceIngestedAtUtc { get; private set; }
+    public string? CatalogProvenanceStatus { get; private set; }
+    public DateTimeOffset? CatalogResolvedAtUtc { get; private set; }
 
     public void Close(DateTimeOffset endDateUtc)
     {

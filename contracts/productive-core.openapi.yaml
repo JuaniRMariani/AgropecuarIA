@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AgropecuarIA Productive Core API
-  version: 1.3.0
+  version: 2.0.0
   description: Tenant-owned productive units. Creation remains a non-spatial draft. Initial geometry configuration validates topology and calculates area with PostGIS; configured does not certify cadastral status, official territorial containment or agronomic suitability.
 paths:
   /api/organizations/{organizationId}/fields:
@@ -225,7 +225,7 @@ paths:
         - $ref: '#/components/parameters/FieldId'
       responses:
         '200':
-          description: Cycles ordered by descending start date and then cycle ID
+          description: Cycles ordered by descending start date and then cycle ID. Reads preserve stored snapshots without consulting current Catalog; legacy cycles expose catalogSnapshot null and catalogReferenceStatus legacy_unresolved.
           content:
             application/json:
               schema:
@@ -238,13 +238,14 @@ paths:
     post:
       operationId: StartProductionCycle
       summary: Start a production cycle on an authorized owner's field
-      description: Actor, durable session and tenant are revalidated before locking the field or inserting a cycle. Archived fields reject new cycles with productive_core.field_archived; existing history remains readable. Catalog fields are currently a client-supplied snapshot, not a server-verified publication or professional approval. This operation has no idempotency ledger; do not automatically resubmit an unconfirmed write.
+      description: Actor, durable session and tenant are revalidated before locking the field or inserting a cycle. Archived fields reject new cycles with productive_core.field_archived; existing history remains readable. Catalog code resolves through the public application port against one active Catalog MVCC snapshot after field authorization. expectedCatalogVersionId is an optional precondition, not a historical selector; mismatch (including no active publication) is checked before item lookup. Display name and declared support are server-derived, while effective support remains FLUJO_GENERICO. Publication may change after resolution; the cycle preserves the resolved version and source snapshot, not a guarantee of active version at commit. No professional approval is implied. This operation has no idempotency ledger; do not automatically resubmit an unconfirmed write.
       security:
         - SessionCookie: []
           AntiforgeryCookie: []
       parameters:
         - $ref: '#/components/parameters/OrganizationId'
         - $ref: '#/components/parameters/FieldId'
+        - {name: X-CSRF-TOKEN, in: header, required: true, schema: {type: string}}
       requestBody:
         required: true
         content:
@@ -252,7 +253,7 @@ paths:
             schema: { $ref: '#/components/schemas/StartProductionCycleRequest' }
       responses:
         '201':
-          description: Production cycle created
+          description: Production cycle created with an immutable authoritative publication snapshot
           headers:
             Location: { schema: { type: string } }
           content:
@@ -260,10 +261,10 @@ paths:
               schema: { $ref: '#/components/schemas/ProductionCycle' }
         '400': { $ref: '#/components/responses/CycleBadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotAvailable' }
-        '409': {description: Cannot start a new cycle on an archived field (productive_core.field_archived). Existing cycle and event history remain readable.}
+        '404': {description: Neutral unknown or inaccessible field; after successful field authorization, absent catalog code returns productive_core.catalog_item_not_found without inserting a cycle.}
+        '409': {description: Archived field (productive_core.field_archived), no active catalog without a precondition (productive_core.catalog_not_published), or active catalog differs from expectedCatalogVersionId (productive_core.catalog_version_stale). No cycle is inserted; refresh and review before a new submission.}
         '429': { $ref: '#/components/responses/RateLimited' }
-        '503': { $ref: '#/components/responses/CycleUnavailable' }
+        '503': {description: Catalog resolution unavailable (productive_core.catalog_unavailable) or cycle persistence outcome unconfirmed (productive_core.cycle_unavailable). No fallback to client metadata and no automatic replay; reconcile before retry.}
   /api/organizations/{organizationId}/cycles/{cycleId}/events:
     post:
       operationId: RecordProductionEvent
@@ -400,17 +401,7 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
   schemas:
-    StartProductionCycleRequest:
-      type: object
-      description: Catalog values are unverified client metadata pending authoritative catalog binding.
-      required: [catalogCode, catalogDisplayName, purpose, system, startDateUtc]
-      properties:
-        catalogCode: { type: string }
-        catalogDisplayName: { type: string }
-        purpose: { type: string }
-        system: { type: string }
-        supportLevel: { type: [string, 'null'] }
-        startDateUtc: { type: string, format: date-time }
+    StartProductionCycleRequest: {"type":"object","additionalProperties":false,"required":["catalogCode","purpose","system","startDateUtc"],"properties":{"catalogCode":{"type":"string","minLength":1,"maxLength":64},"purpose":{"type":"string","minLength":1,"maxLength":128},"system":{"type":"string","minLength":1,"maxLength":128},"startDateUtc":{"type":"string","format":"date-time"},"expectedCatalogVersionId":{"type":["string","null"],"format":"uuid","description":"Optional active-version precondition, not a historical version selector; mismatches are detected before item lookup."}}}
     RecordProductionEventRequest:
       type: object
       required: [eventType, effectiveDateUtc]
@@ -425,23 +416,8 @@ components:
         origin:
           type: [string, 'null']
           description: Defaults to manual; trimmed and lowercased before validating manual, importacion, dispositivo, calculo or ia
-    ProductionCycle:
-      type: object
-      additionalProperties: false
-      required: [id, organizationId, managementUnitId, catalogCode, catalogDisplayName, purpose, system, supportLevel, status, startDateUtc, endDateUtc, createdAtUtc]
-      properties:
-        id: { type: string, format: uuid }
-        organizationId: { type: string, format: uuid }
-        managementUnitId: { type: string, format: uuid }
-        catalogCode: { type: string }
-        catalogDisplayName: { type: string }
-        purpose: { type: string }
-        system: { type: string }
-        supportLevel: { type: string }
-        status: { type: string, enum: [active, closed, canceled] }
-        startDateUtc: { type: string, format: date-time }
-        endDateUtc: { type: [string, 'null'], format: date-time }
-        createdAtUtc: { type: string, format: date-time }
+    CatalogEntrySnapshot: {"type":"object","additionalProperties":false,"required":["versionId","itemId","versionTag","code","displayName","declaredCatalogSupportLevel","sourceSnapshotId","sourceId","sourceHash","sourceIngestedAtUtc","provenanceStatus","resolvedAtUtc"],"properties":{"versionId":{"type":"string","format":"uuid"},"itemId":{"type":"string","format":"uuid"},"versionTag":{"type":"string","minLength":1,"maxLength":64},"code":{"type":"string","minLength":1,"maxLength":64},"displayName":{"type":"string","minLength":1,"maxLength":256},"declaredCatalogSupportLevel":{"type":"string","minLength":1,"maxLength":64,"description":"Published label only; does not confer specialized capabilities."},"sourceSnapshotId":{"type":["string","null"],"format":"uuid"},"sourceId":{"type":["string","null"],"minLength":1,"maxLength":128},"sourceHash":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"},"sourceIngestedAtUtc":{"type":["string","null"],"format":"date-time"},"provenanceStatus":{"type":"string","enum":["verified_snapshot","legacy_unavailable"]},"resolvedAtUtc":{"type":"string","format":"date-time","description":"Server observation time; not source validity or an assertion of active publication at cycle commit."}},"oneOf":[{"properties":{"provenanceStatus":{"const":"verified_snapshot"},"sourceSnapshotId":{"type":"string"},"sourceId":{"type":"string"},"sourceHash":{"type":"string"},"sourceIngestedAtUtc":{"type":"string"}}},{"properties":{"provenanceStatus":{"const":"legacy_unavailable"},"sourceSnapshotId":{"type":"null"},"sourceId":{"type":"null"},"sourceHash":{"type":"null"},"sourceIngestedAtUtc":{"type":"null"}}}]}
+    ProductionCycle: {"type":"object","additionalProperties":false,"required":["id","organizationId","managementUnitId","catalogCode","catalogDisplayName","purpose","system","supportLevel","status","startDateUtc","endDateUtc","createdAtUtc","catalogReferenceStatus","catalogSnapshot","effectiveSupportLevel","capabilities","absentCapabilities"],"properties":{"id":{"type":"string","format":"uuid"},"organizationId":{"type":"string","format":"uuid"},"managementUnitId":{"type":"string","format":"uuid"},"catalogCode":{"type":"string"},"catalogDisplayName":{"type":"string"},"purpose":{"type":"string"},"system":{"type":"string"},"supportLevel":{"type":"string","description":"Preserved historical stored label, including unverified legacy values; newly created cycles store FLUJO_GENERICO. Use effectiveSupportLevel for supported behavior."},"status":{"type":"string","enum":["active","closed","canceled"]},"startDateUtc":{"type":"string","format":"date-time"},"endDateUtc":{"type":["string","null"],"format":"date-time"},"createdAtUtc":{"type":"string","format":"date-time"},"catalogReferenceStatus":{"type":"string","enum":["resolved_publication","legacy_unresolved"]},"catalogSnapshot":{"anyOf":[{"$ref":"#/components/schemas/CatalogEntrySnapshot"},{"type":"null"}]},"effectiveSupportLevel":{"type":"string","const":"FLUJO_GENERICO"},"capabilities":{"type":"array","maxItems":0,"items":{"type":"string"}},"absentCapabilities":{"type":"array","const":["specialized_rules","specialized_kpis","ai_recommendations"],"items":{"type":"string"}}},"oneOf":[{"properties":{"catalogReferenceStatus":{"const":"resolved_publication"},"catalogSnapshot":{"$ref":"#/components/schemas/CatalogEntrySnapshot"}}},{"properties":{"catalogReferenceStatus":{"const":"legacy_unresolved"},"catalogSnapshot":{"type":"null"}}}]}
     ProductionEvent:
       type: object
       additionalProperties: false

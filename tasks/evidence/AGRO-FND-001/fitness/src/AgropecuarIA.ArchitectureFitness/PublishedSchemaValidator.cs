@@ -8,6 +8,7 @@ public static class PublishedSchemaValidator
 
     private static readonly HashSet<string> ExpectedFiles = new(StringComparer.Ordinal)
     {
+        "catalog-entry-ref.v1.schema.json",
         "cursor-page.v1.schema.json",
         "event-envelope.v1.schema.json",
         "identity-linked.v1.schema.json",
@@ -88,6 +89,9 @@ public static class PublishedSchemaValidator
 
         switch (fileName)
         {
+            case "catalog-entry-ref.v1.schema.json":
+                issues.AddRange(CatalogEntryReferenceContractGuard.Validate(root));
+                break;
             case "request-scope.v1.schema.json":
                 ValidateRequestScope(root, issues);
                 break;

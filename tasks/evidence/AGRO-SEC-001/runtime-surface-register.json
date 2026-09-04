@@ -352,13 +352,15 @@
         "TM-012"
       ],
       "owner": "Catalog + API + AppSec",
-      "control": "All routes require session authentication. Staging diff and mutations require separately provisioned platform editorial permission; mutations also require antiforgery. Catalog API v2 requires a reviewed candidateHash bound to active baseline and complete selected source snapshots. Publication/rollback serialize activation, preserve immutable provenance and atomically write audit plus local outbox. Historical search/detail and bounded version discovery expose unavailable legacy lineage explicitly; no specialized capability or professional acceptance is implied. No idempotency ledger or external delivery is claimed.",
+      "control": "All routes require session authentication. Staging diff and mutations require separately provisioned platform editorial permission; mutations also require antiforgery. Catalog API v2 requires a reviewed candidateHash bound to active baseline and complete selected source snapshots. Publication/rollback serialize activation, preserve immutable provenance and atomically write audit plus local outbox. Historical search/detail and bounded version discovery expose unavailable legacy lineage explicitly; no specialized capability or professional acceptance is implied. No idempotency ledger or external delivery is claimed. CatalogEntryRef v1 is currently a platform-only application port consumed by Productive Core through API composition; integrations remains a planned consumer in the architecture map, not implemented runtime evidence.",
       "tests": [
         "CatalogEndpointIntegrationTests",
         "CatalogEditorialDatabaseTests",
         "CatalogOpenApiContractTests",
         "CatalogPublishedEventContractTests",
-        "CatalogIntegrityDatabaseTests"
+        "CatalogIntegrityDatabaseTests",
+        "CatalogActiveResolutionDatabaseTests",
+        "ProductionCatalogBoundaryTests"
       ],
       "contractPaths": [
         "/api/catalog/diff",
@@ -380,9 +382,11 @@
         "apps/web/tests/unit/catalog-reader.test.tsx",
         "apps/web/tests/e2e/owner-workspace.spec.ts",
         "docs/implementation/catalog-publication-reader.md",
-        "tests/AgropecuarIA.Catalog.Tests/CatalogIntegrityDatabaseTests.cs"
+        "tests/AgropecuarIA.Catalog.Tests/CatalogIntegrityDatabaseTests.cs",
+        "tasks/evidence/AGRO-FND-001/contracts/catalog-entry-ref.v1.schema.json",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogActiveResolutionDatabaseTests.cs"
       ],
-      "gate": "Local v2 editorial PostgreSQL checks and reader unit checks pass; final Catalog Release and integrated Release/browser gates remain pending after reviewed SQL immutability/activation guards. CAT-001/002 remain incomplete: segregated editorial approval workflow, audited replay of legacy unverified snapshots, national baseline professional approval and real-source operation remain unresolved. The discovery national candidate is not promoted by this local delivery."
+      "gate": "Local Catalog v2 storage, HTTP and reader/browser gates passed at checkpoint 8f25ed6; current cycle-authority port verification remains pending. CAT-001/002 remain incomplete: segregated editorial approval workflow, audited replay of legacy unverified snapshots, national baseline professional approval and real-source operation remain unresolved. The discovery national candidate is not promoted by this local delivery."
     },
     {
       "id": "RS-013",
@@ -427,11 +431,15 @@
         "TM-012"
       ],
       "owner": "Productive Core + API + Data + AppSec",
-      "control": "Archive uses a distinct ManagementUnitArchived contract. Cycles require live owner/resource authorization and tenant storage context. Initial geometry accepts only boundary and declared area; server PostGIS validates topology and generates spheroidal area/centroid. FORCE RLS protects an immutable typed snapshot; narrow transition checks and deferred integrity bind field, snapshot, journal and ManagementUnitGeometryConfigured event. Geometry GET reconciles ambiguous writes; no idempotency ledger or automatic retry. Neither geometry validation nor declared-area difference certifies cadastral status, official containment or agronomic suitability.",
+      "control": "Archive uses a distinct ManagementUnitArchived contract. Cycles require live owner/resource authorization and tenant storage context. Initial geometry accepts only boundary and declared area; server PostGIS validates topology and generates spheroidal area/centroid. FORCE RLS protects an immutable typed snapshot; narrow transition checks and deferred integrity bind field, snapshot, journal and ManagementUnitGeometryConfigured event. Geometry GET reconciles ambiguous writes; no idempotency ledger or automatic retry. Neither geometry validation nor declared-area difference certifies cadastral status, official containment or agronomic suitability. Productive API v2 cycle creation resolves CatalogEntryRef through an API-composed public application port after owner/field authorization. A single Catalog MVCC snapshot checks the optional expected active version before item lookup; the reference is frozen, not guaranteed active at cycle commit. New rows require coherent references, while old metadata stays legacy_unresolved without backfill. Stored support labels never grant specialized capabilities; effective support is generic. Historical cycle reads do not query Catalog.",
       "tests": [
         "ProductiveCoreEndpointContractTests",
         "ProductiveCoreDatabaseSecurityTests",
-        "GeometryFieldApiIntegrationTests"
+        "GeometryFieldApiIntegrationTests",
+        "ProductionCycleCatalogApiIntegrationTests",
+        "CatalogActiveResolutionDatabaseTests",
+        "ProductionCatalogBoundaryTests",
+        "ProductiveCycleCatalogContractTests"
       ],
       "contractPaths": [
         "/api/organizations/{organizationId}/fields/{fieldId}/archive",
@@ -448,9 +456,16 @@
         "tests/AgropecuarIA.Identity.Tests/GeometryFieldApiIntegrationTests.cs",
         "tasks/evidence/AGRO-FND-001/contracts/management-unit-archived.v1.schema.json",
         "tasks/evidence/AGRO-FND-001/contracts/management-unit-geometry-configured.v1.schema.json",
-        "src/AgropecuarIA.ProductiveCore/Infrastructure/Migrations/20260904194958_ConfigureInitialFieldGeometry.cs"
+        "src/AgropecuarIA.ProductiveCore/Infrastructure/Migrations/20260904194958_ConfigureInitialFieldGeometry.cs",
+        "src/AgropecuarIA.ProductiveCore/Application/ProductionCatalogPort.cs",
+        "src/AgropecuarIA.ProductiveCore/Domain/ProductionCatalogSnapshot.cs",
+        "apps/AgropecuarIA.Api/ProductionCatalogResolver.cs",
+        "tests/AgropecuarIA.Identity.Tests/ProductionCycleCatalogApiIntegrationTests.cs",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.CatalogReference.cs",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogActiveResolutionDatabaseTests.cs",
+        "tasks/evidence/AGRO-FND-001/contracts/catalog-entry-ref.v1.schema.json"
       ],
-      "gate": "Initial geometry PostgreSQL/HTTP verification passed in the 2026-09-04 integrated 521-test backend gate with isolated PostGIS 3.6.2: no failures or skips. Geometry replacement/effective history, map/form accessibility, authoritative territorial containment and tolerance/overlap policy remain incomplete. Cycle catalog provenance, event journal/outbox/idempotency and full productive UI also remain incomplete. Register membership is not a completed parent task or released capability."
+      "gate": "Initial geometry PostgreSQL/HTTP verification passed in the 2026-09-04 integrated 521-test backend gate with isolated PostGIS 3.6.2: no failures or skips. Geometry replacement/effective history, map/form accessibility, authoritative territorial containment and tolerance/overlap policy remain incomplete. Authoritative cycle-reference implementation verification is pending for this v2 delivery. Cycle event journal/outbox/idempotency, outputs/costs/documents, full productive UI and certified baseline coverage remain incomplete. Writer N-1 must stop before migration because new inserts require a snapshot; coordinated rollout is mandatory. Register membership is not a completed parent task or released capability."
     }
   ]
 }

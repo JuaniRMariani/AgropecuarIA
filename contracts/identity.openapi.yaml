@@ -499,75 +499,100 @@ paths:
 
   /api/identity/mfa/totp/setup:
     post:
-      summary: Setup TOTP
+      summary: Create session-bound TOTP enrollment
+      description: Development/Test plus enabled development-provider only; absent otherwise. Requires recent verified session and antiforgery. Enrollment token is user/session-bound and valid for ten minutes. This component is not integrated production MFA login or account recovery.
       security:
         - SessionCookie: []
-        - CsrfToken: []
+          CsrfToken: []
       responses:
         '200':
-          description: OK
+          description: Successful operation; secret material must not be logged or cached
+          content:
+            application/json:
+              schema: {"type":"object","required":["sharedKey","authenticatorUri","enrollmentToken"],"properties":{"sharedKey":{"type":"string"},"authenticatorUri":{"type":"string"},"enrollmentToken":{"type":"string"}}}
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': {description: Endpoint absent outside Development/Test or when development provider is disabled.}
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /api/identity/mfa/totp/enable:
     post:
-      summary: Enable TOTP
+      summary: Enable TOTP using protected enrollment token
+      description: Development/Test plus enabled development-provider only; absent otherwise. Requires recent verified session and antiforgery. Enrollment token is user/session-bound and valid for ten minutes. This component is not integrated production MFA login or account recovery.
       security:
         - SessionCookie: []
-        - CsrfToken: []
-      parameters:
-        - name: unverifiedSecret
-          in: query
-          required: true
-          schema:
-            type: string
+          CsrfToken: []
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              type: object
+            schema: {"type":"object","required":["code","enrollmentToken"],"properties":{"code":{"type":"string","pattern":"^[0-9]{6}$"},"enrollmentToken":{"type":"string"}}}
       responses:
         '200':
-          description: OK
+          description: Successful operation; secret material must not be logged or cached
+          content:
+            application/json:
+              schema: {"type":"object","required":["recoveryCodes"],"properties":{"recoveryCodes":{"type":"array","items":{"type":"string"}}}}
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': {description: Endpoint absent outside Development/Test or when development provider is disabled.}
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /api/identity/mfa/totp/disable:
     post:
-      summary: Disable TOTP
+      summary: Disable TOTP with current factor
+      description: Development/Test plus enabled development-provider only; absent otherwise. Requires recent verified session and antiforgery. Enrollment token is user/session-bound and valid for ten minutes. This component is not integrated production MFA login or account recovery.
       security:
         - SessionCookie: []
-        - CsrfToken: []
-      responses:
-        '204':
-          description: No Content
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '409': { $ref: '#/components/responses/Conflict' }
-
-  /api/identity/mfa/recovery/consume:
-    post:
-      summary: Consume Recovery Code
-      security:
-        - SessionCookie: []
-        - CsrfToken: []
+          CsrfToken: []
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              type: object
+            schema: {"type":"object","required":["code"],"properties":{"code":{"type":"string","pattern":"^[0-9]{6}$"}}}
       responses:
         '204':
-          description: No Content
+          description: No content
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': {description: Endpoint absent outside Development/Test or when development provider is disabled.}
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /api/identity/mfa/recovery/consume:
+    post:
+      summary: Consume an own recovery code
+      description: Development/Test plus enabled development-provider only; absent otherwise. Requires recent verified session and antiforgery. Enrollment token is user/session-bound and valid for ten minutes. This component is not integrated production MFA login or account recovery.
+      security:
+        - SessionCookie: []
+          CsrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {"type":"object","required":["recoveryCode"],"properties":{"recoveryCode":{"type":"string"}}}
+      responses:
+        '204':
+          description: No content
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': {description: Endpoint absent outside Development/Test or when development provider is disabled.}
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
 components:
   securitySchemes:
+    CsrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-TOKEN
+      description: Token must match the server-issued antiforgery cookie for this authenticated session.
     SessionCookie:
       type: apiKey
       in: cookie

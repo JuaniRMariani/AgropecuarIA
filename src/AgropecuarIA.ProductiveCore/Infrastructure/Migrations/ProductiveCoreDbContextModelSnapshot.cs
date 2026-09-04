@@ -761,7 +761,7 @@ namespace AgropecuarIA.ProductiveCore.Infrastructure.Migrations
 
                     b.ToTable("journal_entries", "productive_core", t =>
                         {
-                            t.HasCheckConstraint("CK_journal_entries_Action", "\"Action\" IN ('management_unit_created', 'management_unit_display_name_changed')");
+                            t.HasCheckConstraint("CK_journal_entries_Action", "\"Action\" IN ('management_unit_created', 'management_unit_display_name_changed', 'management_unit_archived', 'management_unit_geometry_configured')");
 
                             t.HasCheckConstraint("CK_journal_entries_Outcome", "\"Outcome\" = 'succeeded'");
                         });
@@ -833,11 +833,11 @@ namespace AgropecuarIA.ProductiveCore.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_productive_outbox_messages_AggregateType", "\"AggregateType\" = 'ManagementUnit'");
 
-                            t.HasCheckConstraint("CK_productive_outbox_messages_EventType", "\"EventType\" IN ('ManagementUnitCreated', 'ManagementUnitDisplayNameChanged')");
+                            t.HasCheckConstraint("CK_productive_outbox_messages_EventType", "\"EventType\" IN ('ManagementUnitCreated', 'ManagementUnitDisplayNameChanged', 'ManagementUnitArchived', 'ManagementUnitGeometryConfigured')");
 
                             t.HasCheckConstraint("CK_productive_outbox_messages_SourceScope", "\"Source\" = 'productive-core' AND \"Scope\" = 'tenant'");
 
-                            t.HasCheckConstraint("CK_productive_outbox_messages_Versions", "\"SchemaVersion\" = '1.0.0' AND ((\"EventType\" = 'ManagementUnitCreated' AND \"AggregateVersion\" = 1) OR (\"EventType\" = 'ManagementUnitDisplayNameChanged' AND \"AggregateVersion\" >= 2))");
+                            t.HasCheckConstraint("CK_productive_outbox_messages_Versions", "\"SchemaVersion\" = '1.0.0' AND ((\"EventType\" = 'ManagementUnitCreated' AND \"AggregateVersion\" = 1) OR (\"EventType\" IN ('ManagementUnitDisplayNameChanged', 'ManagementUnitArchived', 'ManagementUnitGeometryConfigured') AND \"AggregateVersion\" >= 2))");
                         });
                 });
 

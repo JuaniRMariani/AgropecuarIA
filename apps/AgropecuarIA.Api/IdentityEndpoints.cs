@@ -527,42 +527,50 @@ public static class IdentityEndpoints
     
         identity.MapPost("/mfa/totp/setup", async (
             HttpContext context,
+            IAntiforgery antiforgery,
             MfaApplicationService service,
             CancellationToken cancellationToken) =>
         {
+            await antiforgery.ValidateRequestAsync(context);
             AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
             var result = await service.SetupTotpAsync(current, cancellationToken);
             return Results.Ok(result);
         }).RequireAuthorization();
 
         identity.MapPost("/mfa/totp/enable", async (
-            [FromQuery] string unverifiedSecret,
             EnableTotpCommand request,
             HttpContext context,
+            IAntiforgery antiforgery,
             MfaApplicationService service,
             CancellationToken cancellationToken) =>
         {
+            await antiforgery.ValidateRequestAsync(context);
             AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
-            var result = await service.EnableTotpAsync(request, unverifiedSecret, current, cancellationToken);
+            var result = await service.EnableTotpAsync(request, current, cancellationToken);
             return Results.Ok(result);
         }).RequireAuthorization();
 
         identity.MapPost("/mfa/totp/disable", async (
+            DisableTotpCommand request,
             HttpContext context,
+            IAntiforgery antiforgery,
             MfaApplicationService service,
             CancellationToken cancellationToken) =>
         {
+            await antiforgery.ValidateRequestAsync(context);
             AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
-            await service.DisableTotpAsync(current, cancellationToken);
+            await service.DisableTotpAsync(request, current, cancellationToken);
             return Results.NoContent();
         }).RequireAuthorization();
 
         identity.MapPost("/mfa/recovery/consume", async (
             ConsumeRecoveryCodeCommand request,
             HttpContext context,
+            IAntiforgery antiforgery,
             MfaApplicationService service,
             CancellationToken cancellationToken) =>
         {
+            await antiforgery.ValidateRequestAsync(context);
             AuthenticatedSession current = AuthenticatedSessionClaims.Read(context.User);
             await service.ConsumeRecoveryCodeAsync(request, current, cancellationToken);
             return Results.NoContent();

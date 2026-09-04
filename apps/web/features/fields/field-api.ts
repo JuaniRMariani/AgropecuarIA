@@ -1,4 +1,9 @@
-import type { CreatedField, FieldSummary, RenamedField } from "./field-types";
+import type {
+  ArchivedField,
+  CreatedField,
+  FieldSummary,
+  RenamedField,
+} from "./field-types";
 
 export type FieldFailureKind =
   | "signed-out"
@@ -118,8 +123,9 @@ export function parseFieldSummary(value: unknown): FieldSummary {
   if (
     !isRecord(value) ||
     value.type !== "field" ||
-    value.status !== "draft" ||
-    value.spatialStatus !== "not_configured"
+    (value.status !== "draft" && value.status !== "archived") ||
+    (value.spatialStatus !== "not_configured" &&
+      value.spatialStatus !== "configured")
   ) {
     throw new FieldApiError("error", 502);
   }
@@ -134,8 +140,8 @@ export function parseFieldSummary(value: unknown): FieldSummary {
     organizationId: requiredUuid(value, "organizationId"),
     displayName,
     type: "field",
-    status: "draft",
-    spatialStatus: "not_configured",
+    status: value.status,
+    spatialStatus: value.spatialStatus,
     createdAtUtc: requiredDateTime(value, "createdAtUtc"),
     version: requiredUuid(value, "version"),
   };
@@ -149,16 +155,30 @@ export function parseFieldList(value: unknown): readonly FieldSummary[] {
 }
 
 export function parseCreatedField(value: unknown): CreatedField {
-  if (!isRecord(value)) {
+  if (
+    !isRecord(value) ||
+    value.status !== "draft" ||
+    value.spatialStatus !== "not_configured"
+  ) {
     throw new FieldApiError("error", 502);
   }
   return {
     ...parseFieldSummary(value),
+    status: "draft",
+    spatialStatus: "not_configured",
     isReplay: requiredBoolean(value, "isReplay"),
   };
 }
 
 export function parseRenamedField(value: unknown): RenamedField {
+  return { ...parseChangedField(value, "draft"), status: "draft" };
+}
+
+export function parseArchivedField(value: unknown): ArchivedField {
+  return { ...parseChangedField(value, "archived"), status: "archived" };
+}
+
+function parseChangedField(value: unknown, status: FieldSummary["status"]) {
   const expectedKeys = new Set([
     "fieldId",
     "organizationId",
@@ -173,6 +193,7 @@ export function parseRenamedField(value: unknown): RenamedField {
   ]);
   if (
     !isRecord(value) ||
+    value.status !== status ||
     Object.keys(value).length !== expectedKeys.size ||
     Object.keys(value).some((key) => !expectedKeys.has(key))
   ) {
@@ -266,7 +287,7 @@ async function getAntiforgeryToken(signal?: AbortSignal): Promise<string> {
 type FieldMutationRequest = Readonly<{
   path: string;
   method: "POST" | "PATCH";
-  displayName: string;
+  body: Readonly<{ displayName: string }> | null;
   idempotencyKey: string;
   version?: string;
   signal?: AbortSignal;
@@ -277,10 +298,10 @@ async function mutateField(request: FieldMutationRequest): Promise<Response> {
   const token = await getAntiforgeryToken(request.signal);
   const headers: Record<string, string> = {
     Accept: "application/json",
-    "Content-Type": "application/json",
     "Idempotency-Key": request.idempotencyKey,
     "X-CSRF-TOKEN": token,
   };
+  if (request.body !== null) headers["Content-Type"] = "application/json";
   if (request.version !== undefined) {
     validateIdentifier(request.version);
     headers["If-Match"] = `"${request.version}"`;
@@ -290,7 +311,7 @@ async function mutateField(request: FieldMutationRequest): Promise<Response> {
     cache: "no-store",
     credentials: "include",
     headers,
-    body: JSON.stringify({ displayName: request.displayName }),
+    body: request.body === null ? undefined : JSON.stringify(request.body),
     signal: request.signal,
   });
 
@@ -372,7 +393,7 @@ export async function createField(
   const response = await mutateField({
     path: `/api/organizations/${encodeURIComponent(organizationId)}/fields`,
     method: "POST",
-    displayName,
+    body: { displayName },
     idempotencyKey,
     signal,
   });
@@ -407,13 +428,49 @@ export async function renameField({
   const response = await mutateField({
     path: `/api/organizations/${encodeURIComponent(organizationId)}/fields/${encodeURIComponent(fieldId)}`,
     method: "PATCH",
-    displayName,
+    body: { displayName },
     idempotencyKey,
     version,
     signal,
   });
   const field = parseRenamedField(await readJson(response));
   if (field.organizationId !== organizationId || field.fieldId !== fieldId) {
+    throw new FieldApiError("error", 502);
+  }
+  validateStrongFieldEtag(response, field.version);
+  return field;
+}
+
+export type ArchiveFieldRequest = Readonly<{
+  organizationId: string;
+  fieldId: string;
+  version: string;
+  idempotencyKey: string;
+  signal?: AbortSignal;
+}>;
+
+export async function archiveField(
+  request: ArchiveFieldRequest,
+): Promise<ArchivedField> {
+  validateIdentifier(request.organizationId);
+  validateIdentifier(request.fieldId);
+  validateIdentifier(request.version);
+  if (!/^[A-Za-z0-9_-]{32,128}$/.test(request.idempotencyKey)) {
+    throw new FieldApiError("validation", 400);
+  }
+  const response = await mutateField({
+    path: `/api/organizations/${encodeURIComponent(request.organizationId)}/fields/${encodeURIComponent(request.fieldId)}/archive`,
+    method: "POST",
+    body: null,
+    idempotencyKey: request.idempotencyKey,
+    version: request.version,
+    signal: request.signal,
+  });
+  const field = parseArchivedField(await readJson(response));
+  if (
+    field.organizationId !== request.organizationId ||
+    field.fieldId !== request.fieldId
+  ) {
     throw new FieldApiError("error", 502);
   }
   validateStrongFieldEtag(response, field.version);

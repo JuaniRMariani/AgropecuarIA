@@ -202,6 +202,193 @@ async function expectNoSeriousAccessibilityViolations(page: Page) {
 }
 
 test.describe("owner workspace", () => {
+  test("cancels field archival without sending a write and restores keyboard focus", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await signIn(page);
+    const organization = await createOrganization(
+      page,
+      `Cancelación de archivado ${Date.now()}`,
+    );
+    const field = await createField(page, organization, "Campo conservado");
+    const fieldPath = `/api/organizations/${organization.organizationId}/fields/${field.fieldId}`;
+    const archiveRequests: string[] = [];
+    page.on("request", (request) => {
+      if (
+        new URL(request.url()).pathname === `${fieldPath}/archive` &&
+        request.method() === "POST"
+      )
+        archiveRequests.push(request.url());
+    });
+
+    await page.goto(
+      `/?org=${shortId(organization.organizationId)}&view=fields`,
+    );
+    await page
+      .getByRole("button", {
+        name: `Abrir ficha de ${field.displayName}, campo ${shortId(field.fieldId)}`,
+      })
+      .click();
+    const archive = page.getByRole("button", {
+      name: "Archivar campo",
+      exact: true,
+    });
+    await archive.click();
+    const confirmation = page.getByRole("group", {
+      name: `Archivar campo ${shortId(field.fieldId)}`,
+    });
+    const confirm = confirmation.getByRole("button", {
+      name: "Confirmar archivado",
+    });
+    await expect(confirm).toBeFocused();
+    await expect(confirmation).toContainText("No se borrará su historial");
+    await expectNoFullUuidInDom(page);
+    expect(archiveRequests).toEqual([]);
+
+    await confirm.press("Escape");
+    await expect(confirmation).toBeHidden();
+    await expect(archive).toBeFocused();
+    await archive.press("Enter");
+    await confirmation
+      .getByRole("button", { name: "Cancelar archivado" })
+      .click();
+    await expect(confirmation).toBeHidden();
+    await expect(archive).toBeFocused();
+    expect(archiveRequests).toEqual([]);
+
+    const response = await page.request.get(fieldPath);
+    expect(response.status()).toBe(200);
+    const payload: unknown = await response.json();
+    expect(payload).toMatchObject({ fieldId: field.fieldId, status: "draft" });
+    await page.getByRole("button", { name: "Cerrar ficha" }).click();
+    await expect(
+      page.getByRole("button", {
+        name: `Abrir ficha de ${field.displayName}, campo ${shortId(field.fieldId)}`,
+      }),
+    ).toBeVisible();
+    expect(archiveRequests).toEqual([]);
+  });
+
+  test("archives a real field, refreshes the active list and preserves a read-only summary", async ({
+    page,
+  }, testInfo) => {
+    testInfo.setTimeout(60_000);
+    await page.goto("/");
+    await signIn(page);
+    const organization = await createOrganization(
+      page,
+      `Archivado confirmado ${Date.now()}`,
+    );
+    const field = await createField(page, organization, "Campo para archivar");
+    const survivor = await createField(page, organization, "Campo activo");
+    const listPath = `/api/organizations/${organization.organizationId}/fields`;
+    const fieldPath = `${listPath}/${field.fieldId}`;
+    await page.goto(
+      `/?org=${shortId(organization.organizationId)}&view=fields`,
+    );
+    const openField = page.getByRole("button", {
+      name: `Abrir ficha de ${field.displayName}, campo ${shortId(field.fieldId)}`,
+    });
+    await openField.click();
+    await page
+      .getByRole("button", { name: "Archivar campo", exact: true })
+      .click();
+    const confirmation = page.getByRole("group", {
+      name: `Archivar campo ${shortId(field.fieldId)}`,
+    });
+    const confirm = confirmation.getByRole("button", {
+      name: "Confirmar archivado",
+    });
+    await expect(confirm).toBeFocused();
+    await expect(
+      page.getByRole("button", { name: "Cerrar ficha" }),
+    ).toBeDisabled();
+    await expectNoSeriousAccessibilityViolations(page);
+    await expectNoFullUuidInDom(page);
+
+    // Observe the real browser requests; this flow does not intercept or stub HTTP.
+    const archivedResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `${fieldPath}/archive` &&
+        response.request().method() === "POST",
+    );
+    const refreshedListResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === listPath &&
+        response.request().method() === "GET",
+    );
+    await confirm.click();
+    const response = await archivedResponse;
+    expect(response.status()).toBe(200);
+    const payload: unknown = await response.json();
+    expect(payload).toMatchObject({
+      fieldId: field.fieldId,
+      organizationId: organization.organizationId,
+      status: "archived",
+      isReplay: false,
+      revision: 2,
+    });
+    const headers = await response.request().allHeaders();
+    expect(headers["x-csrf-token"]).toBeTruthy();
+    expect(headers["idempotency-key"]).toMatch(/^[A-Za-z0-9_-]{32,128}$/);
+    expect(headers["if-match"]).toMatch(/^"[0-9a-f-]{36}"$/i);
+    expect(response.request().postData()).toBeNull();
+
+    const refreshedList = await refreshedListResponse;
+    expect(refreshedList.status()).toBe(200);
+    const activeFields: unknown = await refreshedList.json();
+    expect(activeFields).toEqual([
+      expect.objectContaining({ fieldId: survivor.fieldId, status: "draft" }),
+    ]);
+    await expect(
+      page.getByText("Campo archivado. Su historial se conserva.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(openField).toBeHidden();
+    await expect(
+      page.getByRole("button", {
+        name: `Abrir ficha de ${survivor.displayName}, campo ${shortId(survivor.fieldId)}`,
+      }),
+    ).toBeVisible();
+    const detail = page.locator(".field-detail").filter({
+      has: page.getByRole("heading", { name: field.displayName, level: 4 }),
+    });
+    await expect(detail.getByText("Archivado", { exact: true })).toBeVisible();
+    await expect(
+      detail.getByRole("button", { name: "Editar nombre" }),
+    ).toBeHidden();
+    await expect(
+      detail.getByRole("button", { name: "Archivar campo", exact: true }),
+    ).toBeHidden();
+    await expect(page).toHaveURL(
+      new RegExp(`&field=${shortId(field.fieldId)}$`),
+    );
+    await expectNoFullUuidInDom(page);
+    await expectNoSeriousAccessibilityViolations(page);
+
+    await detail.getByRole("button", { name: "Cerrar ficha" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Tus campos" }),
+    ).toBeFocused();
+    await page.reload();
+    await expect(
+      page.getByRole("button", {
+        name: `Abrir ficha de ${survivor.displayName}, campo ${shortId(survivor.fieldId)}`,
+      }),
+    ).toBeVisible();
+    await expect(openField).toBeHidden();
+    const persistedResponse = await page.request.get(fieldPath);
+    expect(persistedResponse.status()).toBe(200);
+    const persisted: unknown = await persistedResponse.json();
+    expect(persisted).toMatchObject({
+      fieldId: field.fieldId,
+      displayName: field.displayName,
+      status: "archived",
+    });
+  });
+
   test("isolates duplicate-labelled organizations across selector, history and mobile layout", async ({
     page,
   }, testInfo) => {

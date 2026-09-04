@@ -135,10 +135,12 @@ public static class ProductiveCoreEndpoints
             Guid fieldId,
             ConfigureFieldGeometryRequest request,
             HttpContext context,
-            ProductiveCoreApplicationService service,
+            IAntiforgery antiforgery,
+            ProductiveCoreGeometryApplicationService service,
             CancellationToken cancellationToken) =>
         {
             SetPrivateResponseHeaders(context.Response);
+            await antiforgery.ValidateRequestAsync(context);
             Guid expectedVersion = ReadStrongVersion(context.Request.Headers);
             AuthenticatedSession session = AuthenticatedSessionClaims.Read(context.User);
             var result = await service.ConfigureGeometryAsync(
@@ -147,14 +149,24 @@ public static class ProductiveCoreEndpoints
                     fieldId,
                     request.BoundaryGeoJson,
                     request.DeclaredAreaHectares,
-                    request.CalculatedAreaHectares,
-                    request.CentroidLatitude,
-                    request.CentroidLongitude,
-                    request.OfficialProvinceCode,
-                    request.OfficialDepartmentCode,
                     expectedVersion),
                 RequestContext(context, session, organizationId),
                 cancellationToken);
+            SetEntityTag(context.Response, result.Version);
+            return Results.Ok(result);
+        });
+
+        organizations.MapGet("/fields/{fieldId:guid}/geometry", async (
+            Guid organizationId,
+            Guid fieldId,
+            HttpContext context,
+            ProductiveCoreGeometryApplicationService service,
+            CancellationToken cancellationToken) =>
+        {
+            SetPrivateResponseHeaders(context.Response);
+            AuthenticatedSession session = AuthenticatedSessionClaims.Read(context.User);
+            ConfiguredFieldGeometryResult result = await service.GetGeometryAsync(
+                organizationId, fieldId, RequestContext(context, session, organizationId), cancellationToken);
             SetEntityTag(context.Response, result.Version);
             return Results.Ok(result);
         });
@@ -164,10 +176,13 @@ public static class ProductiveCoreEndpoints
             Guid fieldId,
             StartProductionCycleRequest request,
             HttpContext context,
+            IAntiforgery antiforgery,
             ProductionCycleApplicationService service,
             CancellationToken cancellationToken) =>
         {
             SetPrivateResponseHeaders(context.Response);
+            await antiforgery.ValidateRequestAsync(context);
+            AuthenticatedSession session = AuthenticatedSessionClaims.Read(context.User);
             var cycle = await service.StartCycleAsync(
                 new StartProductionCycleCommand(
                     organizationId,
@@ -178,6 +193,7 @@ public static class ProductiveCoreEndpoints
                     request.System,
                     request.SupportLevel,
                     request.StartDateUtc),
+                RequestContext(context, session, organizationId),
                 cancellationToken);
             return Results.Created(
                 $"/api/organizations/{organizationId:D}/cycles/{cycle.Id:D}",
@@ -192,7 +208,9 @@ public static class ProductiveCoreEndpoints
             CancellationToken cancellationToken) =>
         {
             SetPrivateResponseHeaders(context.Response);
-            var cycles = await service.ListCyclesAsync(organizationId, fieldId, cancellationToken);
+            AuthenticatedSession session = AuthenticatedSessionClaims.Read(context.User);
+            var cycles = await service.ListCyclesAsync(organizationId, fieldId,
+                RequestContext(context, session, organizationId), cancellationToken);
             return Results.Ok(cycles);
         });
 
@@ -201,10 +219,13 @@ public static class ProductiveCoreEndpoints
             Guid cycleId,
             RecordProductionEventRequest request,
             HttpContext context,
+            IAntiforgery antiforgery,
             ProductionCycleApplicationService service,
             CancellationToken cancellationToken) =>
         {
             SetPrivateResponseHeaders(context.Response);
+            await antiforgery.ValidateRequestAsync(context);
+            AuthenticatedSession session = AuthenticatedSessionClaims.Read(context.User);
             var evt = await service.RecordEventAsync(
                 new RecordProductionEventCommand(
                     organizationId,
@@ -215,6 +236,7 @@ public static class ProductiveCoreEndpoints
                     request.Unit,
                     request.Notes,
                     request.Origin ?? ProductionOrigins.Manual),
+                RequestContext(context, session, organizationId),
                 cancellationToken);
             return Results.Created(
                 $"/api/organizations/{organizationId:D}/cycles/{cycleId:D}/events/{evt.Id:D}",
@@ -229,7 +251,9 @@ public static class ProductiveCoreEndpoints
             CancellationToken cancellationToken) =>
         {
             SetPrivateResponseHeaders(context.Response);
-            var timeline = await service.GetTimelineAsync(organizationId, cycleId, cancellationToken);
+            AuthenticatedSession session = AuthenticatedSessionClaims.Read(context.User);
+            var timeline = await service.GetTimelineAsync(organizationId, cycleId,
+                RequestContext(context, session, organizationId), cancellationToken);
             return timeline is not null
                 ? Results.Ok(timeline)
                 : Results.NotFound(new { status = "cycle_not_found" });

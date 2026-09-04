@@ -37,12 +37,13 @@ internal sealed class PostgreSqlTestServer : IAsyncDisposable
         }
 
         Exception? containerError = null;
-        if (CanAttemptDocker())
+        bool explicitLocalRuntime = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AGRO_IDENTITY_POSTGRES_BIN"));
+        if (!explicitLocalRuntime && CanAttemptDocker())
         {
             PostgreSqlContainer? container = null;
             try
             {
-                container = new PostgreSqlBuilder("postgres:17-alpine")
+                container = new PostgreSqlBuilder(PostgisEnabled ? "postgis/postgis:17-3.6-alpine" : "postgres:17-alpine")
                     .WithDatabase("postgres")
                     .WithUsername("postgres")
                     .WithPassword($"identity-tests-{Guid.NewGuid():N}")
@@ -79,8 +80,34 @@ internal sealed class PostgreSqlTestServer : IAsyncDisposable
             Database = databaseName,
             Pooling = false,
         };
+        if (PostgisEnabled)
+        {
+            try
+            {
+                await using var spatialConnection = new NpgsqlConnection(builder.ConnectionString);
+                await spatialConnection.OpenAsync(cancellationToken);
+                await using var extension = spatialConnection.CreateCommand();
+                // This hook operates only on the fresh database generated above, never the admin database.
+                extension.CommandText = "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public; SELECT public.postgis_lib_version()";
+                string? version = await extension.ExecuteScalarAsync(cancellationToken) as string;
+                if (version is null || !version.StartsWith("3.6.", StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException("PostGIS 3.6.x is required for the spatial regression fixture.");
+                }
+            }
+            catch (Exception exception)
+            {
+                await DropDatabaseAsync(builder.ConnectionString, CancellationToken.None);
+                throw new InvalidOperationException(
+                    "AGRO_TEST_POSTGIS=true requires PostGIS 3.6.x. Set AGRO_IDENTITY_POSTGRES_BIN to the pinned PG17/PostGIS runtime or use the PostGIS test container.", exception);
+            }
+        }
+
         return builder.ConnectionString;
     }
+
+    private static bool PostgisEnabled => string.Equals(
+        Environment.GetEnvironmentVariable("AGRO_TEST_POSTGIS"), "true", StringComparison.OrdinalIgnoreCase);
 
     public async Task DropDatabaseAsync(string databaseConnectionString, CancellationToken cancellationToken)
     {
@@ -195,10 +222,18 @@ internal sealed class PostgreSqlTestServer : IAsyncDisposable
     private static string? FindPostgresBinaryDirectory()
     {
         var configured = Environment.GetEnvironmentVariable("AGRO_IDENTITY_POSTGRES_BIN");
-        if (!string.IsNullOrWhiteSpace(configured)
-            && File.Exists(Path.Combine(configured, OperatingSystem.IsWindows() ? "initdb.exe" : "initdb")))
+        if (!string.IsNullOrWhiteSpace(configured))
         {
-            return configured;
+            string resolved = Path.GetFullPath(configured);
+            string executableSuffix = OperatingSystem.IsWindows() ? ".exe" : string.Empty;
+            if (!File.Exists(Path.Combine(resolved, "initdb" + executableSuffix)) ||
+                !File.Exists(Path.Combine(resolved, "pg_ctl" + executableSuffix)) ||
+                !File.Exists(Path.Combine(resolved, "postgres" + executableSuffix)))
+            {
+                throw new InvalidOperationException("AGRO_IDENTITY_POSTGRES_BIN must identify a complete PostgreSQL binary directory; no fallback is used for an explicit path.");
+            }
+
+            return resolved;
         }
 
         if (!OperatingSystem.IsWindows())

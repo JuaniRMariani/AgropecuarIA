@@ -18,6 +18,7 @@ using AgropecuarIA.Catalog.Infrastructure;
 using AgropecuarIA.Weather;
 using AgropecuarIA.Weather.Delivery;
 using AgropecuarIA.Weather.Infrastructure;
+using AgropecuarIA.Weather.Application;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -31,6 +32,14 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 bool applyIdentityMigrations = builder.Configuration.GetValue<bool>("Identity:ApplyMigrations");
 bool applyTerritoryMigrations = builder.Configuration.GetValue<bool>("Territory:ApplyMigrations");
 bool applyProductiveCoreMigrations = builder.Configuration.GetValue<bool>("ProductiveCore:ApplyMigrations");
+bool applyCatalogMigrations = builder.Configuration.GetValue<bool>("Catalog:ApplyMigrations");
+bool applyWeatherMigrations = builder.Configuration.GetValue<bool>("Weather:ApplyMigrations");
+if ((applyCatalogMigrations || applyWeatherMigrations) &&
+    !builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test"))
+{
+    throw new InvalidOperationException(
+        "Catalog/Weather:ApplyMigrations can only be enabled in Development/Test. Use an explicit migrator in shared environments.");
+}
 if (applyIdentityMigrations &&
     !builder.Environment.IsDevelopment() &&
     !builder.Environment.IsEnvironment("Test"))
@@ -62,6 +71,8 @@ builder.Services.AddTerritoryModule(builder.Configuration);
 builder.Services.AddProductiveCoreModule(builder.Configuration);
 builder.Services.AddCatalogModule(builder.Configuration);
 builder.Services.AddAgropecuariaWeather(builder.Configuration);
+builder.Services.AddScoped<IWeatherResourceAuthorization, WeatherResourceAuthorization>();
+builder.Services.AddPlatformEditorialAuthorization(builder.Configuration);
 builder.Services.AddExceptionHandler<IdentityExceptionHandler>();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -100,6 +111,8 @@ int territoryPermitLimit = builder.Configuration.GetValue(
 int productiveCorePermitLimit = builder.Configuration.GetValue(
     "ProductiveCore:RateLimits:PerSessionPerMinute",
     30);
+int catalogPermitLimit = builder.Configuration.GetValue("Catalog:RateLimits:PerSessionPerMinute", 30);
+int weatherPermitLimit = builder.Configuration.GetValue("Weather:RateLimits:PerSessionPerMinute", 60);
 if (perIpPermitLimit <= 0 ||
     perSessionPermitLimit <= 0 ||
     perSessionPermitLimit > perIpPermitLimit ||
@@ -108,7 +121,9 @@ if (perIpPermitLimit <= 0 ||
     territoryPermitLimit <= 0 ||
     territoryPermitLimit > perIpPermitLimit ||
     productiveCorePermitLimit <= 0 ||
-    productiveCorePermitLimit > perIpPermitLimit)
+    productiveCorePermitLimit > perIpPermitLimit ||
+    catalogPermitLimit <= 0 || catalogPermitLimit > perIpPermitLimit ||
+    weatherPermitLimit <= 0 || weatherPermitLimit > perIpPermitLimit)
 {
     throw new InvalidOperationException(
         "Rate limits must be positive; step-up cannot exceed the identity per-session limit and session policies cannot exceed per-IP.");
@@ -241,7 +256,24 @@ builder.Services.AddRateLimiter(options =>
             partitionKey,
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 60,
+                PermitLimit = weatherPermitLimit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            });
+    });
+    options.AddPolicy("catalog", context =>
+    {
+        string partitionKey = context.Request.Cookies.TryGetValue(
+            IdentityAuthenticationDefaults.SessionCookieName,
+            out string? sessionToken)
+            ? $"catalog:{Convert.ToHexString(IdentityTokenService.HashToken(sessionToken))}"
+            : $"catalog-anonymous:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = catalogPermitLimit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
                 AutoReplenishment = true,
@@ -305,8 +337,6 @@ builder.Services.AddOpenTelemetry()
         .AddMeter(TerritoryTelemetry.SourceName)
         .AddMeter(ProductiveCoreTelemetry.SourceName));
 
-bool applyCatalogMigrations = builder.Configuration.GetValue<bool>("Catalog:ApplyMigrations");
-
 WebApplication app = builder.Build();
 
 if (applyIdentityMigrations)
@@ -337,6 +367,13 @@ if (applyCatalogMigrations)
     await catalogDbContext.Database.MigrateAsync();
 }
 
+if (applyWeatherMigrations)
+{
+    await using AsyncServiceScope scope = app.Services.CreateAsyncScope();
+    WeatherDbContext weatherDbContext = scope.ServiceProvider.GetRequiredService<WeatherDbContext>();
+    await weatherDbContext.Database.MigrateAsync();
+}
+
 app.UseExceptionHandler();
 app.UseForwardedHeaders();
 app.Use(async (context, next) =>
@@ -344,6 +381,8 @@ app.Use(async (context, next) =>
     if (context.Request.Path.StartsWithSegments("/api/identity") ||
         context.Request.Path.StartsWithSegments("/api/development/identity") ||
         context.Request.Path.StartsWithSegments("/api/territory") ||
+        context.Request.Path.StartsWithSegments("/api/catalog") ||
+        context.Request.Path.StartsWithSegments("/api/weather") ||
         context.Request.Path.StartsWithSegments("/api/organizations"))
     {
         context.Response.Headers.CacheControl = "no-store";

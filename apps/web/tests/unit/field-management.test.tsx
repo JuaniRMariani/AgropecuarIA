@@ -10,12 +10,19 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
+  ArchivedField,
   CreatedField,
   FieldSummary,
   RenamedField,
 } from "../../features/fields/field-types";
 
 const apiMocks = vi.hoisted(() => ({
+  archiveField:
+    vi.fn<
+      (
+        request: import("../../features/fields/field-api").ArchiveFieldRequest,
+      ) => Promise<ArchivedField>
+    >(),
   createField:
     vi.fn<
       (
@@ -76,7 +83,7 @@ const organizationB = {
   organizationName: "Los Aromos",
   role: "owner",
 };
-const fieldA: FieldSummary = {
+const fieldA = {
   fieldId: "f0185b77-3ee8-4e43-adf8-083975f8fa77",
   organizationId: organizationA.organizationId,
   displayName: "Campo Norte",
@@ -85,19 +92,19 @@ const fieldA: FieldSummary = {
   spatialStatus: "not_configured",
   createdAtUtc: "2026-08-18T18:00:00Z",
   version: "5a5ed442-141f-4fd4-a8e8-52598a5d7426",
-};
-const fieldB: FieldSummary = {
+} satisfies FieldSummary;
+const fieldB = {
   ...fieldA,
   fieldId: "a1b2c3d4-5ee8-4e43-adf8-083975f8fa77",
   displayName: "Campo Sur",
   version: "6b6ed442-141f-4fd4-a8e8-52598a5d7426",
-};
-const foreignField: FieldSummary = {
+} satisfies FieldSummary;
+const foreignField = {
   ...fieldA,
   fieldId: "b2c3d4e5-6ff9-4e43-adf8-083975f8fa77",
   organizationId: organizationB.organizationId,
   displayName: "Campo Ajeno",
-};
+} satisfies FieldSummary;
 const renamedVersion = "bb8da0de-af15-42f1-87a6-40583dff5abe";
 const renamedFieldA: RenamedField = {
   ...fieldA,
@@ -150,6 +157,7 @@ beforeEach(() => {
   apiMocks.getField.mockReset();
   apiMocks.listFields.mockReset();
   apiMocks.renameField.mockReset();
+  apiMocks.archiveField.mockReset();
   apiMocks.listFields.mockResolvedValue([]);
 });
 
@@ -160,6 +168,381 @@ afterEach(() => {
 });
 
 describe("FieldManagement", () => {
+  it("opens a concurrently archived detail read-only and refreshes the stale draft list", async () => {
+    apiMocks.listFields.mockResolvedValueOnce([fieldA]).mockResolvedValue([]);
+    apiMocks.getField.mockResolvedValue({ ...fieldA, status: "archived" });
+    render(<ControlledFieldManagement initialDeepLink={{ kind: "none" }} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Abrir ficha de Campo Norte/ }),
+    );
+    await screen.findByText("Archivado");
+    await waitFor(() => expect(apiMocks.listFields).toHaveBeenCalledTimes(2));
+    expect(
+      screen.queryByRole("button", { name: "Editar nombre" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Archivar campo" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Campo Norte", level: 4 }),
+    ).toBeVisible();
+    expect(apiMocks.archiveField).not.toHaveBeenCalled();
+  });
+
+  it.each(["malformed", "foreign"])(
+    "discards a %s stored archive without fetching or writing its target",
+    async (scenario) => {
+      globalThis.sessionStorage.setItem(
+        "agropecuaria.fields.archive-attempt.v1",
+        scenario === "malformed"
+          ? "{"
+          : JSON.stringify({
+              organizationId: organizationB.organizationId,
+              fieldId: foreignField.fieldId,
+              version: foreignField.version,
+              idempotencyKey: "a".repeat(32),
+            }),
+      );
+      render(<FieldManagement organizations={[organizationA]} />);
+      await screen.findByText("Todavía no hay campos");
+      expect(apiMocks.getField).not.toHaveBeenCalled();
+      expect(apiMocks.archiveField).not.toHaveBeenCalled();
+      expect(
+        globalThis.sessionStorage.getItem(
+          "agropecuaria.fields.archive-attempt.v1",
+        ),
+      ).toBeNull();
+    },
+  );
+
+  it("preserves the immutable archive operation across unmount and explicit retry", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    apiMocks.archiveField
+      .mockRejectedValueOnce(new FieldApiError("service-unavailable", 503))
+      .mockResolvedValueOnce({
+        ...fieldA,
+        status: "archived",
+        version: renamedVersion,
+        revision: 2,
+        isReplay: true,
+      });
+    const first = render(<FieldManagement organizations={[organizationA]} />);
+    fireEvent.click(await openArchive());
+    await screen.findByRole("button", { name: "Reintentar mismo archivado" });
+    const original = apiMocks.archiveField.mock.calls[0]?.[0];
+    first.unmount();
+    render(<FieldManagement organizations={[organizationA]} />);
+    const retry = await screen.findByRole("button", {
+      name: "Reintentar mismo archivado",
+    });
+    expect(apiMocks.archiveField).toHaveBeenCalledTimes(1);
+    fireEvent.click(retry);
+    await screen.findByText("Confirmamos el archivado anterior.");
+    expect(apiMocks.archiveField.mock.calls[1]?.[0]).toEqual(original);
+  });
+
+  it("can cancel a conclusively rejected archive without dispatching another write", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    apiMocks.archiveField.mockRejectedValue(new FieldApiError("stale", 412));
+    const guard = vi.fn();
+    render(
+      <FieldManagement
+        organizations={[organizationA]}
+        onContextGuardChange={guard}
+      />,
+    );
+    fireEvent.click(await openArchive());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cancelar archivado" }),
+    );
+    expect(guard).toHaveBeenLastCalledWith("clear");
+    expect(
+      screen.getByRole("button", { name: "Archivar campo" }),
+    ).toHaveFocus();
+    expect(apiMocks.archiveField).toHaveBeenCalledTimes(1);
+  });
+
+  const archivedField: ArchivedField = {
+    ...fieldA,
+    status: "archived",
+    version: renamedVersion,
+    revision: 2,
+    isReplay: false,
+  };
+  const archiveStorageKey = "agropecuaria.fields.archive-attempt.v1";
+  async function openArchive() {
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Abrir ficha de Campo Norte/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Archivar campo" }),
+    );
+    return screen.getByRole("button", { name: "Confirmar archivado" });
+  }
+
+  it("confirms archive, refreshes the active list and keeps a read-only archived detail", async () => {
+    apiMocks.listFields.mockResolvedValueOnce([fieldA]).mockResolvedValue([]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    apiMocks.archiveField.mockResolvedValue(archivedField);
+    const onIntent = vi.fn();
+    render(
+      <ControlledFieldManagement
+        initialDeepLink={{ kind: "none" }}
+        onIntent={onIntent}
+      />,
+    );
+    const confirm = await openArchive();
+    expect(apiMocks.archiveField).not.toHaveBeenCalled();
+    expect(confirm).toHaveFocus();
+    expect(
+      screen.getByRole("heading", { name: "Archivar campo F0185B" }),
+    ).toBeVisible();
+    expectNoFullUuidInDom();
+    fireEvent.click(confirm);
+    await screen.findByText("Campo archivado. Su historial se conserva.");
+    await screen.findByText("Archivado");
+    expect(apiMocks.listFields).toHaveBeenCalledTimes(2);
+    expect(
+      screen.queryByRole("button", { name: /Abrir ficha de Campo Norte/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Editar nombre" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Archivar campo" }),
+    ).not.toBeInTheDocument();
+    expect(onIntent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "reject" }),
+    );
+    expect(globalThis.sessionStorage.getItem(archiveStorageKey)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar ficha" }));
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Tus campos" })).toHaveFocus(),
+    );
+  });
+
+  it("cancels archive confirmation with Escape, restores focus and clears the context guard", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    const guard = vi.fn();
+    render(
+      <FieldManagement
+        organizations={[organizationA]}
+        onContextGuardChange={guard}
+      />,
+    );
+    const confirm = await openArchive();
+    expect(guard).toHaveBeenLastCalledWith("dirty");
+    fireEvent.keyDown(confirm, { key: "Escape" });
+    expect(
+      screen.getByRole("button", { name: "Archivar campo" }),
+    ).toHaveFocus();
+    expect(guard).toHaveBeenLastCalledWith("clear");
+    expect(apiMocks.archiveField).not.toHaveBeenCalled();
+    expect(globalThis.sessionStorage.getItem(archiveStorageKey)).toBeNull();
+  });
+
+  it("blocks duplicate and conflicting actions while an archive request is pending", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA, fieldB]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    apiMocks.archiveField.mockReturnValue(new Promise(() => {}));
+    const guard = vi.fn();
+    render(
+      <FieldManagement
+        organizations={[organizationA]}
+        onContextGuardChange={guard}
+      />,
+    );
+    const confirm = await openArchive();
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    expect(apiMocks.archiveField).toHaveBeenCalledTimes(1);
+    expect(guard).toHaveBeenLastCalledWith("pending");
+    for (const name of [
+      "Crear campo",
+      "Editar nombre",
+      "Cerrar ficha",
+      "Archivar campo",
+    ])
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /Abrir ficha de Campo Sur/ }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Cancelar archivado" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("retries uncertain archive with exactly the original version and key after a newer draft read", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField
+      .mockResolvedValueOnce(fieldA)
+      .mockResolvedValue({ ...fieldA, version: renamedVersion });
+    apiMocks.archiveField
+      .mockRejectedValueOnce(new FieldApiError("service-unavailable", 503))
+      .mockResolvedValueOnce(archivedField);
+    render(<FieldManagement organizations={[organizationA]} />);
+    fireEvent.click(await openArchive());
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Consultar estado del archivado",
+      }),
+    );
+    await screen.findByText(/todavía figura como borrador/);
+    expect(
+      screen.queryByRole("button", { name: "Cancelar archivado" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Reintentar mismo archivado" }),
+    );
+    await screen.findByText("Campo archivado. Su historial se conserva.");
+    expect(apiMocks.archiveField.mock.calls[1]?.[0]).toEqual(
+      apiMocks.archiveField.mock.calls[0]?.[0],
+    );
+    expect(apiMocks.archiveField.mock.calls[1]?.[0].version).toBe(
+      fieldA.version,
+    );
+  });
+
+  it.each(["stale", "conflict"] as const)(
+    "requires reload and a new confirmation after %s archive rejection",
+    async (failure) => {
+      apiMocks.listFields.mockResolvedValue([fieldA]);
+      apiMocks.getField
+        .mockResolvedValueOnce(fieldA)
+        .mockResolvedValueOnce({ ...fieldA, version: renamedVersion });
+      apiMocks.archiveField
+        .mockRejectedValueOnce(
+          new FieldApiError(failure, failure === "stale" ? 412 : 409),
+        )
+        .mockResolvedValueOnce(archivedField);
+      render(<FieldManagement organizations={[organizationA]} />);
+      fireEvent.click(await openArchive());
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Recargar y revisar archivado",
+        }),
+      );
+      const confirm = await screen.findByRole("button", {
+        name: "Confirmar archivado",
+      });
+      expect(apiMocks.archiveField).toHaveBeenCalledTimes(1);
+      fireEvent.click(confirm);
+      await screen.findByText("Campo archivado. Su historial se conserva.");
+      const first = apiMocks.archiveField.mock.calls[0]?.[0];
+      const next = apiMocks.archiveField.mock.calls[1]?.[0];
+      expect(next?.version).toBe(renamedVersion);
+      expect(next?.idempotencyKey).not.toBe(first?.idempotencyKey);
+    },
+  );
+
+  it("restores a submitted archive without automatically writing and reconciles an archived field absent from the list", async () => {
+    const attempt = {
+      organizationId: fieldA.organizationId,
+      fieldId: fieldA.fieldId,
+      version: fieldA.version,
+      idempotencyKey: "a".repeat(32),
+    };
+    globalThis.sessionStorage.setItem(
+      archiveStorageKey,
+      JSON.stringify(attempt),
+    );
+    apiMocks.listFields.mockResolvedValue([]);
+    apiMocks.getField.mockResolvedValue(archivedField);
+    render(<FieldManagement organizations={[organizationA]} />);
+    await screen.findByText("Archivado");
+    expect(apiMocks.archiveField).not.toHaveBeenCalled();
+    expect(apiMocks.getField).toHaveBeenCalledWith(
+      fieldA.organizationId,
+      fieldA.fieldId,
+      expect.any(AbortSignal),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Consultar estado del archivado" }),
+    );
+    await screen.findByText(
+      "El campo está archivado. Su historial se conserva.",
+    );
+    expect(globalThis.sessionStorage.getItem(archiveStorageKey)).toBeNull();
+    expectNoFullUuidInDom();
+  });
+
+  it("ignores late archive results after the authorized organization context changes", async () => {
+    apiMocks.listFields.mockResolvedValue([fieldA]);
+    apiMocks.getField.mockResolvedValue(fieldA);
+    let resolveArchive: ((field: ArchivedField) => void) | undefined;
+    apiMocks.archiveField.mockReturnValue(
+      new Promise((resolve) => {
+        resolveArchive = resolve;
+      }),
+    );
+    const view = render(<FieldManagement organizations={[organizationA]} />);
+    fireEvent.click(await openArchive());
+    apiMocks.listFields.mockResolvedValue([]);
+    view.rerender(<FieldManagement organizations={[organizationB]} />);
+    resolveArchive?.(archivedField);
+    await waitFor(() =>
+      expect(screen.queryByText("Archivado")).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByText("Campo archivado. Su historial se conserva."),
+    ).not.toBeInTheDocument();
+    expect(globalThis.sessionStorage.getItem(archiveStorageKey)).toBeNull();
+  });
+
+  it("shows registered geometry in a mixed list and detail without claiming validation", async () => {
+    const configured = {
+      ...fieldB,
+      spatialStatus: "configured",
+    } satisfies FieldSummary;
+    apiMocks.listFields.mockResolvedValue([fieldA, configured]);
+    apiMocks.getField.mockResolvedValue(configured);
+    render(<FieldManagement organizations={[organizationA]} />);
+
+    expect(await screen.findByText("Geometría registrada")).toBeVisible();
+    expect(screen.getByText("Sin geometría")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Abrir ficha de Campo Sur/ }),
+    );
+    await screen.findByRole("heading", { name: "Campo Sur", level: 4 });
+    expect(screen.getAllByText("Geometría registrada")).toHaveLength(2);
+    expect(screen.getAllByText("Sin geometría")).toHaveLength(1);
+    expect(screen.queryByText(/geometría validada/i)).not.toBeInTheDocument();
+    expectNoFullUuidInDom();
+  });
+
+  it("keeps registered geometry visible after renaming a configured field", async () => {
+    const configured = {
+      ...fieldA,
+      spatialStatus: "configured",
+    } satisfies FieldSummary;
+    apiMocks.listFields.mockResolvedValue([configured]);
+    apiMocks.getField.mockResolvedValue(configured);
+    apiMocks.renameField.mockResolvedValue({
+      ...renamedFieldA,
+      spatialStatus: "configured",
+    });
+    render(<FieldManagement organizations={[organizationA]} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /abrir ficha/i }),
+    );
+    await screen.findByRole("heading", { name: "Campo Norte", level: 4 });
+    fireEvent.click(screen.getByRole("button", { name: "Editar nombre" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Nuevo nombre del campo" }),
+      { target: { value: "Campo Sur" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guardar nombre" }));
+
+    await screen.findByRole("heading", { name: "Campo Sur", level: 4 });
+    expect(screen.getAllByText("Geometría registrada")).toHaveLength(2);
+    expect(screen.queryByText("Sin geometría")).not.toBeInTheDocument();
+    expectNoFullUuidInDom();
+  });
+
   it("reports dirty, pending and clear guards for an organization-scoped create attempt", async () => {
     let resolveCreate: ((field: CreatedField) => void) | undefined;
     apiMocks.createField.mockImplementation(

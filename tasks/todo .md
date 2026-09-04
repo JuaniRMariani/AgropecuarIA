@@ -1917,3 +1917,66 @@ Estado inicial: dos revisiones independientes de tres seleccionaron este sub-sli
 ### Review
 - Resultado: GO.
 - Solución completa compila con 0 errores y 0 warnings en los 13 proyectos.
+
+## Iteración 50 — Cierre verificable de pendientes sobre el runtime actual (2026-09-04)
+
+### Plan
+
+- [x] Reconciliar las 81 tareas con implementaciones, contratos, UI y pruebas actuales; distinguir evidencia completa, implementación parcial y validaciones externas.
+- [x] Ejecutar baseline locked restore/build y suites backend/frontend; reparar fallos de integración sin degradar assertions ni ocultar superficies.
+- [ ] Cerrar primero defectos de autorización, persistencia y contratos de las capacidades incorporadas en las iteraciones 38–49.
+- [ ] Completar las superficies UI y operaciones verificables siguiendo dependencias; registrar decisiones técnicas delegadas y aceptación antes de editar.
+- [x] Mantener explícitos los pendientes que requieren credenciales, datos piloto o validación profesional; no sustituirlos por valores inventados.
+- [ ] Revisar independientemente cada entrega, registrar gates efectivos y publicar con author/committer JuaniRMariani, sin deploy.
+
+### Review
+
+- Inicio desde `dd808e4`, worktree limpio. El estado histórico de Iteración 36 ya no representa el runtime: existen módulos Catalog y Weather y nuevas capacidades Productive/Identity. Se reevalúa contra el código actual.
+- Inventario exacto 81/81 en `docs/implementation/current-backlog-evidence-2026-09-04.md`; no se promueven padres incompletos por la existencia de stubs o pruebas vacías.
+- Baseline: locked restore/build PASS (0W/0E); backend 427/429, dos gates de arquitectura fallaban por operaciones/módulo sin registrar y referencias de pruebas inexistentes. Frontend 252/252, typecheck/lint PASS.
+- Reparaciones locales en verificación: Catalog autenticado/editorial+CSRF+migración de publicación; Weather con configuración explícita, migraciones/FORCE RLS, owner/recurso, roles editoriales y abstención sin reglas; ciclos en UOW autorizado; protocolo de archivo con evento correcto y RLS; resúmenes espaciales compatibles; MFA local con enrollment protegido y pruebas HTTP reales; inbox atómico solo para efectos en la misma base.
+- Gates parciales ejecutados: Catalog 18/18; Weather HTTP/RLS inicial 4/4; ciclos 9/9; archivo 12/12 + HTTP 1/1; inbox 5/5; frontend 265/265 + typecheck/lint. El gate completo integrado todavía está pendiente y estos resultados no cierran las 81 tareas.
+- Gate backend integrado posterior: locked restore PASS; `dotnet test --solution AgropecuarIA.slnx --configuration Release --no-restore` **486/486**, 0 fallos/omitidos, 3m36s. Incluye las 16 pruebas MFA reales y los 6 escenarios Weather HTTP/RLS/editor/rectificación. La UI de archivo y el gate de navegador continúan en curso.
+- Checkpoint final local de esta tanda: backend **521/521**, frontend **286/286**, typegen/typecheck/lint/formato/build/auditoría de paquetes PASS. Navegador real **16/16**, escritorio y móvil, 1m30s, sobre API y PostgreSQL/PostGIS efímeros; incluye cancelar/confirmar archivo, refresco de activos, ficha de solo lectura, foco y accesibilidad. Los procesos y datos descartables de E2E fueron cerrados/retirados por el wrapper. No se modificó PostgreSQL del sistema ni se desplegó.
+
+## Iteración 51 — Geometría inicial calculada por servidor (2026-09-04)
+
+### Plan y aceptación
+
+- [x] Reutilizar ADR-002 y runtime PostGIS aislado ya disponible; probar carga de extensión en base efímera, sin instalar ni desplegar.
+- [x] Aceptar geometría/área declarada; calcular área esferoidal, normalización MultiPolygon 4326 y centroide en el servidor, nunca desde métricas cliente.
+- [x] Rechazar geometrías inválidas, coordenadas/dimensiones no admitidas, payloads/vértices excesivos, campos archivados y reconfiguración; no ejecutar reparación silenciosa ni inferir pertenencia oficial.
+- [x] Integrar la transición inicial con UOW, RLS, grants/trigger y trazabilidad; mantener separado lo pendiente de edición/versionado completo y tolerancias profesionales.
+- [x] Probar PostGIS real, límites/errores, aislamiento, ETags/concurrencia y regresión rename/archive; actualizar contrato/registro con evidencia ejecutable.
+- [ ] Ejecutar gates completos y navegador sobre el estado integrado, revisar diff y publicar usando la identidad Git solicitada.
+
+### Review
+
+- Plan derivado de la auditoría del runtime: PostgreSQL del sistema carece de PostGIS, pero el bundle aislado de AGRO-DIS-004 está disponible y verificado. No se equipara disponibilidad de archivos con prueba de extensión cargada.
+- Gate integrado: restore locked con auditoría NuGet high/critical PASS, Release build 0W/0E, backend **521/521**, 0 fallos/omitidos, 4m32s. Incluye 19 casos PostGIS/parser, HTTP geometry con límites/spoofing/GET y 155 controles de arquitectura. Revisión independiente corrigió rollback de migración y lectura inconsistente durante configuración concurrente. No hay edición espacial ni aprobación territorial/profesional implícita.
+
+## Iteración 52 — CI de verificación sin despliegue (2026-09-04)
+
+### Plan
+
+- [x] Añadir jobs backend/frontend con lockfiles, lint/tipos/tests/build/audit y permisos read-only, sin secretos ni despliegues.
+- [x] Verificar localmente comandos y sintaxis; usar PostGIS aislado en pruebas, nunca un servidor compartido.
+- [ ] Inspeccionar el primer resultado remoto después del push; no confundir YAML válido con CI aprobado.
+
+### Review
+
+- Las skills de CI orientan el orden de gates y la separación del despliegue. Sus assets de ejemplo no están instalados; se usa su patrón documentado adaptado al runner MTP SDK10 y al monorepo real. Actions fijadas por SHA comprobado en los repositorios oficiales.
+
+## Iteración 53 — Regresión de archivo y ciclos (2026-09-04)
+
+### Plan y aceptación
+
+- [x] Rechazar nuevos ciclos sobre campos archivados con 409 tras autorizar el recurso, sin impedir lecturas históricas.
+- [x] Aplicar la restricción también al INSERT del rol runtime y probar servicio/PostgreSQL sin efectos parciales.
+- [x] Agregar cobertura de navegador para la confirmación/cancelación de archivo, listado y resumen de solo lectura.
+- [ ] Ejecutar los gates integrados antes del commit/push autorizado.
+
+### Review
+
+- Guardia de inicio de ciclo revisada independientemente: 409 tras autorizar/bloquear campo; política INSERT restrictiva evita bypass y SELECT preserva historia. Cubierta por el gate 521/521.
+- Las cuatro ejecuciones E2E nuevas (dos casos en escritorio/móvil) pasan sin stubs de HTTP. No implica cierre de GIS-002 ni CAT-003 completos.

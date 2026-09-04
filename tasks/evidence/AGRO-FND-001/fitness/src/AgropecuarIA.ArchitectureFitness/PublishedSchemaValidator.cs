@@ -14,6 +14,8 @@ public static class PublishedSchemaValidator
         "identity-step-up-completed.v1.schema.json",
         "management-unit-created.v1.schema.json",
         "management-unit-display-name-changed.v1.schema.json",
+        "management-unit-archived.v1.schema.json",
+        "management-unit-geometry-configured.v1.schema.json",
         "organization-created.v1.schema.json",
         "organization-owner-invited.v1.schema.json",
         "organization-owner-invitation-accepted.v1.schema.json",
@@ -213,6 +215,43 @@ public static class PublishedSchemaValidator
                 ValidateStringProperty(root, fileName, "managementUnitId", "uuid", issues);
                 ValidateIntegerProperty(root, fileName, "revision", 2, issues);
                 ValidateStringProperty(root, fileName, "changedAtUtc", "date-time", issues);
+                break;
+            case "management-unit-archived.v1.schema.json":
+                ValidateClosedObject(root, fileName,
+                    ["organizationId", "managementUnitId", "revision", "status", "archivedAtUtc"], issues);
+                ValidateExactProperties(root, fileName,
+                    ["organizationId", "managementUnitId", "revision", "status", "archivedAtUtc"], issues);
+                ValidateStringProperty(root, fileName, "organizationId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "managementUnitId", "uuid", issues);
+                ValidateIntegerProperty(root, fileName, "revision", 2, issues);
+                ValidateStringProperty(root, fileName, "archivedAtUtc", "date-time", issues);
+                ValidateStringProperty(root, fileName, "status", null, issues);
+                ValidateConstProperty(root, fileName, "status", "archived", issues);
+                break;
+            case "management-unit-geometry-configured.v1.schema.json":
+                string[] geometryProperties = ["organizationId", "managementUnitId", "geometryVersionId", "revision", "spatialStatus", "declaredAreaHectares", "calculatedAreaHectares", "configuredAtUtc", "calculationMethod"];
+                ValidateClosedObject(root, fileName, geometryProperties, issues);
+                ValidateExactProperties(root, fileName, geometryProperties, issues);
+                ValidateStringProperty(root, fileName, "organizationId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "managementUnitId", "uuid", issues);
+                ValidateStringProperty(root, fileName, "geometryVersionId", "uuid", issues);
+                ValidateIntegerProperty(root, fileName, "revision", 2, issues);
+                ValidateStringProperty(root, fileName, "configuredAtUtc", "date-time", issues);
+                ValidateStringProperty(root, fileName, "spatialStatus", null, issues);
+                ValidateConstProperty(root, fileName, "spatialStatus", "configured", issues);
+                ValidateStringProperty(root, fileName, "calculationMethod", null, issues);
+                ValidateConstProperty(root, fileName, "calculationMethod", "postgis-geography-spheroid", issues);
+                foreach (string areaProperty in new[] { "declaredAreaHectares", "calculatedAreaHectares" })
+                {
+                    if (!TryProperty(root, "properties", areaProperty, out JsonElement area)
+                        || !area.TryGetProperty("type", out JsonElement areaType)
+                        || areaType.GetString() != "number"
+                        || !area.TryGetProperty("exclusiveMinimum", out JsonElement minimum)
+                        || !minimum.TryGetDecimal(out decimal value) || value != 0)
+                    {
+                        Add(issues, "schema.property-shape.invalid", $"Geometry property '{areaProperty}' must be a strictly positive number.");
+                    }
+                }
                 break;
             default:
                 Add(issues, "schema.unregistered", $"Schema '{fileName}' is not registered.");

@@ -150,6 +150,14 @@ public sealed class WeatherForecastApplicationService(
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        if (command.RectifiedFromId.HasValue && !await dbContext.ObservedRains.AnyAsync(
+            item => item.Id == command.RectifiedFromId.Value &&
+                item.OrganizationId == command.OrganizationId && item.FieldId == command.FieldId,
+            cancellationToken))
+        {
+            throw new WeatherRainReferenceException();
+        }
+
         DateTimeOffset now = DateTimeOffset.UtcNow;
         var observed = new WeatherObservedRain(
             Guid.NewGuid(),

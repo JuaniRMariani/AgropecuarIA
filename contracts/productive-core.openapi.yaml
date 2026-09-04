@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: AgropecuarIA Productive Core API
-  version: 1.1.0
-  description: Tenant-owned productive units. Version 1 creates and renames fields as non-spatial drafts; it does not claim geometry, area, cadastral status or agronomic location.
+  version: 1.3.0
+  description: Tenant-owned productive units. Creation remains a non-spatial draft. Initial geometry configuration validates topology and calculates area with PostGIS; configured does not certify cadastral status, official territorial containment or agronomic suitability.
 paths:
   /api/organizations/{organizationId}/fields:
     get:
@@ -82,7 +82,7 @@ paths:
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/Unavailable' }
     patch:
-      summary: Rename one non-spatial field draft
+      summary: Rename one field draft
       description: The server reauthorizes the owner before replay or resource lookup. A new attempt requires a strong current If-Match value; an authorized replay is resolved before comparing the now-stale resource version.
       security:
         - SessionCookie: []
@@ -124,6 +124,199 @@ paths:
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /api/organizations/{organizationId}/fields/{fieldId}/archive:
+    post:
+      operationId: ArchiveFieldDraft
+      summary: Archive an authorized owner's field draft without deleting its history
+      description: Reauthorizes before idempotency lookup. Identical authorized retries return the committed version; new requests require the current strong ETag. Atomically persists archive state, idempotency ledger, journal and ManagementUnitArchived event.
+      security:
+        - SessionCookie: []
+          AntiforgeryCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/FieldId'
+        - in: header
+          name: If-Match
+          required: true
+          schema: { $ref: '#/components/schemas/StrongFieldETag' }
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 32, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$' }
+      responses:
+        '200':
+          description: Field archived or authorized committed result replayed
+          headers:
+            ETag: { schema: { $ref: '#/components/schemas/StrongFieldETag' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ArchivedField' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotAvailable' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/organizations/{organizationId}/fields/{fieldId}/geometry:
+    get:
+      operationId: GetFieldGeometry
+      description: Owner-only read of the immutable initial geometry snapshot together with the field's current status and ETag. Available for configured draft or archived fields. Use this read and field refresh to reconcile an uncertain mutation response; an unconfigured or inaccessible field has the same neutral 404.
+      security:
+        - SessionCookie: []
+      parameters:
+        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: fieldId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Confidential stored geometry and server-derived metrics; private no-store response.
+          headers:
+            ETag:
+              schema: { $ref: '#/components/schemas/StrongFieldETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfiguredFieldGeometry' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': {description: Unknown, inaccessible or not-configured geometry (productive_core.field_not_available).}
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': {description: Geometry storage or PostGIS unavailable (productive_core.field_geometry_unavailable).}
+    post:
+      operationId: ConfigureFieldGeometry
+      description: Initial configuration only, from not_configured to configured on an active draft field. The server validates Polygon/MultiPolygon in longitude-latitude EPSG4326 and stores an immutable MultiPolygon snapshot. It calculates spheroidal area and centroid; it never trusts client-derived metrics, silently repairs invalid topology, simplifies coordinates or rewrites rings. Declared and calculated areas remain separate without automatic tolerance approval. No idempotency ledger or automatic retry; after an uncertain response, refresh the field and its geometry before deciding whether to submit again. No cadastral, official territorial containment or agronomic certification.
+      security:
+        - SessionCookie: []
+          AntiforgeryCookie: []
+      parameters:
+        - {name: organizationId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: fieldId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: X-CSRF-TOKEN, in: header, required: true, schema: {type: string}}
+        - {name: If-Match, in: header, required: true, schema: {type: string}, description: Strong quoted UUID version.}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfigureFieldGeometryRequest' }
+      responses:
+        '200':
+          description: Validated initial geometry, immutable snapshot and audit/event committed atomically. Calculated area uses postgis-geography-spheroid; not a professional certification.
+          headers:
+            ETag:
+              schema: {type: string}
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfiguredFieldGeometry' }
+        '400': {description: Invalid geometry (productive_core.field_geometry_invalid), unmapped request member, missing or malformed strong If-Match, or antiforgery failure.}
+        '401': {description: Authentication required.}
+        '404': {description: Neutral unauthorized or unknown resource.}
+        '409': {description: Geometry already configured (productive_core.field_geometry_already_configured); replacement and editing are not supported.}
+        '412': {description: Stale version (productive_core.field_version_stale).}
+        '413': {description: Geometry exceeds operational payload or vertex limit (productive_core.field_geometry_too_large).}
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': {description: PostGIS or persistence unavailable (productive_core.field_geometry_unavailable). No automatic retry; refresh committed state first because a response failure may follow a commit.}
+  /api/organizations/{organizationId}/fields/{fieldId}/cycles:
+    get:
+      operationId: ListProductionCycles
+      summary: List cycles belonging to an authorized owner's field
+      description: Revalidates the durable session and owner membership in the same tenant-scoped transaction as the field and cycle reads. Foreign and missing resources return the same neutral 404.
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/FieldId'
+      responses:
+        '200':
+          description: Cycles ordered by descending start date and then cycle ID
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProductionCycle' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotAvailable' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/CycleUnavailable' }
+    post:
+      operationId: StartProductionCycle
+      summary: Start a production cycle on an authorized owner's field
+      description: Actor, durable session and tenant are revalidated before locking the field or inserting a cycle. Archived fields reject new cycles with productive_core.field_archived; existing history remains readable. Catalog fields are currently a client-supplied snapshot, not a server-verified publication or professional approval. This operation has no idempotency ledger; do not automatically resubmit an unconfirmed write.
+      security:
+        - SessionCookie: []
+          AntiforgeryCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/FieldId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartProductionCycleRequest' }
+      responses:
+        '201':
+          description: Production cycle created
+          headers:
+            Location: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductionCycle' }
+        '400': { $ref: '#/components/responses/CycleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotAvailable' }
+        '409': {description: Cannot start a new cycle on an archived field (productive_core.field_archived). Existing cycle and event history remain readable.}
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/CycleUnavailable' }
+  /api/organizations/{organizationId}/cycles/{cycleId}/events:
+    post:
+      operationId: RecordProductionEvent
+      summary: Append an observation to an authorized owner's active cycle
+      description: Authorizes owner, cycle and its field inside one tenant transaction. Events cannot be overwritten or deleted by the app role. No idempotency ledger is available; do not automatically resubmit an unconfirmed write.
+      security:
+        - SessionCookie: []
+          AntiforgeryCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/CycleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecordProductionEventRequest' }
+      responses:
+        '201':
+          description: Production event recorded
+          headers:
+            Location: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductionEvent' }
+        '400': { $ref: '#/components/responses/CycleBadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotAvailable' }
+        '409':
+          description: The authorized cycle is not active (productive_core.cycle_not_active)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/CycleUnavailable' }
+  /api/organizations/{organizationId}/cycles/{cycleId}/timeline:
+    get:
+      operationId: GetProductionTimeline
+      summary: Read an authorized owner's cycle and observation timeline
+      security:
+        - SessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/CycleId'
+      responses:
+        '200':
+          description: Cycle and events ordered by effective date, recorded date and ID
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductionTimeline' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotAvailable' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/CycleUnavailable' }
 components:
   securitySchemes:
     SessionCookie:
@@ -135,6 +328,16 @@ components:
       in: header
       name: X-CSRF-TOKEN
   parameters:
+    FieldId:
+      in: path
+      name: fieldId
+      required: true
+      schema: { type: string, format: uuid }
+    CycleId:
+      in: path
+      name: cycleId
+      required: true
+      schema: { type: string, format: uuid }
     OrganizationId:
       in: path
       name: organizationId
@@ -142,6 +345,16 @@ components:
       description: Resource locator only; authorization and tenant context are derived and revalidated by the server.
       schema: { type: string, format: uuid }
   responses:
+    CycleBadRequest:
+      description: Invalid cycle or event request, or invalid antiforgery token
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    CycleUnavailable:
+      description: The cycle operation could not be confirmed (productive_core.cycle_unavailable). A write might have committed; automatic retry is not safe without reconciliation.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     BadRequest:
       description: Invalid display name, idempotency key, If-Match syntax or unchanged canonical name
       content:
@@ -187,6 +400,72 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
   schemas:
+    StartProductionCycleRequest:
+      type: object
+      description: Catalog values are unverified client metadata pending authoritative catalog binding.
+      required: [catalogCode, catalogDisplayName, purpose, system, startDateUtc]
+      properties:
+        catalogCode: { type: string }
+        catalogDisplayName: { type: string }
+        purpose: { type: string }
+        system: { type: string }
+        supportLevel: { type: [string, 'null'] }
+        startDateUtc: { type: string, format: date-time }
+    RecordProductionEventRequest:
+      type: object
+      required: [eventType, effectiveDateUtc]
+      properties:
+        eventType: { type: string }
+        effectiveDateUtc: { type: string, format: date-time }
+        quantity: { type: [number, 'null'] }
+        unit:
+          type: [string, 'null']
+          description: Required and nonblank when quantity is specified
+        notes: { type: [string, 'null'] }
+        origin:
+          type: [string, 'null']
+          description: Defaults to manual; trimmed and lowercased before validating manual, importacion, dispositivo, calculo or ia
+    ProductionCycle:
+      type: object
+      additionalProperties: false
+      required: [id, organizationId, managementUnitId, catalogCode, catalogDisplayName, purpose, system, supportLevel, status, startDateUtc, endDateUtc, createdAtUtc]
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        managementUnitId: { type: string, format: uuid }
+        catalogCode: { type: string }
+        catalogDisplayName: { type: string }
+        purpose: { type: string }
+        system: { type: string }
+        supportLevel: { type: string }
+        status: { type: string, enum: [active, closed, canceled] }
+        startDateUtc: { type: string, format: date-time }
+        endDateUtc: { type: [string, 'null'], format: date-time }
+        createdAtUtc: { type: string, format: date-time }
+    ProductionEvent:
+      type: object
+      additionalProperties: false
+      required: [id, organizationId, productionCycleId, eventType, effectiveDateUtc, recordedAtUtc, quantity, unit, notes, origin]
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        productionCycleId: { type: string, format: uuid }
+        eventType: { type: string }
+        effectiveDateUtc: { type: string, format: date-time }
+        recordedAtUtc: { type: string, format: date-time }
+        quantity: { type: [number, 'null'] }
+        unit: { type: [string, 'null'] }
+        notes: { type: [string, 'null'] }
+        origin: { type: string, enum: [manual, importacion, dispositivo, calculo, ia] }
+    ProductionTimeline:
+      type: object
+      additionalProperties: false
+      required: [cycle, events]
+      properties:
+        cycle: { $ref: '#/components/schemas/ProductionCycle' }
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/ProductionEvent' }
     CreateFieldRequest:
       type: object
       description: displayName trims leading and trailing Unicode White_Space plus U+FEFF, then normalizes to NFC, counts Unicode scalars and rejects controls or lone surrogates.
@@ -201,8 +480,42 @@ components:
       required: [displayName]
       properties:
         displayName: { type: string, minLength: 2, maxLength: 120 }
+    ConfigureFieldGeometryRequest:
+      type: object
+      additionalProperties: false
+      required: [boundaryGeoJson, declaredAreaHectares]
+      properties:
+        boundaryGeoJson:
+          type: string
+          minLength: 1
+          description: GeoJSON geometry object encoded as a string with exactly type and coordinates properties, Polygon or MultiPolygon only; finite 2D longitude-latitude positions in EPSG4326, closed rings and valid topology. Maximum actual UTF-8 geometry payload 1048576 bytes and 10000 positions including ring closures are provisional operational caps. Feature, FeatureCollection, any explicit CRS or bounding box, empty and invalid geometries are rejected without repair.
+        declaredAreaHectares: { type: number, exclusiveMinimum: 0, maximum: 99999999999999.9999, multipleOf: 0.0001, description: Caller declaration preserved without rounding separately from server-calculated area; no automatic discrepancy approval. }
+    ConfiguredFieldGeometry:
+      type: object
+      additionalProperties: false
+      required: [fieldId, organizationId, displayName, type, status, spatialStatus, declaredAreaHectares, calculatedAreaHectares, centroidLatitude, centroidLongitude, boundaryGeoJson, officialProvinceCode, officialDepartmentCode, createdAtUtc, revision, version, geometryVersionId, configuredAtUtc]
+      properties:
+        fieldId: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        displayName: { type: string }
+        type: { type: string, const: field }
+        status: { type: string, enum: [draft, archived] }
+        spatialStatus: { type: string, const: configured }
+        declaredAreaHectares: { type: number, exclusiveMinimum: 0 }
+        calculatedAreaHectares: { type: number, minimum: 0.0001, multipleOf: 0.0001, description: Server-computed ST_Area(geography) spheroidal square metres divided by 10000 and rounded to four decimal places; an area rounding to zero is rejected. }
+        centroidLatitude: { type: number, minimum: -90, maximum: 90, description: Server-derived centroid; not guaranteed inside a concave polygon. }
+        centroidLongitude: { type: number, minimum: -180, maximum: 180 }
+        boundaryGeoJson: { type: string, description: Validated MultiPolygon EPSG4326 GeoJSON geometry. Polygon wrapping is the only topology normalization. }
+        officialProvinceCode: { type: 'null', description: No official territorial containment is inferred. }
+        officialDepartmentCode: { type: 'null', description: No official territorial containment is inferred. }
+        createdAtUtc: { type: string, format: date-time }
+        revision: { type: integer, minimum: 2 }
+        version: { type: string, format: uuid }
+        geometryVersionId: { type: string, format: uuid }
+        configuredAtUtc: { type: string, format: date-time }
     Field:
       type: object
+      description: Field summary including archived records and its current spatial status. Configured indicates initial PostGIS-validated geometry, not cadastral status, official territorial containment or agronomic suitability.
       additionalProperties: false
       required: [fieldId, organizationId, displayName, type, status, spatialStatus, createdAtUtc, version]
       properties:
@@ -210,8 +523,8 @@ components:
         organizationId: { type: string, format: uuid }
         displayName: { type: string, minLength: 2, maxLength: 120 }
         type: { type: string, const: field }
-        status: { type: string, const: draft }
-        spatialStatus: { type: string, const: not_configured }
+        status: { type: string, enum: [draft, archived] }
+        spatialStatus: { type: string, enum: [not_configured, configured] }
         createdAtUtc: { type: string, format: date-time }
         version: { type: string, format: uuid }
     CreatedField:
@@ -230,6 +543,7 @@ components:
         isReplay: { type: boolean }
     RenamedField:
       type: object
+      description: Rename result preserving the field's current spatial status.
       additionalProperties: false
       required: [fieldId, organizationId, displayName, type, status, spatialStatus, createdAtUtc, revision, version, isReplay]
       properties:
@@ -238,7 +552,22 @@ components:
         displayName: { type: string, minLength: 2, maxLength: 120 }
         type: { type: string, const: field }
         status: { type: string, const: draft }
-        spatialStatus: { type: string, const: not_configured }
+        spatialStatus: { type: string, enum: [not_configured, configured] }
+        createdAtUtc: { type: string, format: date-time }
+        revision: { type: integer, minimum: 2 }
+        version: { type: string, format: uuid }
+        isReplay: { type: boolean }
+    ArchivedField:
+      type: object
+      additionalProperties: false
+      required: [fieldId, organizationId, displayName, type, status, spatialStatus, createdAtUtc, revision, version, isReplay]
+      properties:
+        fieldId: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        displayName: { type: string, minLength: 2, maxLength: 120 }
+        type: { type: string, const: field }
+        status: { type: string, const: archived }
+        spatialStatus: { type: string, enum: [not_configured, configured] }
         createdAtUtc: { type: string, format: date-time }
         revision: { type: integer, minimum: 2 }
         version: { type: string, format: uuid }

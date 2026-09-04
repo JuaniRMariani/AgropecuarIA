@@ -197,6 +197,33 @@ public sealed class AuthorizationSurfaceContractTests
     }
 
     [TestMethod]
+    public void EmptyTestBodyCannotServeAsExecutableEvidence()
+    {
+        string temporaryRoot = Path.Combine(Path.GetTempPath(), $"agro-empty-evidence-{Guid.NewGuid():N}");
+        try
+        {
+            CopyRuntimeEvidence(temporaryRoot);
+            string testDirectory = Path.Combine(temporaryRoot, "tests");
+            Directory.CreateDirectory(testDirectory);
+            File.WriteAllText(Path.Combine(testDirectory, "Placeholder.cs"),
+                "[TestMethod] public void Placeholder() { }");
+            AuthorizationSurfaceDocument invalid = ReplaceOperation(
+                "territory.search", operation => operation with
+                {
+                    Tests = ["tests/Placeholder.cs#Placeholder"],
+                });
+
+            var issues = AuthorizationSurfaceValidator.Validate(invalid, temporaryRoot);
+
+            Assert.IsTrue(issues.Any(issue => issue.Code == "authorization-register.test-body.empty"));
+        }
+        finally
+        {
+            Directory.Delete(temporaryRoot, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void OperationIdsMustRemainUnique()
     {
         AuthorizationSurfaceDocument published = Published();
@@ -299,10 +326,12 @@ public sealed class AuthorizationSurfaceContractTests
             "contracts/territory.openapi.yaml",
             "contracts/productive-core.openapi.yaml",
             "contracts/catalog.openapi.yaml",
+            "contracts/weather.openapi.yaml",
             "apps/AgropecuarIA.Api/IdentityEndpoints.cs",
             "src/AgropecuarIA.Territory/Delivery/TerritoryEndpoints.cs",
             "src/AgropecuarIA.ProductiveCore/Delivery/ProductiveCoreEndpoints.cs",
             "src/AgropecuarIA.Catalog/Delivery/CatalogEndpoints.cs",
+            "src/AgropecuarIA.Weather/Delivery/WeatherEndpoints.cs",
         ];
         foreach (string relativePath in relativePaths)
         {

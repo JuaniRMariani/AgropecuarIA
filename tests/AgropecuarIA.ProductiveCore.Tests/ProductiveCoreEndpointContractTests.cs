@@ -26,6 +26,7 @@ public sealed class ProductiveCoreEndpointContractTests
         builder.Services.AddAuthorization();
         builder.Services.AddAntiforgery();
         builder.Services.AddScoped<ProductiveCoreApplicationService>(_ => null!);
+        builder.Services.AddScoped<ProductiveCoreGeometryApplicationService>(_ => null!);
         builder.Services.AddScoped<ProductiveCoreRenameApplicationService>(_ => null!);
         builder.Services.AddScoped<ProductiveCoreArchiveApplicationService>(_ => null!);
         builder.Services.AddScoped<ProductionCycleApplicationService>(_ => null!);
@@ -42,13 +43,14 @@ public sealed class ProductiveCoreEndpointContractTests
             .ThenBy(endpoint => string.Join(',', endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? []))
             .ToArray();
 
-        Assert.AreEqual(10, routes.Length);
+        Assert.AreEqual(11, routes.Length);
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields", "GET");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields", "POST");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}", "GET");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}", "PATCH");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}/archive", "POST");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}/geometry", "POST");
+        AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}/geometry", "GET");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}/cycles", "GET");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/fields/{fieldId:guid}/cycles", "POST");
         AssertRoute(routes, "/api/organizations/{organizationId:guid}/cycles/{cycleId:guid}/events", "POST");

@@ -14,13 +14,14 @@ public static class WeatherServiceCollectionExtensions
         IConfiguration configuration)
     {
         string connectionString = configuration.GetConnectionString("Weather")
-            ?? "Host=localhost;Database=agro_weather_dev";
+            ?? throw new InvalidOperationException("ConnectionStrings:Weather is required.");
 
         services.AddDbContext<WeatherDbContext>(options =>
             options.UseNpgsql(connectionString, npgsql =>
-                npgsql.MigrationsAssembly(typeof(WeatherDbContext).Assembly.FullName)));
+                npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "weather")));
 
-        services.AddHttpClient<IWeatherForecastClient, OpenMeteoWeatherClient>();
+        services.AddHttpClient<IWeatherForecastClient, OpenMeteoWeatherClient>()
+            .RemoveAllLoggers();
         services.AddScoped<WeatherForecastApplicationService>();
         services.AddScoped<WeatherAlertApplicationService>();
         services.AddScoped<WeatherActivityApplicationService>();

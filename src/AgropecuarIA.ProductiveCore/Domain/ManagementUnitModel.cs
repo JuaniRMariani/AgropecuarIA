@@ -157,6 +157,11 @@ public sealed class ManagementUnit
 
         ArgumentException.ThrowIfNullOrWhiteSpace(boundaryGeoJson);
 
+        if (Status != ManagementUnitStatuses.Draft || SpatialStatus != ManagementUnitSpatialStatuses.NotConfigured)
+        {
+            throw new InvalidOperationException("Initial geometry requires an unconfigured draft field.");
+        }
+
         if (declaredAreaHectares <= 0)
         {
             throw new ArgumentException("Declared area must be positive.", nameof(declaredAreaHectares));
@@ -167,12 +172,12 @@ public sealed class ManagementUnit
             throw new ArgumentException("Calculated area must be positive.", nameof(calculatedAreaHectares));
         }
 
-        if (centroidLat is < -90 or > 90)
+        if (!double.IsFinite(centroidLat) || centroidLat is < -90 or > 90)
         {
             throw new ArgumentOutOfRangeException(nameof(centroidLat), "Latitude must be between -90 and 90.");
         }
 
-        if (centroidLng is < -180 or > 180)
+        if (!double.IsFinite(centroidLng) || centroidLng is < -180 or > 180)
         {
             throw new ArgumentOutOfRangeException(nameof(centroidLng), "Longitude must be between -180 and 180.");
         }

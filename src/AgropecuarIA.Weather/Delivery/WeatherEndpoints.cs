@@ -2,6 +2,8 @@ using AgropecuarIA.Identity.Application;
 using AgropecuarIA.Identity.Delivery;
 using AgropecuarIA.Weather.Application;
 using AgropecuarIA.Weather.Domain;
+using AgropecuarIA.Weather.Infrastructure;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -30,12 +32,14 @@ public sealed record CreateActivityRuleRequest(
 public static class WeatherEndpoints
 {
     public const string RateLimitPolicy = "weather";
+    public const string AlertIngestionPolicy = "WeatherAlertIngestion";
 
     public static IEndpointRouteBuilder MapWeatherEndpoints(this IEndpointRouteBuilder endpoints)
     {
         RouteGroupBuilder orgWeather = endpoints.MapGroup("/api/organizations/{organizationId:guid}/weather")
             .RequireAuthorization()
             .RequireRateLimiting(RateLimitPolicy);
+        orgWeather.AddEndpointFilter<WeatherResourceFilter>();
 
         orgWeather.MapPost("/rules", async (
             Guid organizationId,
@@ -77,6 +81,7 @@ public static class WeatherEndpoints
         RouteGroupBuilder weather = endpoints.MapGroup("/api/organizations/{organizationId:guid}/fields/{fieldId:guid}/weather")
             .RequireAuthorization()
             .RequireRateLimiting(RateLimitPolicy);
+        weather.AddEndpointFilter<WeatherResourceFilter>();
 
         weather.MapGet("/forecast", async (
             Guid organizationId,
@@ -166,15 +171,21 @@ public static class WeatherEndpoints
         });
 
         RouteGroupBuilder globalWeather = endpoints.MapGroup("/api/weather")
-            .RequireAuthorization()
+            .RequireAuthorization(AlertIngestionPolicy)
             .RequireRateLimiting(RateLimitPolicy);
 
         globalWeather.MapPost("/alerts/ingest", async (
             IngestCapAlertCommand request,
+            HttpContext context,
+            IAntiforgery antiforgery,
+            WeatherDbContext database,
             WeatherAlertApplicationService service,
             CancellationToken cancellationToken) =>
         {
+            await antiforgery.ValidateRequestAsync(context);
+            await using var transaction = await WeatherRequestScope.BeginEditorialAsync(database, cancellationToken);
             var alert = await service.IngestAlertAsync(request, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return Results.Created($"/api/weather/alerts/{alert.Id:D}", alert);
         });
 

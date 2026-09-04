@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "scope": "identity-territory-productive-core-integrated-local",
+  "scope": "identity-territory-productive-core-catalog-weather-integrated-local",
   "operations": [
     {
       "id": "identity.capabilities",
@@ -572,36 +572,38 @@
       "id": "catalog.diff.read",
       "method": "GET",
       "path": "/api/catalog/diff",
-      "boundary": "public-platform",
-      "resource": "catalog-diff",
+      "boundary": "authenticated-platform",
+      "resource": "national-catalog",
       "action": "read",
-      "authentication": "anonymous",
-      "actorSource": "none",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
       "tenantSource": "none",
-      "applicationAuthorization": "none",
-      "storageBoundary": "catalog-platform",
-      "neutralErrors": "none",
+      "applicationAuthorization": "authenticated platform session; global catalog only, private tenant extensions not implemented",
+      "storageBoundary": "catalog-platform; no tenant data",
+      "neutralErrors": "authentication and permission failures reveal no private resource data",
       "owner": "Catalog",
       "tests": [
-        "tests/AgropecuarIA.Catalog.Tests/CatalogDiffApplicationServiceTests.cs#DiffIsGenerated"
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy"
       ]
     },
     {
       "id": "catalog.ingest.create",
       "method": "POST",
       "path": "/api/catalog/ingest",
-      "boundary": "public-platform",
-      "resource": "catalog-ingest",
-      "action": "create",
-      "authentication": "anonymous",
-      "actorSource": "none",
+      "boundary": "authenticated-platform",
+      "resource": "national-catalog",
+      "action": "ingest",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
       "tenantSource": "none",
-      "applicationAuthorization": "none",
-      "storageBoundary": "catalog-platform",
-      "neutralErrors": "none",
+      "applicationAuthorization": "explicit separately provisioned platform editorial actor permission; tenant owner alone insufficient; antiforgery validated",
+      "storageBoundary": "catalog-platform; no tenant data",
+      "neutralErrors": "authentication and permission failures reveal no private resource data",
       "owner": "Catalog",
       "tests": [
-        "tests/AgropecuarIA.Catalog.Tests/CatalogIngestionApplicationServiceTests.cs#IngestionIsIdempotent"
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AnonymousReadersAndOrdinaryAuthenticatedWritersAreRejectedBeforeDatabaseAccess",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#EditorialWritesRequireAntiforgeryAndRejectClientSuppliedPublicationActor"
       ]
     },
     {
@@ -611,7 +613,7 @@
       "boundary": "tenant",
       "resource": "field",
       "action": "archive",
-      "authentication": "session-cookie+csrf+idempotency-key",
+      "authentication": "session-cookie+csrf+idempotency-key+if-match",
       "actorSource": "server-session-claims-revalidated",
       "tenantSource": "server-derived-route-revalidated",
       "applicationAuthorization": "active owner membership and live session authorization before field lookup",
@@ -619,22 +621,26 @@
       "neutralErrors": "foreign and missing tenant are neutral",
       "owner": "Productive Core",
       "tests": [
-        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreArchiveApplicationServiceTests.cs#ArchiveIsIdempotent"
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs#RoutesMatchFrozenContractAndRequireAuthorizationAndRateLimiting",
+        "tests/AgropecuarIA.Identity.Tests/ArchiveFieldApiIntegrationTests.cs#ArchiveRequiresSessionCsrfOwnerAndStrongConcurrencyHeaders",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Archive.cs#ArchiveOwnerWritesCorrectEventAndReplaysWithoutDuplicates",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Archive.cs#ArchiveRejectsForeignOrganizationAndField",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Archive.cs#ArchiveRollsBackEverySinkFailure"
       ]
     },
     {
       "id": "identity.mfa.totp.setup",
       "method": "POST",
       "path": "/api/identity/mfa/totp/setup",
-      "boundary": "authenticated-platform",
+      "boundary": "development-test-only",
       "resource": "own-totp-credential",
       "action": "create",
       "authentication": "session-cookie+csrf",
-      "actorSource": "cookie",
+      "actorSource": "server-session-claims-revalidated",
       "tenantSource": "none",
-      "applicationAuthorization": "recent verified session",
+      "applicationAuthorization": "environment plus enabled development-provider flag; recent verified live session for own actor, antiforgery, protected enrollment or current factor as applicable",
       "storageBoundary": "identity-platform",
-      "neutralErrors": "totp already enabled",
+      "neutralErrors": "absent outside Development/Test or when provider flag disabled; invalid own factor or enrollment token",
       "owner": "Identity",
       "tests": [
         "tests/AgropecuarIA.Identity.Tests/MfaApiIntegrationTests.cs#SetupTotpReturnsSharedKeyAndUri"
@@ -644,15 +650,15 @@
       "id": "identity.mfa.totp.enable",
       "method": "POST",
       "path": "/api/identity/mfa/totp/enable",
-      "boundary": "authenticated-platform",
+      "boundary": "development-test-only",
       "resource": "own-totp-credential",
       "action": "activate",
       "authentication": "session-cookie+csrf",
-      "actorSource": "cookie",
+      "actorSource": "server-session-claims-revalidated",
       "tenantSource": "none",
-      "applicationAuthorization": "recent verified session",
+      "applicationAuthorization": "environment plus enabled development-provider flag; recent verified live session for own actor, antiforgery, protected enrollment or current factor as applicable",
       "storageBoundary": "identity-platform",
-      "neutralErrors": "totp already enabled, invalid code",
+      "neutralErrors": "absent outside Development/Test or when provider flag disabled; invalid own factor or enrollment token",
       "owner": "Identity",
       "tests": [
         "tests/AgropecuarIA.Identity.Tests/MfaApiIntegrationTests.cs#EnableTotpPersistsEncryptedSecretAndReturnsRecoveryCodes"
@@ -662,15 +668,15 @@
       "id": "identity.mfa.totp.disable",
       "method": "POST",
       "path": "/api/identity/mfa/totp/disable",
-      "boundary": "authenticated-platform",
+      "boundary": "development-test-only",
       "resource": "own-totp-credential",
       "action": "delete",
       "authentication": "session-cookie+csrf",
-      "actorSource": "cookie",
+      "actorSource": "server-session-claims-revalidated",
       "tenantSource": "none",
-      "applicationAuthorization": "recent verified session",
+      "applicationAuthorization": "environment plus enabled development-provider flag; recent verified live session for own actor, antiforgery, protected enrollment or current factor as applicable",
       "storageBoundary": "identity-platform",
-      "neutralErrors": "totp not enabled",
+      "neutralErrors": "absent outside Development/Test or when provider flag disabled; invalid own factor or enrollment token",
       "owner": "Identity",
       "tests": [
         "tests/AgropecuarIA.Identity.Tests/MfaApiIntegrationTests.cs#DisableTotpRemovesTotpAndRecoveryCodes"
@@ -680,18 +686,377 @@
       "id": "identity.mfa.recovery.consume",
       "method": "POST",
       "path": "/api/identity/mfa/recovery/consume",
-      "boundary": "authenticated-platform",
+      "boundary": "development-test-only",
       "resource": "own-recovery-code",
       "action": "consume",
       "authentication": "session-cookie+csrf",
-      "actorSource": "cookie",
+      "actorSource": "server-session-claims-revalidated",
       "tenantSource": "none",
-      "applicationAuthorization": "recent verified session",
+      "applicationAuthorization": "environment plus enabled development-provider flag; recent verified live session for own actor, antiforgery, protected enrollment or current factor as applicable",
       "storageBoundary": "identity-platform",
-      "neutralErrors": "invalid recovery code",
+      "neutralErrors": "absent outside Development/Test or when provider flag disabled; invalid own factor or enrollment token",
       "owner": "Identity",
       "tests": [
         "tests/AgropecuarIA.Identity.Tests/MfaApiIntegrationTests.cs#ConsumeRecoveryCodeMarksCodeAsUsed"
+      ]
+    },
+    {
+      "id": "catalog.publish",
+      "method": "POST",
+      "path": "/api/catalog/publish",
+      "boundary": "authenticated-platform",
+      "resource": "national-catalog",
+      "action": "publish",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "explicit separately provisioned platform editorial actor permission; tenant owner alone insufficient; antiforgery validated",
+      "storageBoundary": "catalog-platform; no tenant data",
+      "neutralErrors": "authentication and permission failures reveal no private resource data",
+      "owner": "Catalog",
+      "tests": [
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AnonymousReadersAndOrdinaryAuthenticatedWritersAreRejectedBeforeDatabaseAccess",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#EditorialWritesRequireAntiforgeryAndRejectClientSuppliedPublicationActor"
+      ]
+    },
+    {
+      "id": "catalog.rollback",
+      "method": "POST",
+      "path": "/api/catalog/rollback/{versionId}",
+      "boundary": "authenticated-platform",
+      "resource": "national-catalog",
+      "action": "rollback",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "explicit separately provisioned platform editorial actor permission; tenant owner alone insufficient; antiforgery validated",
+      "storageBoundary": "catalog-platform; no tenant data",
+      "neutralErrors": "authentication and permission failures reveal no private resource data",
+      "owner": "Catalog",
+      "tests": [
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AnonymousReadersAndOrdinaryAuthenticatedWritersAreRejectedBeforeDatabaseAccess",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#EditorialWritesRequireAntiforgeryAndRejectClientSuppliedPublicationActor"
+      ]
+    },
+    {
+      "id": "catalog.items.search",
+      "method": "GET",
+      "path": "/api/catalog/items",
+      "boundary": "authenticated-platform",
+      "resource": "national-catalog",
+      "action": "search",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "authenticated platform session; global catalog only, private tenant extensions not implemented",
+      "storageBoundary": "catalog-platform; no tenant data",
+      "neutralErrors": "authentication and permission failures reveal no private resource data",
+      "owner": "Catalog",
+      "tests": [
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy"
+      ]
+    },
+    {
+      "id": "catalog.item.read",
+      "method": "GET",
+      "path": "/api/catalog/items/{code}",
+      "boundary": "authenticated-platform",
+      "resource": "national-catalog",
+      "action": "read",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "authenticated platform session; global catalog only, private tenant extensions not implemented",
+      "storageBoundary": "catalog-platform; no tenant data",
+      "neutralErrors": "authentication and permission failures reveal no private resource data",
+      "owner": "Catalog",
+      "tests": [
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs#AllRoutesRequireAuthenticationAndMutationsRequireEditorialPolicy"
+      ]
+    },
+    {
+      "id": "productive-core.field.geometry",
+      "method": "POST",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}/geometry",
+      "boundary": "tenant",
+      "resource": "field",
+      "action": "configure-geometry",
+      "authentication": "session-cookie+csrf+if-match",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership before locked field lookup; strong version check; initial draft/not_configured only; strict transport limits and authoritative PostGIS validation; no caller-derived area, centroid or official territorial claims",
+      "storageBoundary": "force-rls:actor+tenant+live-session; typed immutable geometry snapshot with generated metrics, narrow initial-transition grants/trigger and deferred matching field+journal+outbox integrity; no idempotency ledger or automatic retry",
+      "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/GeometryFieldApiIntegrationTests.cs#GeometryRequiresSessionCsrfOwnerAndServerCalculatedFacts",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs#RoutesMatchFrozenContractAndRequireAuthorizationAndRateLimiting",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Geometry.cs#InitialGeometryUsesPostgisFactsAndImmutableAtomicSnapshot",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Geometry.cs#InitialGeometryRejectsForeignAccessAndConcurrentReconfiguration",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Geometry.cs#InitialGeometryRollsBackEverySinkFailure"
+      ]
+    },
+    {
+      "id": "productive-core.field.geometry.read",
+      "method": "GET",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}/geometry",
+      "boundary": "tenant",
+      "resource": "field",
+      "action": "read-geometry",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership before field and immutable geometry lookup; configured draft and archived fields readable; absent, unconfigured and inaccessible resources share neutral 404",
+      "storageBoundary": "force-rls:tenant+live-session; immutable stored geometry with current field status and strong ETag; private no-store response",
+      "neutralErrors": "foreign, unknown and unconfigured geometry share productive_core.field_not_available without existence disclosure",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/GeometryFieldApiIntegrationTests.cs#GeometryRequiresSessionCsrfOwnerAndServerCalculatedFacts",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs#RoutesMatchFrozenContractAndRequireAuthorizationAndRateLimiting",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Geometry.cs#InitialGeometryUsesPostgisFactsAndImmutableAtomicSnapshot",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Geometry.cs#InitialGeometryRejectsForeignAccessAndConcurrentReconfiguration"
+      ]
+    },
+    {
+      "id": "productive-core.cycle.create",
+      "method": "POST",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}/cycles",
+      "boundary": "tenant",
+      "resource": "production-cycle",
+      "action": "create",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership before locked field lookup; archived fields reject new cycles with productive_core.field_archived (409) while existing history remains readable",
+      "storageBoundary": "force-rls:actor+tenant+live-session; additional restrictive INSERT policy denies cycles on archived fields without restricting historical reads",
+      "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleArchivedFieldRejectsNewCyclesButPreservesHistory",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs#RoutesMatchFrozenContractAndRequireAuthorizationAndRateLimiting",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleOwnerCanCreateRecordListAndClose",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleForeignMembershipDeniesEveryOperationWithoutWriting",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleRlsRequiresContextAndEventsCannotBeOverwritten"
+      ]
+    },
+    {
+      "id": "productive-core.cycle.list",
+      "method": "GET",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}/cycles",
+      "boundary": "tenant",
+      "resource": "production-cycle",
+      "action": "list",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership authorization before resource lookup",
+      "storageBoundary": "force-rls:actor+tenant+live-session",
+      "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs#RoutesMatchFrozenContractAndRequireAuthorizationAndRateLimiting",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleOwnerCanCreateRecordListAndClose",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleForeignMembershipDeniesEveryOperationWithoutWriting",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleRlsRequiresContextAndEventsCannotBeOverwritten"
+      ]
+    },
+    {
+      "id": "productive-core.event.create",
+      "method": "POST",
+      "path": "/api/organizations/{organizationId}/cycles/{cycleId}/events",
+      "boundary": "tenant",
+      "resource": "production-cycle",
+      "action": "create",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership authorization before resource lookup",
+      "storageBoundary": "force-rls:actor+tenant+live-session",
+      "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs#RoutesMatchFrozenContractAndRequireAuthorizationAndRateLimiting",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleOwnerCanCreateRecordListAndClose",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleForeignMembershipDeniesEveryOperationWithoutWriting",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleRlsRequiresContextAndEventsCannotBeOverwritten"
+      ]
+    },
+    {
+      "id": "productive-core.cycle.timeline",
+      "method": "GET",
+      "path": "/api/organizations/{organizationId}/cycles/{cycleId}/timeline",
+      "boundary": "tenant",
+      "resource": "production-cycle",
+      "action": "read",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership authorization before resource lookup",
+      "storageBoundary": "force-rls:actor+tenant+live-session",
+      "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
+      "owner": "Productive Core",
+      "tests": [
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs#RoutesMatchFrozenContractAndRequireAuthorizationAndRateLimiting",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleOwnerCanCreateRecordListAndClose",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleForeignMembershipDeniesEveryOperationWithoutWriting",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs#CycleRlsRequiresContextAndEventsCannotBeOverwritten"
+      ]
+    },
+    {
+      "id": "weather.rules.create",
+      "method": "POST",
+      "path": "/api/organizations/{organizationId}/weather/rules",
+      "boundary": "tenant",
+      "resource": "field-weather",
+      "action": "create",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership authorization before resource lookup",
+      "storageBoundary": "force-rls:tenant observed-rain and activity-rule tables; global forecast/alert tables contain no tenant identity",
+      "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
+      "owner": "Weather",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherOwnerCanPersistRainAndOtherTenantCannotReadOrWrite",
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherStorageForcesTenantIsolationAndDeniesUnscopedOrForgedSessions",
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherRulesValidateFieldOwnershipAndUnconfiguredSuitabilityAbstains"
+      ]
+    },
+    {
+      "id": "weather.rules.list",
+      "method": "GET",
+      "path": "/api/organizations/{organizationId}/weather/rules",
+      "boundary": "tenant",
+      "resource": "field-weather",
+      "action": "list",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership authorization before resource lookup",
+      "storageBoundary": "force-rls:tenant observed-rain and activity-rule tables; global forecast/alert tables contain no tenant identity",
+      "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
+      "owner": "Weather",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherOwnerCanPersistRainAndOtherTenantCannotReadOrWrite",
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherStorageForcesTenantIsolationAndDeniesUnscopedOrForgedSessions",
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherRulesValidateFieldOwnershipAndUnconfiguredSuitabilityAbstains"
+      ]
+    },
+    {
+      "id": "weather.forecast.read",
+      "method": "GET",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}/weather/forecast",
+      "boundary": "tenant",
+      "resource": "field-weather",
+      "action": "read",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership authorization before resource lookup",
+      "storageBoundary": "force-rls:tenant observed-rain and activity-rule tables; global forecast/alert tables contain no tenant identity",
+      "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
+      "owner": "Weather",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherOwnerCanPersistRainAndOtherTenantCannotReadOrWrite",
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherStorageForcesTenantIsolationAndDeniesUnscopedOrForgedSessions"
+      ]
+    },
+    {
+      "id": "weather.rain.create",
+      "method": "POST",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}/weather/rain",
+      "boundary": "tenant",
+      "resource": "field-weather",
+      "action": "create",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership authorization before resource lookup",
+      "storageBoundary": "force-rls:tenant observed-rain and activity-rule tables; global forecast/alert tables contain no tenant identity",
+      "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
+      "owner": "Weather",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherOwnerCanPersistRainAndOtherTenantCannotReadOrWrite",
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherStorageForcesTenantIsolationAndDeniesUnscopedOrForgedSessions"
+      ]
+    },
+    {
+      "id": "weather.rain.list",
+      "method": "GET",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}/weather/rain",
+      "boundary": "tenant",
+      "resource": "field-weather",
+      "action": "list",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership authorization before resource lookup",
+      "storageBoundary": "force-rls:tenant observed-rain and activity-rule tables; global forecast/alert tables contain no tenant identity",
+      "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
+      "owner": "Weather",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherOwnerCanPersistRainAndOtherTenantCannotReadOrWrite",
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherStorageForcesTenantIsolationAndDeniesUnscopedOrForgedSessions"
+      ]
+    },
+    {
+      "id": "weather.alerts.read",
+      "method": "GET",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}/weather/alerts",
+      "boundary": "tenant",
+      "resource": "field-weather",
+      "action": "read",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership authorization before resource lookup",
+      "storageBoundary": "force-rls:tenant observed-rain and activity-rule tables; global forecast/alert tables contain no tenant identity",
+      "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
+      "owner": "Weather",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherOwnerCanPersistRainAndOtherTenantCannotReadOrWrite",
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherStorageForcesTenantIsolationAndDeniesUnscopedOrForgedSessions"
+      ]
+    },
+    {
+      "id": "weather.suitability.read",
+      "method": "GET",
+      "path": "/api/organizations/{organizationId}/fields/{fieldId}/weather/suitability",
+      "boundary": "tenant",
+      "resource": "field-weather",
+      "action": "evaluate",
+      "authentication": "session-cookie",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "server-derived-route-revalidated",
+      "applicationAuthorization": "live session and active owner membership authorization before resource lookup; missing enabled rule or thresholds abstain, no professional approval inferred",
+      "storageBoundary": "force-rls:tenant observed-rain and activity-rule tables; global forecast/alert tables contain no tenant identity",
+      "neutralErrors": "foreign and missing resource remain neutral without existence disclosure",
+      "owner": "Weather",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherOwnerCanPersistRainAndOtherTenantCannotReadOrWrite",
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherStorageForcesTenantIsolationAndDeniesUnscopedOrForgedSessions",
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#WeatherRulesValidateFieldOwnershipAndUnconfiguredSuitabilityAbstains"
+      ]
+    },
+    {
+      "id": "weather.alerts.ingest",
+      "method": "POST",
+      "path": "/api/weather/alerts/ingest",
+      "boundary": "authenticated-platform",
+      "resource": "official-alert-input",
+      "action": "ingest",
+      "authentication": "session-cookie+csrf",
+      "actorSource": "server-session-claims-revalidated",
+      "tenantSource": "none",
+      "applicationAuthorization": "explicit separately provisioned platform WeatherAlertIngestion permission; tenant owner alone insufficient; antiforgery validated",
+      "storageBoundary": "weather-platform-alerts; official provider provenance/lifecycle remains incomplete",
+      "neutralErrors": "authentication and permission failures reveal no private resource data",
+      "owner": "Weather",
+      "tests": [
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#CatalogAndAlertMutationPoliciesDenyOrdinarySessionsByDefault",
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs#ConfiguredAlertEditorCanCreateAndCancelButStillRequiresCsrf"
       ]
     }
   ],

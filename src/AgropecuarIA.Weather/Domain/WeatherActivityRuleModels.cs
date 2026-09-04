@@ -16,6 +16,14 @@ public static class ActivitySuitabilityStatuses
     public const string Optima = "optima";
     public const string Marginal = "marginal";
     public const string NoApta = "no_apta";
+    public const string InsufficientData = "insufficient_data";
+}
+
+public static class ActivitySuitabilityReasonCodes
+{
+    public const string RuleUnconfigured = "weather.activity.rule_unconfigured";
+    public const string RuleDisabled = "weather.activity.rule_disabled";
+    public const string ThresholdsUnconfigured = "weather.activity.thresholds_unconfigured";
 }
 
 public sealed class WeatherActivityRule
@@ -97,6 +105,20 @@ public sealed class WeatherActivityRule
         decimal precipitationMm,
         decimal relativeHumidity)
     {
+        if (!IsEnabled || (MaxWindSpeedKmh is null && MinTemperatureCelsius is null &&
+            MaxTemperatureCelsius is null && MaxPrecipitationProbability is null &&
+            MaxPrecipitationMm is null && MinRelativeHumidity is null && MaxRelativeHumidity is null))
+        {
+            return new ActivitySuitabilityResult(
+                ActivityType,
+                RuleName,
+                ActivitySuitabilityStatuses.InsufficientData,
+                false,
+                ["La regla no está habilitada o no tiene umbrales configurados; no se evalúa aptitud."],
+                IsEnabled ? ActivitySuitabilityReasonCodes.ThresholdsUnconfigured :
+                    ActivitySuitabilityReasonCodes.RuleDisabled);
+        }
+
         List<string> riskFactors = [];
 
         if (MaxWindSpeedKmh.HasValue && windSpeedKmh > MaxWindSpeedKmh.Value)
@@ -155,4 +177,5 @@ public sealed record ActivitySuitabilityResult(
     string RuleName,
     string Status,
     bool IsSuitable,
-    IReadOnlyList<string> RiskFactors);
+    IReadOnlyList<string> RiskFactors,
+    string? ReasonCode = null);

@@ -75,6 +75,12 @@ public sealed class PublishedSchemaValidatorTests
     [DataRow("management-unit-display-name-changed.v1.schema.json", "organizationId")]
     [DataRow("management-unit-display-name-changed.v1.schema.json", "managementUnitId")]
     [DataRow("management-unit-display-name-changed.v1.schema.json", "changedAtUtc")]
+    [DataRow("management-unit-archived.v1.schema.json", "organizationId")]
+    [DataRow("management-unit-archived.v1.schema.json", "managementUnitId")]
+    [DataRow("management-unit-archived.v1.schema.json", "archivedAtUtc")]
+    [DataRow("management-unit-geometry-configured.v1.schema.json", "organizationId")]
+    [DataRow("management-unit-geometry-configured.v1.schema.json", "geometryVersionId")]
+    [DataRow("management-unit-geometry-configured.v1.schema.json", "configuredAtUtc")]
     public void PublishedEventPayloadSchemasRejectMissingExtraAndWronglyTypedFields(
         string fileName,
         string requiredProperty)
@@ -90,6 +96,20 @@ public sealed class PublishedSchemaValidatorTests
         Assert.IsTrue(issues.Any(issue => issue.Code == "schema.required.missing"));
         Assert.IsTrue(issues.Any(issue => issue.Code == "schema.properties.invalid"));
         Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-shape.invalid"));
+    }
+
+    [TestMethod]
+    public void ManagementUnitArchiveSchemaRequiresArchivedStatusAndMonotonicRevision()
+    {
+        const string FileName = "management-unit-archived.v1.schema.json";
+        var schema = Schema(FileName);
+        schema["properties"]!["revision"]!["minimum"] = 1;
+        schema["properties"]!["status"]!["const"] = "draft";
+
+        var issues = PublishedSchemaValidator.Validate(FileName, schema.ToJsonString());
+
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-shape.invalid"));
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-const.invalid"));
     }
 
     [TestMethod]
@@ -129,6 +149,34 @@ public sealed class PublishedSchemaValidatorTests
         const string FileName = "management-unit-created.v1.schema.json";
         var schema = Schema(FileName);
         schema["properties"]![propertyName]!["const"] = $"not-{expectedValue}";
+
+        var issues = PublishedSchemaValidator.Validate(FileName, schema.ToJsonString());
+
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-const.invalid"));
+    }
+
+    [TestMethod]
+    [DataRow("declaredAreaHectares")]
+    [DataRow("calculatedAreaHectares")]
+    public void GeometryConfiguredSchemaRequiresPositiveAreas(string propertyName)
+    {
+        const string FileName = "management-unit-geometry-configured.v1.schema.json";
+        var schema = Schema(FileName);
+        schema["properties"]![propertyName]!["exclusiveMinimum"] = -1;
+
+        var issues = PublishedSchemaValidator.Validate(FileName, schema.ToJsonString());
+
+        Assert.IsTrue(issues.Any(issue => issue.Code == "schema.property-shape.invalid"));
+    }
+
+    [TestMethod]
+    [DataRow("spatialStatus", "unvalidated")]
+    [DataRow("calculationMethod", "caller-estimate")]
+    public void GeometryConfiguredSchemaKeepsServerOwnedLiterals(string propertyName, string mutation)
+    {
+        const string FileName = "management-unit-geometry-configured.v1.schema.json";
+        var schema = Schema(FileName);
+        schema["properties"]![propertyName]!["const"] = mutation;
 
         var issues = PublishedSchemaValidator.Validate(FileName, schema.ToJsonString());
 

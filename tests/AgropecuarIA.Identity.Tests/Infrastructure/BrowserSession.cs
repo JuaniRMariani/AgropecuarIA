@@ -142,6 +142,20 @@ internal sealed class BrowserSession(
         return await SendAsync(request, cancellationToken);
     }
 
+    public async Task<HttpResponseMessage> PostWithConcurrencyAsync(
+        string requestUri,
+        string? antiforgeryToken,
+        string? ifMatch,
+        string? idempotencyKey,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
+        if (antiforgeryToken is not null) request.Headers.Add("X-CSRF-TOKEN", antiforgeryToken);
+        if (ifMatch is not null) request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+        if (idempotencyKey is not null) request.Headers.Add("Idempotency-Key", idempotencyKey);
+        return await SendAsync(request, cancellationToken);
+    }
+
     public async Task<string> GetAntiforgeryTokenAsync(CancellationToken cancellationToken = default)
     {
         using var response = await GetAsync("/api/identity/antiforgery", cancellationToken);

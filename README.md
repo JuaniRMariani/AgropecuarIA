@@ -10,10 +10,11 @@ El repositorio contiene la especificación, spikes R0 aislados bajo `tasks/evide
 
 - Solución: `AgropecuarIA.slnx`.
 - API: `apps/AgropecuarIA.Api`.
-- Módulo de identidad: `src/AgropecuarIA.Identity`.
+- Módulos actuales: Identity, Territory, ProductiveCore, Catalog y Weather bajo `src/`.
 - Web: `apps/web` (Next.js App Router, React y TypeScript estricto).
-- Contrato: `contracts/identity.openapi.yaml`.
+- Contratos HTTP: los cinco OpenAPI bajo `contracts/`.
 - Operación local y configuración Auth0: `docs/runbooks/identity-local-and-test.md`.
+- Gates de CI y pruebas locales con PostGIS: [guía de verificación](docs/implementation/ci-quality-gates.md).
 
 Los secretos reales se cargan únicamente al publicar un ambiente compartido. El proveedor sintético está limitado a `Development`/`Test`; la aplicación falla cerrada fuera de esos ambientes si OIDC no está configurado.
 
@@ -69,5 +70,7 @@ Los comandos reproducibles y límites de cada spike se documentan en su propio `
 - Las fechas efectivas, moneda, unidad y origen del dato se conservan siempre.
 
 ## Próximo hito
+
+El [inventario verificable de las 81 tareas](docs/implementation/current-backlog-evidence-2026-09-04.md) separa implementación, evidencia y aprobaciones pendientes. La [reparación del runtime](docs/implementation/runtime-safety-repair-2026-09-04.md) documenta configuración, migraciones, permisos y límites de la entrega actual; no equivale a una certificación de producción.
 
 Publicar y revisar `Catálogo Nacional v1` con referentes agrícolas y pecuarios. Luego realizar el primer taller con el ingeniero agrónomo/productor usando un campo real anonimizado para elegir qué perfiles se profundizan. Mediciones de forraje y lluvia se relevan si existen; el formato que recibe el contador continúa pendiente. Validar después con un segundo productor para no diseñar solo para un caso.

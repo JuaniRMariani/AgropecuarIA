@@ -83,8 +83,21 @@ public static class ProductiveCoreIntegrationEvents
         nameof(ManagementUnit),
         "tasks/evidence/AGRO-FND-001/contracts/management-unit-display-name-changed.v1.schema.json");
 
+    public static ProductiveCoreIntegrationEventDefinition ManagementUnitArchived { get; } = new(
+        "ManagementUnitArchived",
+        1,
+        "1.0.0",
+        "productive-core",
+        "tenant",
+        nameof(ManagementUnit),
+        "tasks/evidence/AGRO-FND-001/contracts/management-unit-archived.v1.schema.json");
+
+    public static ProductiveCoreIntegrationEventDefinition ManagementUnitGeometryConfigured { get; } = new(
+        "ManagementUnitGeometryConfigured", 1, "1.0.0", "productive-core", "tenant", nameof(ManagementUnit),
+        "tasks/evidence/AGRO-FND-001/contracts/management-unit-geometry-configured.v1.schema.json");
+
     public static IReadOnlyList<ProductiveCoreIntegrationEventDefinition> All { get; } =
-        Array.AsReadOnly(new[] { ManagementUnitCreated, ManagementUnitDisplayNameChanged });
+        Array.AsReadOnly(new[] { ManagementUnitCreated, ManagementUnitDisplayNameChanged, ManagementUnitArchived, ManagementUnitGeometryConfigured });
 }
 
 public sealed class ProductiveJournalEntry
@@ -125,7 +138,7 @@ public sealed class ProductiveJournalEntry
             throw new ArgumentException("Journal, tenant, actor, and session IDs are required.");
         }
 
-        if (action is not ("management_unit_created" or "management_unit_display_name_changed"))
+        if (action is not ("management_unit_created" or "management_unit_display_name_changed" or "management_unit_archived" or "management_unit_geometry_configured"))
         {
             throw new ArgumentException("The Productive Core journal action is invalid.", nameof(action));
         }
@@ -162,6 +175,20 @@ public sealed class ProductiveJournalEntry
             correlationId,
             occurredAtUtc);
 
+    public static ProductiveJournalEntry CreateManagementUnitArchived(
+        Guid id,
+        Guid organizationId,
+        Guid actorUserId,
+        Guid sessionId,
+        string correlationId,
+        DateTimeOffset occurredAtUtc) =>
+        new(id, organizationId, actorUserId, sessionId, "management_unit_archived", correlationId, occurredAtUtc);
+
+    public static ProductiveJournalEntry CreateManagementUnitGeometryConfigured(
+        Guid id, Guid organizationId, Guid actorUserId, Guid sessionId,
+        string correlationId, DateTimeOffset occurredAtUtc) =>
+        new(id, organizationId, actorUserId, sessionId, "management_unit_geometry_configured", correlationId, occurredAtUtc);
+
     public Guid Id { get; private set; }
 
     public Guid OrganizationId { get; private set; }
@@ -191,6 +218,18 @@ public sealed record ManagementUnitDisplayNameChangedIntegrationEventPayload(
     Guid ManagementUnitId,
     long Revision,
     DateTimeOffset ChangedAtUtc);
+
+public sealed record ManagementUnitArchivedIntegrationEventPayload(
+    Guid OrganizationId,
+    Guid ManagementUnitId,
+    long Revision,
+    string Status,
+    DateTimeOffset ArchivedAtUtc);
+
+public sealed record ManagementUnitGeometryConfiguredIntegrationEventPayload(
+    Guid OrganizationId, Guid ManagementUnitId, Guid GeometryVersionId, long Revision,
+    string SpatialStatus, decimal DeclaredAreaHectares, decimal CalculatedAreaHectares,
+    DateTimeOffset ConfiguredAtUtc, string CalculationMethod);
 
 public sealed class ProductiveOutboxMessage
 {
@@ -305,5 +344,45 @@ public sealed class ProductiveOutboxMessage
             correlationId,
             payload.ChangedAtUtc,
             JsonSerializer.Serialize(payload, SerializerOptions));
+    }
+
+    public static ProductiveOutboxMessage CreateManagementUnitArchived(
+        Guid id,
+        string correlationId,
+        ManagementUnitArchivedIntegrationEventPayload payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        if (id == Guid.Empty || payload.OrganizationId == Guid.Empty ||
+            payload.ManagementUnitId == Guid.Empty || payload.Revision < 2 ||
+            payload.Status != ManagementUnitStatuses.Archived)
+        {
+            throw new ArgumentException("Event, organization, management unit, revision and archived status are required.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
+        return new ProductiveOutboxMessage(
+            id, payload.OrganizationId, payload.ManagementUnitId,
+            ProductiveCoreIntegrationEvents.ManagementUnitArchived,
+            payload.Revision, correlationId, payload.ArchivedAtUtc,
+            JsonSerializer.Serialize(payload, SerializerOptions));
+    }
+
+    public static ProductiveOutboxMessage CreateManagementUnitGeometryConfigured(
+        Guid id, string correlationId, ManagementUnitGeometryConfiguredIntegrationEventPayload payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        ArgumentException.ThrowIfNullOrWhiteSpace(correlationId);
+        if (id == Guid.Empty || payload.OrganizationId == Guid.Empty || payload.ManagementUnitId == Guid.Empty ||
+            payload.GeometryVersionId == Guid.Empty || payload.Revision < 2 ||
+            payload.SpatialStatus != ManagementUnitSpatialStatuses.Configured ||
+            payload.DeclaredAreaHectares <= 0 || payload.CalculatedAreaHectares <= 0 ||
+            payload.CalculationMethod != "postgis-geography-spheroid")
+        {
+            throw new ArgumentException("Initial geometry event facts are invalid.", nameof(payload));
+        }
+
+        return new ProductiveOutboxMessage(id, payload.OrganizationId, payload.ManagementUnitId,
+            ProductiveCoreIntegrationEvents.ManagementUnitGeometryConfigured, payload.Revision,
+            correlationId, payload.ConfiguredAtUtc, JsonSerializer.Serialize(payload, SerializerOptions));
     }
 }

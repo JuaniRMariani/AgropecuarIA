@@ -92,9 +92,9 @@ public static partial class AuthorizationSurfaceValidator
             Add(issues, "authorization-register.schema-version.invalid", "Schema version must be 1.");
         }
 
-        if (!string.Equals(document.Scope, "identity-territory-productive-core-integrated-local", StringComparison.Ordinal))
+        if (!string.Equals(document.Scope, "identity-territory-productive-core-catalog-weather-integrated-local", StringComparison.Ordinal))
         {
-            Add(issues, "authorization-register.scope.invalid", "Scope must remain the bounded integrated-local Identity/Territory/Productive Core slice.");
+            Add(issues, "authorization-register.scope.invalid", "Scope must explicitly cover the integrated-local Identity/Territory/Productive Core/Catalog/Weather surfaces.");
         }
 
         ValidateOperations(document.Operations, repositoryRoot, issues);
@@ -300,6 +300,8 @@ public static partial class AuthorizationSurfaceValidator
             Path.Combine(repositoryRoot, "contracts", "productive-core.openapi.yaml")));
         openApi.UnionWith(ExtractOpenApiOperations(
             Path.Combine(repositoryRoot, "contracts", "catalog.openapi.yaml")));
+        openApi.UnionWith(ExtractOpenApiOperations(
+            Path.Combine(repositoryRoot, "contracts", "weather.openapi.yaml")));
         HashSet<string> runtime = ExtractRuntimeOperations(repositoryRoot, issues);
 
         AddSetDifference(registered, openApi, "authorization-register.openapi", issues);
@@ -416,9 +418,16 @@ public static partial class AuthorizationSurfaceValidator
                 continue;
             }
 
-            if (!File.ReadAllText(fullPath).Contains(parts[1], StringComparison.Ordinal))
+            string source = File.ReadAllText(fullPath);
+            if (!source.Contains(parts[1], StringComparison.Ordinal))
             {
                 Add(issues, "authorization-register.test-symbol.missing", $"Operation '{operation}' references missing test symbol '{parts[1]}'.");
+            }
+            else if (Regex.IsMatch(source,
+                $@"\b{Regex.Escape(parts[1])}\s*\([^)]*\)\s*\{{\s*\}}",
+                RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)))
+            {
+                Add(issues, "authorization-register.test-body.empty", $"Operation '{operation}' references an empty test '{parts[1]}'.");
             }
         }
     }

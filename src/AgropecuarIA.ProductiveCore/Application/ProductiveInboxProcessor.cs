@@ -1,16 +1,20 @@
-using AgropecuarIA.ProductiveCore.Domain;
 using AgropecuarIA.ProductiveCore.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgropecuarIA.ProductiveCore.Application;
 
-public sealed class ProductiveInboxProcessor(ProductiveCoreDbContext dbContext)
+/// <summary>
+/// Deduplicates database-only handlers in the same local transaction. This is not an
+/// exactly-once guarantee for HTTP calls, files, messages, or another database.
+/// No dispatcher or external consumer is provisioned by this component.
+/// </summary>
+public sealed class ProductiveInboxProcessor(ProductiveCoreDbContext dbContext, TimeProvider timeProvider)
 {
     public async Task<bool> ProcessMessageAsync(
         Guid messageId,
         string consumerName,
         Guid organizationId,
-        Func<Task> handleMessageAsync,
+        Func<ProductiveCoreDbContext, CancellationToken, Task> handleMessageAsync,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(handleMessageAsync);
@@ -22,31 +26,42 @@ public sealed class ProductiveInboxProcessor(ProductiveCoreDbContext dbContext)
         }
 
         string normalizedConsumer = consumerName.Trim();
-
-        bool alreadyProcessed = await dbContext.ProductiveInboxEntries
-            .AnyAsync(x => x.OrganizationId == organizationId &&
-                           x.ConsumerName == normalizedConsumer &&
-                           x.MessageId == messageId,
-                      cancellationToken);
-
-        if (alreadyProcessed)
+        if (normalizedConsumer.Length > 128)
         {
-            return false; // Idempotent no-op
+            throw new ArgumentException("ConsumerName must contain at most 128 characters.", nameof(consumerName));
+        }
+        if (dbContext.Database.CurrentTransaction is not null || dbContext.ChangeTracker.HasChanges())
+        {
+            throw new InvalidOperationException("Inbox processing requires a clean, dedicated database context.");
         }
 
-        await handleMessageAsync();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            // The unique key arbitrates concurrent attempts before invoking a handler.
+            // A rollback removes this provisional marker together with its local effects.
+            int claimed = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO productive_core.inbox_entries
+                    ("Id", "MessageId", "ConsumerName", "OrganizationId", "ProcessedAtUtc")
+                VALUES ({Guid.NewGuid()}, {messageId}, {normalizedConsumer}, {organizationId}, {timeProvider.GetUtcNow()})
+                ON CONFLICT ("OrganizationId", "ConsumerName", "MessageId") DO NOTHING
+                """, cancellationToken);
+            if (claimed == 0)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return false;
+            }
 
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        var entry = new ProductiveInboxEntry(
-            Guid.NewGuid(),
-            messageId,
-            normalizedConsumer,
-            organizationId,
-            now);
-
-        dbContext.ProductiveInboxEntries.Add(entry);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return true;
+            await handleMessageAsync(dbContext, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return true;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            dbContext.ChangeTracker.Clear();
+            throw;
+        }
     }
 }

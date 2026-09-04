@@ -32,21 +32,12 @@ public sealed record ConfigureFieldGeometryCommand(
     Guid FieldId,
     string BoundaryGeoJson,
     decimal DeclaredAreaHectares,
-    decimal CalculatedAreaHectares,
-    double CentroidLatitude,
-    double CentroidLongitude,
-    string? OfficialProvinceCode,
-    string? OfficialDepartmentCode,
     Guid ExpectedVersion);
 
+[System.Text.Json.Serialization.JsonUnmappedMemberHandling(System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow)]
 public sealed record ConfigureFieldGeometryRequest(
     string BoundaryGeoJson,
-    decimal DeclaredAreaHectares,
-    decimal CalculatedAreaHectares,
-    double CentroidLatitude,
-    double CentroidLongitude,
-    string? OfficialProvinceCode,
-    string? OfficialDepartmentCode);
+    decimal DeclaredAreaHectares);
 
 public sealed record ConfiguredFieldGeometryResult(
     Guid FieldId,
@@ -64,7 +55,9 @@ public sealed record ConfiguredFieldGeometryResult(
     string? OfficialDepartmentCode,
     DateTimeOffset CreatedAtUtc,
     long Revision,
-    Guid Version);
+    Guid Version,
+    Guid GeometryVersionId,
+    DateTimeOffset ConfiguredAtUtc);
 
 public sealed record ManagementUnitResult(
     Guid FieldId,
@@ -164,6 +157,22 @@ public sealed class ProductiveCoreOperationException : Exception
 
 public static class ProductiveCoreErrors
 {
+    public static ProductiveCoreOperationException InvalidGeometry() =>
+        new("productive_core.field_geometry_invalid", StatusCodes.Status400BadRequest,
+            "A valid two-dimensional WGS84 Polygon or MultiPolygon and positive declared area (at most four decimal places) are required.");
+
+    public static ProductiveCoreOperationException GeometryTooLarge() =>
+        new("productive_core.field_geometry_too_large", StatusCodes.Status413PayloadTooLarge,
+            "Geometry exceeds the 1 MiB UTF-8 or 10000-position operational limit.");
+
+    public static ProductiveCoreOperationException GeometryAlreadyConfigured() =>
+        new("productive_core.field_geometry_already_configured", StatusCodes.Status409Conflict,
+            "Only an unconfigured draft field can receive its initial geometry.");
+
+    public static ProductiveCoreOperationException GeometryUnavailable() =>
+        new("productive_core.field_geometry_unavailable", StatusCodes.Status503ServiceUnavailable,
+            "Geometry is unavailable or the commit outcome is unknown. Refresh the field and geometry before any new attempt; do not retry automatically.");
+
     public static ProductiveCoreOperationException InvalidFieldDisplayName() =>
         new(
             "productive_core.invalid_field_display_name",

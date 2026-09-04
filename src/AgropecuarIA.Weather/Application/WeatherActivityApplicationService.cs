@@ -107,10 +107,8 @@ public sealed class WeatherActivityApplicationService(WeatherDbContext dbContext
             .AsNoTracking()
             .Where(x => x.OrganizationId == query.OrganizationId && x.IsEnabled);
 
-        if (query.FieldId.HasValue)
-        {
-            rulesQuery = rulesQuery.Where(x => x.FieldId == null || x.FieldId == query.FieldId.Value);
-        }
+        rulesQuery = rulesQuery.Where(x => x.FieldId == null ||
+            (query.FieldId.HasValue && x.FieldId == query.FieldId.Value));
 
         if (!string.IsNullOrWhiteSpace(query.ActivityType))
         {
@@ -120,14 +118,15 @@ public sealed class WeatherActivityApplicationService(WeatherDbContext dbContext
 
         var rules = await rulesQuery.ToListAsync(cancellationToken);
 
-        // If no custom rules configured, use standard agronomical defaults
-        if (rules.Count == 0 && !string.IsNullOrWhiteSpace(query.ActivityType))
+        if (rules.Count == 0)
         {
-            var defaultRule = GetDefaultRule(query.OrganizationId, query.ActivityType);
-            if (defaultRule is not null)
-            {
-                rules.Add(defaultRule);
-            }
+            return [new ActivitySuitabilityResult(
+                query.ActivityType?.Trim().ToLowerInvariant() ?? string.Empty,
+                string.Empty,
+                ActivitySuitabilityStatuses.InsufficientData,
+                false,
+                ["No hay una regla habilitada y configurada para esta actividad y alcance; no se evalúa aptitud."],
+                ActivitySuitabilityReasonCodes.RuleUnconfigured)];
         }
 
         return rules.Select(r => r.Evaluate(
@@ -137,48 +136,6 @@ public sealed class WeatherActivityApplicationService(WeatherDbContext dbContext
             query.PrecipitationMm,
             query.RelativeHumidity)).ToList();
     }
-
-    private static WeatherActivityRule? GetDefaultRule(Guid organizationId, string activityType) =>
-        activityType.Trim().ToLowerInvariant() switch
-        {
-            WeatherActivityTypes.Pulverizacion => new WeatherActivityRule(
-                Guid.NewGuid(), organizationId, null, WeatherActivityTypes.Pulverizacion,
-                "Pulverización Estándar (Buenas Prácticas)",
-                maxWindSpeedKmh: 15m,
-                minTemperatureCelsius: 10m,
-                maxTemperatureCelsius: 30m,
-                maxPrecipitationProbability: 30m,
-                maxPrecipitationMm: 1m,
-                minRelativeHumidity: 40m,
-                maxRelativeHumidity: 80m,
-                Guid.Empty, DateTimeOffset.UtcNow),
-
-            WeatherActivityTypes.Siembra => new WeatherActivityRule(
-                Guid.NewGuid(), organizationId, null, WeatherActivityTypes.Siembra,
-                "Siembra Estándar",
-                maxWindSpeedKmh: 35m,
-                minTemperatureCelsius: 5m,
-                maxTemperatureCelsius: 38m,
-                maxPrecipitationProbability: 60m,
-                maxPrecipitationMm: 15m,
-                minRelativeHumidity: null,
-                maxRelativeHumidity: null,
-                Guid.Empty, DateTimeOffset.UtcNow),
-
-            WeatherActivityTypes.Cosecha => new WeatherActivityRule(
-                Guid.NewGuid(), organizationId, null, WeatherActivityTypes.Cosecha,
-                "Cosecha Estándar",
-                maxWindSpeedKmh: 40m,
-                minTemperatureCelsius: 0m,
-                maxTemperatureCelsius: 40m,
-                maxPrecipitationProbability: 20m,
-                maxPrecipitationMm: 0.5m,
-                minRelativeHumidity: null,
-                maxRelativeHumidity: 70m,
-                Guid.Empty, DateTimeOffset.UtcNow),
-
-            _ => null
-        };
 
     private static ActivityRuleDto ToDto(WeatherActivityRule r) =>
         new(

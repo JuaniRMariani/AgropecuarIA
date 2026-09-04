@@ -18,7 +18,7 @@ namespace AgropecuarIA.ProductiveCore.Tests;
 
 [TestClass]
 [DoNotParallelize]
-public sealed class ProductiveCoreDatabaseSecurityTests
+public sealed partial class ProductiveCoreDatabaseSecurityTests
 {
     private const string IdentityBeforeAuthorizationPort =
         "20260818153846_AddOrganizationOwnerRemoval";

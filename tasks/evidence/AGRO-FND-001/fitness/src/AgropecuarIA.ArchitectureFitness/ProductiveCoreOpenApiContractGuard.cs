@@ -53,7 +53,9 @@ public static class ProductiveCoreOpenApiContractGuard
         Require(text, "        type: { type: string, const: field }", "productive-openapi.type.open", issues);
         Require(text, "        status: { type: string, const: draft }", "productive-openapi.status.open", issues);
         Require(text, "        spatialStatus: { type: string, const: not_configured }", "productive-openapi.spatial-status.open", issues);
-        Require(text, "it does not claim geometry, area, cadastral status or agronomic location", "productive-openapi.non-spatial-boundary.missing", issues);
+        Require(text, "configured does not certify cadastral status, official territorial containment or agronomic suitability", "productive-openapi.non-spatial-boundary.missing", issues);
+        ValidateGeometryContract(text, issues);
+        Require(text, "        spatialStatus: { type: string, enum: [not_configured, configured] }", "productive-openapi.read-spatial-status.open", issues);
         Require(text, "        retryable: { type: boolean }", "productive-openapi.problem.retryable.missing", issues);
         Require(text, "organization field capacity reached (productive_core.management_unit_capacity_reached)", "productive-openapi.capacity-conflict.missing", issues);
         Require(text, "                maxItems: 100", "productive-openapi.list-bound.invalid", issues);
@@ -65,6 +67,34 @@ public static class ProductiveCoreOpenApiContractGuard
         }
 
         return issues;
+    }
+
+    private static void ValidateGeometryContract(string text, ICollection<ValidationIssue> issues)
+    {
+        string normalized = text.Replace("\r\n", "\n", StringComparison.Ordinal);
+        int geometryStart = normalized.IndexOf("  /api/organizations/{organizationId}/fields/{fieldId}/geometry:\n", StringComparison.Ordinal);
+        int geometryEnd = geometryStart < 0 ? -1 : normalized.IndexOf("  /api/", geometryStart + 1, StringComparison.Ordinal);
+        string geometry = geometryStart < 0 ? string.Empty : geometryEnd < 0 ? normalized[geometryStart..] : normalized[geometryStart..geometryEnd];
+        Require(geometry, "      operationId: ConfigureFieldGeometry", "productive-openapi.geometry.missing", issues);
+        int postStart = geometry.IndexOf("    post:\n", StringComparison.Ordinal);
+        string post = postStart < 0 ? string.Empty : geometry[postStart..];
+        Require(post, "      security:\n        - SessionCookie: []\n          AntiforgeryCookie: []\n", "productive-openapi.geometry.security.invalid", issues);
+        Require(post, "{name: If-Match, in: header, required: true", "productive-openapi.geometry.if-match.missing", issues);
+        Require(post, "No idempotency ledger or automatic retry", "productive-openapi.geometry.retry-boundary.missing", issues);
+        Require(post, "        '413':", "productive-openapi.geometry.limit-response.missing", issues);
+        Require(post, "schema: { $ref: '#/components/schemas/ConfigureFieldGeometryRequest' }", "productive-openapi.geometry.request.missing", issues);
+        int requestStart = normalized.IndexOf("    ConfigureFieldGeometryRequest:\n", StringComparison.Ordinal);
+        int requestEnd = requestStart < 0 ? -1 : normalized.IndexOf("    ConfiguredFieldGeometry:\n", requestStart, StringComparison.Ordinal);
+        string request = requestStart < 0 || requestEnd < 0 ? string.Empty : normalized[requestStart..requestEnd];
+        Require(request, "      additionalProperties: false", "productive-openapi.geometry.request.open", issues);
+        Require(request, "      required: [boundaryGeoJson, declaredAreaHectares]", "productive-openapi.geometry.request-fields.invalid", issues);
+        foreach (string forbidden in new[] { "calculatedAreaHectares:", "centroidLatitude:", "centroidLongitude:", "officialProvinceCode:", "officialDepartmentCode:" })
+        {
+            if (request.Contains(forbidden, StringComparison.Ordinal))
+            {
+                Add(issues, "productive-openapi.geometry.client-derived-field", $"Geometry request must not accept '{forbidden}'.");
+            }
+        }
     }
 
     private static bool HasConjunctiveRenameSecurity(string text)

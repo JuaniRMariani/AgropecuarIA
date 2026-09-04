@@ -20,10 +20,14 @@ $previousEnvironment = @{
     ConnectionStrings__Identity = $env:ConnectionStrings__Identity
     ConnectionStrings__Territory = $env:ConnectionStrings__Territory
     ConnectionStrings__ProductiveCore = $env:ConnectionStrings__ProductiveCore
+    ConnectionStrings__Catalog = $env:ConnectionStrings__Catalog
+    ConnectionStrings__Weather = $env:ConnectionStrings__Weather
     AGRO_API_ORIGIN = $env:AGRO_API_ORIGIN
     Identity__ApplyMigrations = $env:Identity__ApplyMigrations
     Territory__ApplyMigrations = $env:Territory__ApplyMigrations
     ProductiveCore__ApplyMigrations = $env:ProductiveCore__ApplyMigrations
+    Catalog__ApplyMigrations = $env:Catalog__ApplyMigrations
+    Weather__ApplyMigrations = $env:Weather__ApplyMigrations
     Territory__Reference__CoordinateResolutionEnabled = $env:Territory__Reference__CoordinateResolutionEnabled
     Identity__DevelopmentProvider__Enabled = $env:Identity__DevelopmentProvider__Enabled
     Identity__DevelopmentProvider__SyntheticProfileCount = $env:Identity__DevelopmentProvider__SyntheticProfileCount
@@ -57,6 +61,11 @@ function Resolve-PostgreSqlBin {
             -not (Test-Path -LiteralPath (Join-Path $ConfiguredPath $_))
         }).Count -eq 0) {
         return [IO.Path]::GetFullPath($ConfiguredPath)
+    }
+
+    $spatialRuntimeBin = Join-Path $repoRoot 'tasks\evidence\AGRO-DIS-004\spike\postgis\.runtime\postgresql-17-postgis-3.6.2\bin'
+    if (Test-Path -LiteralPath (Join-Path $spatialRuntimeBin 'postgres.exe')) {
+        return [IO.Path]::GetFullPath($spatialRuntimeBin)
     }
 
     $installationRoot = 'C:\Program Files\PostgreSQL'
@@ -226,15 +235,27 @@ try {
         throw 'Passwordless PostgreSQL authentication unexpectedly succeeded.'
     }
 
+    # Provision only this newly-created disposable test cluster. The API never installs extensions.
+    $env:PGPASSWORD = $postgresPassword
+    & (Join-Path $postgresBin 'psql.exe') --host=127.0.0.1 --port=$postgresPort --username=postgres `
+        --dbname=postgres --no-password --set=ON_ERROR_STOP=1 --command='CREATE EXTENSION IF NOT EXISTS postgis;'
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The disposable E2E database requires PostGIS. Set AGRO_IDENTITY_POSTGRES_BIN to a PostGIS-enabled PostgreSQL runtime.'
+    }
+
     $env:ASPNETCORE_ENVIRONMENT = 'Test'
     $env:ASPNETCORE_URLS = "http://127.0.0.1:$ApiPort"
     $env:ConnectionStrings__Identity = "Host=127.0.0.1;Port=$postgresPort;Database=postgres;Username=postgres;Password=$postgresPassword;Pooling=false"
     $env:ConnectionStrings__Territory = $env:ConnectionStrings__Identity
     $env:ConnectionStrings__ProductiveCore = $env:ConnectionStrings__Identity
+    $env:ConnectionStrings__Catalog = $env:ConnectionStrings__Identity
+    $env:ConnectionStrings__Weather = $env:ConnectionStrings__Identity
     $env:AGRO_API_ORIGIN = "http://127.0.0.1:$ApiPort"
     $env:Identity__ApplyMigrations = 'true'
     $env:Territory__ApplyMigrations = 'true'
     $env:ProductiveCore__ApplyMigrations = 'true'
+    $env:Catalog__ApplyMigrations = 'true'
+    $env:Weather__ApplyMigrations = 'true'
     $env:Territory__Reference__CoordinateResolutionEnabled = 'false'
     $env:Identity__DevelopmentProvider__Enabled = 'true'
     $env:Identity__DevelopmentProvider__SyntheticProfileCount = '4'

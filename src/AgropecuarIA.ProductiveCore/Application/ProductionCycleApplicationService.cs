@@ -1,6 +1,5 @@
 using AgropecuarIA.ProductiveCore.Domain;
-using AgropecuarIA.ProductiveCore.Infrastructure;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 
 namespace AgropecuarIA.ProductiveCore.Application;
 
@@ -59,134 +58,196 @@ public sealed record ProductionTimelineResult(
     ProductionCycleDto Cycle,
     IReadOnlyList<ProductionEventDto> Events);
 
-public sealed class ProductionCycleApplicationService(ProductiveCoreDbContext dbContext)
+public sealed class ProductionCycleApplicationService(
+    IProductiveCoreUnitOfWorkFactory unitOfWorkFactory,
+    TimeProvider timeProvider)
 {
-    public async Task<ProductionCycleDto> StartCycleAsync(
+    public Task<ProductionCycleDto> StartCycleAsync(
         StartProductionCycleCommand command,
+        ProductiveRequestContext requestContext,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+        return ExecuteAuthorizedAsync(
+            command.OrganizationId, requestContext, ProductiveTransactionMode.SerializableWrite,
+            async unitOfWork =>
+            {
+                ManagementUnit? field = await unitOfWork.GetManagementUnitForUpdateAsync(
+                    command.OrganizationId, command.ManagementUnitId, cancellationToken);
+                RequireField(field, command.OrganizationId, command.ManagementUnitId);
+                if (field!.Status == ManagementUnitStatuses.Archived)
+                {
+                    throw new ProductiveCoreOperationException(
+                        "productive_core.field_archived", StatusCodes.Status409Conflict,
+                        "New production cycles cannot start on an archived field.");
+                }
 
-        bool fieldExists = await dbContext.ManagementUnits
-            .AnyAsync(x => x.Id == command.ManagementUnitId && x.OrganizationId == command.OrganizationId, cancellationToken);
-
-        if (!fieldExists)
-        {
-            throw new InvalidOperationException("Management unit not found in this organization.");
-        }
-
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        var cycle = new ProductionCycle(
-            Guid.NewGuid(),
-            command.OrganizationId,
-            command.ManagementUnitId,
-            command.CatalogCode,
-            command.CatalogDisplayName,
-            command.Purpose,
-            command.System,
-            command.SupportLevel,
-            command.StartDateUtc,
-            now);
-
-        dbContext.ProductionCycles.Add(cycle);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return ToDto(cycle);
+                var cycle = new ProductionCycle(
+                    Guid.NewGuid(), command.OrganizationId, command.ManagementUnitId,
+                    command.CatalogCode, command.CatalogDisplayName, command.Purpose,
+                    command.System, command.SupportLevel, command.StartDateUtc,
+                    timeProvider.GetUtcNow());
+                unitOfWork.AddProductionCycle(cycle);
+                return ToDto(cycle);
+            }, cancellationToken);
     }
 
-    public async Task<ProductionEventDto> RecordEventAsync(
+    public Task<ProductionEventDto> RecordEventAsync(
         RecordProductionEventCommand command,
+        ProductiveRequestContext requestContext,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+        return ExecuteAuthorizedAsync(
+            command.OrganizationId, requestContext, ProductiveTransactionMode.SerializableWrite,
+            async unitOfWork =>
+            {
+                ProductionCycle cycle = await RequireCycleAsync(
+                    unitOfWork, command.OrganizationId, command.ProductionCycleId,
+                    forUpdate: true, cancellationToken);
+                if (cycle.Status != ProductionCycleStatuses.Active)
+                {
+                    throw new ProductiveCoreOperationException(
+                        "productive_core.cycle_not_active", StatusCodes.Status409Conflict,
+                        "The production cycle is not active.");
+                }
 
-        var cycle = await dbContext.ProductionCycles
-            .FirstOrDefaultAsync(x => x.Id == command.ProductionCycleId && x.OrganizationId == command.OrganizationId, cancellationToken);
-
-        if (cycle is null)
-        {
-            throw new InvalidOperationException("Production cycle not found in this organization.");
-        }
-
-        if (cycle.Status != ProductionCycleStatuses.Active)
-        {
-            throw new InvalidOperationException($"Cannot record event in a cycle with status '{cycle.Status}'.");
-        }
-
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        var evt = new ProductionEvent(
-            Guid.NewGuid(),
-            command.OrganizationId,
-            command.ProductionCycleId,
-            command.EventType,
-            command.EffectiveDateUtc,
-            now,
-            command.Quantity,
-            command.Unit,
-            command.Notes,
-            command.Origin);
-
-        dbContext.ProductionEvents.Add(evt);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return ToEventDto(evt);
+                var productionEvent = new ProductionEvent(
+                    Guid.NewGuid(), command.OrganizationId, command.ProductionCycleId,
+                    command.EventType, command.EffectiveDateUtc, timeProvider.GetUtcNow(),
+                    command.Quantity, command.Unit, command.Notes, command.Origin);
+                unitOfWork.AddProductionEvent(productionEvent);
+                return ToEventDto(productionEvent);
+            }, cancellationToken);
     }
 
-    public async Task<ProductionCycleDto> CloseCycleAsync(
+    public Task<ProductionCycleDto> CloseCycleAsync(
         CloseProductionCycleCommand command,
+        ProductiveRequestContext requestContext,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
-
-        var cycle = await dbContext.ProductionCycles
-            .FirstOrDefaultAsync(x => x.Id == command.ProductionCycleId && x.OrganizationId == command.OrganizationId, cancellationToken);
-
-        if (cycle is null)
-        {
-            throw new InvalidOperationException("Production cycle not found in this organization.");
-        }
-
-        cycle.Close(command.EndDateUtc);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return ToDto(cycle);
+        return ExecuteAuthorizedAsync(
+            command.OrganizationId, requestContext, ProductiveTransactionMode.SerializableWrite,
+            async unitOfWork =>
+            {
+                ProductionCycle cycle = await RequireCycleAsync(
+                    unitOfWork, command.OrganizationId, command.ProductionCycleId,
+                    forUpdate: true, cancellationToken);
+                cycle.Close(command.EndDateUtc);
+                return ToDto(cycle);
+            }, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ProductionCycleDto>> ListCyclesAsync(
+    public Task<IReadOnlyList<ProductionCycleDto>> ListCyclesAsync(
         Guid organizationId,
         Guid managementUnitId,
-        CancellationToken cancellationToken)
-    {
-        var cycles = await dbContext.ProductionCycles
-            .AsNoTracking()
-            .Where(x => x.OrganizationId == organizationId && x.ManagementUnitId == managementUnitId)
-            .OrderByDescending(x => x.StartDateUtc)
-            .ToListAsync(cancellationToken);
+        ProductiveRequestContext requestContext,
+        CancellationToken cancellationToken) =>
+        ExecuteAuthorizedAsync<IReadOnlyList<ProductionCycleDto>>(
+            organizationId, requestContext, ProductiveTransactionMode.Read,
+            async unitOfWork =>
+            {
+                ManagementUnit? field = await unitOfWork.GetManagementUnitAsync(
+                    organizationId, managementUnitId, cancellationToken);
+                RequireField(field, organizationId, managementUnitId);
+                IReadOnlyList<ProductionCycle> cycles = await unitOfWork.ListProductionCyclesAsync(
+                    organizationId, managementUnitId, cancellationToken);
+                return cycles.Select(ToDto).ToArray();
+            }, cancellationToken);
 
-        return cycles.Select(ToDto).ToList();
-    }
-
-    public async Task<ProductionTimelineResult?> GetTimelineAsync(
+    public Task<ProductionTimelineResult> GetTimelineAsync(
         Guid organizationId,
         Guid productionCycleId,
+        ProductiveRequestContext requestContext,
+        CancellationToken cancellationToken) =>
+        ExecuteAuthorizedAsync(
+            organizationId, requestContext, ProductiveTransactionMode.Read,
+            async unitOfWork =>
+            {
+                ProductionCycle cycle = await RequireCycleAsync(
+                    unitOfWork, organizationId, productionCycleId,
+                    forUpdate: false, cancellationToken);
+                IReadOnlyList<ProductionEvent> events = await unitOfWork.ListProductionEventsAsync(
+                    organizationId, productionCycleId, cancellationToken);
+                return new ProductionTimelineResult(ToDto(cycle), events.Select(ToEventDto).ToArray());
+            }, cancellationToken);
+
+    private async Task<T> ExecuteAuthorizedAsync<T>(
+        Guid organizationId,
+        ProductiveRequestContext requestContext,
+        ProductiveTransactionMode mode,
+        Func<IProductiveCoreUnitOfWork, Task<T>> operation,
         CancellationToken cancellationToken)
     {
-        var cycle = await dbContext.ProductionCycles
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == productionCycleId && x.OrganizationId == organizationId, cancellationToken);
+        ArgumentNullException.ThrowIfNull(requestContext);
+        if (organizationId == Guid.Empty || organizationId != requestContext.OrganizationId)
+        {
+            throw ProductiveCoreErrors.FieldNotAvailable();
+        }
 
-        if (cycle is null)
-            return null;
+        try
+        {
+            await using IProductiveCoreUnitOfWork unitOfWork =
+                await unitOfWorkFactory.BeginAsync(mode, cancellationToken);
+            if (await unitOfWork.AuthorizeOwnerAsync(requestContext, cancellationToken) is null)
+            {
+                throw ProductiveCoreErrors.FieldNotAvailable();
+            }
 
-        var events = await dbContext.ProductionEvents
-            .AsNoTracking()
-            .Where(x => x.OrganizationId == organizationId && x.ProductionCycleId == productionCycleId)
-            .OrderBy(x => x.EffectiveDateUtc)
-            .ToListAsync(cancellationToken);
+            T result = await operation(unitOfWork);
+            if (mode == ProductiveTransactionMode.SerializableWrite)
+            {
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+            }
 
-        return new ProductionTimelineResult(
-            ToDto(cycle),
-            events.Select(ToEventDto).ToList());
+            await unitOfWork.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch (ArgumentException)
+        {
+            throw new ProductiveCoreOperationException(
+                "productive_core.invalid_cycle_request", StatusCodes.Status400BadRequest,
+                "The production cycle request is invalid.");
+        }
+        catch (Exception exception) when (exception is ProductivePersistenceUnavailableException or
+            ProductiveSerializationRaceException or ProductiveCommitOutcomeUnknownException or
+            ProductiveStaleVersionException or ProductiveIdempotencyRaceException)
+        {
+            // These commands have no idempotency ledger: never retry a possibly committed write here.
+            throw new ProductiveCoreOperationException(
+                "productive_core.cycle_unavailable", StatusCodes.Status503ServiceUnavailable,
+                "The production cycle operation could not be confirmed.");
+        }
+    }
+
+    private static async Task<ProductionCycle> RequireCycleAsync(
+        IProductiveCoreUnitOfWork unitOfWork,
+        Guid organizationId,
+        Guid cycleId,
+        bool forUpdate,
+        CancellationToken cancellationToken)
+    {
+        ProductionCycle? cycle = forUpdate
+            ? await unitOfWork.GetProductionCycleForUpdateAsync(organizationId, cycleId, cancellationToken)
+            : await unitOfWork.GetProductionCycleAsync(organizationId, cycleId, cancellationToken);
+        if (cycle is null || cycle.OrganizationId != organizationId || cycle.Id != cycleId)
+        {
+            throw ProductiveCoreErrors.FieldNotAvailable();
+        }
+
+        ManagementUnit? field = await unitOfWork.GetManagementUnitAsync(
+            organizationId, cycle.ManagementUnitId, cancellationToken);
+        RequireField(field, organizationId, cycle.ManagementUnitId);
+        return cycle;
+    }
+
+    private static void RequireField(ManagementUnit? field, Guid organizationId, Guid fieldId)
+    {
+        if (field is null || field.OrganizationId != organizationId || field.Id != fieldId)
+        {
+            throw ProductiveCoreErrors.FieldNotAvailable();
+        }
     }
 
     private static ProductionCycleDto ToDto(ProductionCycle c) =>

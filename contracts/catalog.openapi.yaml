@@ -1,14 +1,173 @@
-openapi: 3.0.1
+openapi: 3.1.0
 info:
   title: AgropecuarIA Catalog API
-  version: "1.0"
+  version: 1.0.0
+  description: "Current authenticated catalog surface. Editorial writes need separately provisioned platform authority. This contract does not certify complete editorial workflow or professional acceptance."
+security:
+  - SessionCookie: []
 paths:
   /api/catalog/diff:
     get:
       operationId: GetCatalogDiff
+      description: "Authenticated staging summary; modified/removed are not yet computed against a published baseline."
+      responses:
+        '200':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"$ref":"#/components/schemas/EditorialDiff"}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '429':
+          description: "Rate limit exceeded"
   /api/catalog/ingest:
     post:
       operationId: PostCatalogIngest
-  /api/organizations/{organizationId}/fields/{fieldId}/archive:
+      description: "Platform editorial permission required; tenant owner alone is insufficient. Content is base64 JSON, not a URL."
+      security:
+        - SessionCookie: []
+          AntiforgeryCookie: []
+      parameters:
+        - {"name":"X-CSRF-TOKEN","in":"header","required":true,"schema":{"type":"string"}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {"$ref":"#/components/schemas/IngestSource"}
+      responses:
+        '200':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"type":"object","required":["status","sourceId"],"properties":{"status":{"type":"string"},"sourceId":{"type":"string"}}}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '409':
+          description: "Duplicate source snapshot hash"
+        '429':
+          description: "Rate limit exceeded"
+  /api/catalog/publish:
     post:
-      operationId: PostFieldArchive
+      operationId: PostCatalogPublish
+      description: "Platform editorial permission required. Publisher derives from session; client publishedBy is rejected. Professional approval is not asserted."
+      security:
+        - SessionCookie: []
+          AntiforgeryCookie: []
+      parameters:
+        - {"name":"X-CSRF-TOKEN","in":"header","required":true,"schema":{"type":"string"}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {"$ref":"#/components/schemas/PublishCatalog"}
+      responses:
+        '200':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"$ref":"#/components/schemas/Publication"}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '429':
+          description: "Rate limit exceeded"
+  /api/catalog/rollback/{versionId}:
+    post:
+      operationId: PostCatalogRollback
+      description: "Current integrated-local endpoint; parent backlog acceptance remains incomplete."
+      security:
+        - SessionCookie: []
+          AntiforgeryCookie: []
+      parameters:
+        - {"name":"versionId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+        - {"name":"X-CSRF-TOKEN","in":"header","required":true,"schema":{"type":"string"}}
+      responses:
+        '200':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"type":"object","required":["status","versionId"],"properties":{"status":{"type":"string"},"versionId":{"type":"string","format":"uuid"}}}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '404':
+          description: "Version not found"
+        '429':
+          description: "Rate limit exceeded"
+  /api/catalog/items:
+    get:
+      operationId: GetCatalogItems
+      description: "Current integrated-local endpoint; parent backlog acceptance remains incomplete."
+      parameters:
+        - {"name":"query","in":"query","required":false,"schema":{"type":"string"}}
+        - {"name":"jurisdiction","in":"query","required":false,"schema":{"type":"string"}}
+        - {"name":"category","in":"query","required":false,"schema":{"type":"string"}}
+        - {"name":"supportLevel","in":"query","required":false,"schema":{"type":"string"}}
+        - {"name":"limit","in":"query","required":false,"schema":{"type":"integer","default":50}}
+      responses:
+        '200':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"$ref":"#/components/schemas/CatalogSearch"}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '429':
+          description: "Rate limit exceeded"
+  /api/catalog/items/{code}:
+    get:
+      operationId: GetCatalogItem
+      description: "Current integrated-local endpoint; parent backlog acceptance remains incomplete."
+      parameters:
+        - {"name":"code","in":"path","required":true,"schema":{"type":"string"}}
+      responses:
+        '200':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"$ref":"#/components/schemas/CatalogItem"}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '404':
+          description: "Code not found in active version"
+        '429':
+          description: "Rate limit exceeded"
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-agro-session
+    AntiforgeryCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-agro-xsrf
+  schemas:
+    IngestSource: {"type":"object","required":["sourceId","contentBase64"],"properties":{"sourceId":{"type":"string"},"contentBase64":{"type":"string"}}}
+    PublishCatalog: {"type":"object","required":["versionTag"],"properties":{"versionTag":{"type":"string"}},"additionalProperties":false}
+    Publication: {"type":"object","required":["versionId","versionTag","itemsCount","publishedAtUtc"],"properties":{"versionId":{"type":"string","format":"uuid"},"versionTag":{"type":"string"},"itemsCount":{"type":"integer"},"publishedAtUtc":{"type":"string","format":"date-time"}}}
+    CatalogItem: {"type":"object","required":["id","code","displayName","jurisdiction","supportLevel","category","synonyms"],"properties":{"id":{"type":"string","format":"uuid"},"code":{"type":"string"},"displayName":{"type":"string"},"jurisdiction":{"type":"string"},"supportLevel":{"type":"string"},"category":{"type":"string"},"synonyms":{"type":"array","items":{"type":"string"}}}}
+    CatalogSearch: {"type":"object","required":["versionId","versionTag","totalCount","items"],"properties":{"versionId":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}]},"versionTag":{"anyOf":[{"type":"string"},{"type":"null"}]},"totalCount":{"type":"integer"},"items":{"type":"array","items":{"$ref":"#/components/schemas/CatalogItem"}}}}
+    EditorialDiff: {"type":"object","required":["totalStaged","added","modified","removed","conflicts","conflictDetails","generatedAtUtc"],"properties":{"totalStaged":{"type":"integer"},"added":{"type":"integer"},"modified":{"type":"integer"},"removed":{"type":"integer"},"conflicts":{"type":"integer"},"conflictDetails":{"type":"array","items":{"type":"string"}},"generatedAtUtc":{"type":"string","format":"date-time"}}}

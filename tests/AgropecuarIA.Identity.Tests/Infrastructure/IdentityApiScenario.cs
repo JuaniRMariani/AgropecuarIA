@@ -9,7 +9,7 @@ namespace AgropecuarIA.Identity.Tests.Infrastructure;
 internal sealed class IdentityApiScenario : IAsyncDisposable
 {
     private readonly PostgreSqlTestServer _postgresql;
-    private readonly IdentityApiFactory _factory;
+    private IdentityApiFactory _factory;
 
     private IdentityApiScenario(
         PostgreSqlTestServer postgresql,
@@ -24,6 +24,13 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
     public string ConnectionString { get; }
 
     public TestLogSink Logs => _factory.Logs;
+
+    public void RestartInTest(IReadOnlyDictionary<string, string?> configuration)
+    {
+        _factory.Dispose();
+        _factory = new IdentityApiFactory(ConnectionString, "Test", configuration, configureServices: null);
+        _ = _factory.Server;
+    }
 
     public static async Task<IdentityApiScenario> CreateAsync(
         string environment = "Test",
@@ -92,6 +99,7 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
             builder.UseSetting("ConnectionStrings:Territory", connectionString);
             builder.UseSetting("ConnectionStrings:ProductiveCore", connectionString);
             builder.UseSetting("ConnectionStrings:Catalog", connectionString);
+            builder.UseSetting("ConnectionStrings:Weather", connectionString);
             builder.UseSetting(
                 "Identity:DevelopmentProvider:Enabled",
                 (environment is "Development" or "Test").ToString());
@@ -102,6 +110,13 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
             builder.UseSetting(
                 "Identity:ApplyMigrations",
                 (environment is "Development" or "Test").ToString());
+            if (configuration is not null)
+            {
+                foreach (var item in configuration)
+                {
+                    builder.UseSetting(item.Key, item.Value);
+                }
+            }
             builder.ConfigureAppConfiguration((_, configurationBuilder) =>
             {
                 var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
@@ -110,6 +125,7 @@ internal sealed class IdentityApiScenario : IAsyncDisposable
                     ["ConnectionStrings:Territory"] = connectionString,
                     ["ConnectionStrings:ProductiveCore"] = connectionString,
                     ["ConnectionStrings:Catalog"] = connectionString,
+                    ["ConnectionStrings:Weather"] = connectionString,
                     ["Identity:DevelopmentProvider:Enabled"] =
                         (environment is "Development" or "Test").ToString(),
                     ["Identity:DevelopmentProvider:SyntheticProfileCount"] = "1",

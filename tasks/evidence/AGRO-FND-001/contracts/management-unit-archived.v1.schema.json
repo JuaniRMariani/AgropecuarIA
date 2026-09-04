@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.local/contracts/productive-core/management-unit-archived.v1.schema.json",
+  "title": "ManagementUnitArchived v1 payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["organizationId", "managementUnitId", "revision", "status", "archivedAtUtc"],
+  "properties": {
+    "organizationId": {"type": "string", "format": "uuid"},
+    "managementUnitId": {"type": "string", "format": "uuid"},
+    "revision": {"type": "integer", "minimum": 2},
+    "status": {"type": "string", "const": "archived"},
+    "archivedAtUtc": {"type": "string", "format": "date-time"}
+  }
+}

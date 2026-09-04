@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  archiveField,
   createField,
   FieldApiError,
   getField,
@@ -8,6 +9,7 @@ import {
   listFields,
   normalizeFieldDisplayName,
   parseCreatedField,
+  parseArchivedField,
   parseFieldSummary,
   parseRenamedField,
   renameField,
@@ -54,6 +56,125 @@ afterEach(() => {
 });
 
 describe("field API boundary", () => {
+  const archiveRequest = {
+    organizationId,
+    fieldId,
+    version: field.version,
+    idempotencyKey: "37dd6174317ee878f12c414ef5450449",
+  };
+  const archived = {
+    ...field,
+    status: "archived",
+    version: renamedVersion,
+    revision: 2,
+    isReplay: false,
+  };
+
+  it("accepts archived read and archive results without widening create or rename", () => {
+    expect(parseFieldSummary({ ...field, status: "archived" }).status).toBe(
+      "archived",
+    );
+    expect(parseArchivedField(archived)).toEqual(archived);
+    expect(() =>
+      parseCreatedField({ ...field, status: "archived", isReplay: false }),
+    ).toThrow(FieldApiError);
+    expect(() => parseRenamedField(archived)).toThrow(FieldApiError);
+    expect(() => parseArchivedField({ ...archived, status: "draft" })).toThrow(
+      FieldApiError,
+    );
+    expect(() => parseArchivedField({ ...archived, revision: 1 })).toThrow(
+      FieldApiError,
+    );
+  });
+
+  it("posts a bodyless archive with CSRF, strong If-Match and immutable idempotency", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ token: "csrf" }))
+      .mockResolvedValueOnce(
+        jsonResponse(archived, 200, { ETag: `"${renamedVersion}"` }),
+      );
+    await expect(archiveField(archiveRequest)).resolves.toEqual(archived);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      `/api/organizations/${organizationId}/fields/${fieldId}/archive`,
+    );
+    const request = fetchMock.mock.calls[1]?.[1];
+    expect(request).toMatchObject({
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+    });
+    expect(request?.body).toBeUndefined();
+    const headers = new Headers(request?.headers);
+    expect(headers.get("Content-Type")).toBeNull();
+    expect(headers.get("X-CSRF-TOKEN")).toBe("csrf");
+    expect(headers.get("If-Match")).toBe(`"${field.version}"`);
+    expect(headers.get("Idempotency-Key")).toBe(archiveRequest.idempotencyKey);
+  });
+
+  it("refreshes archive CSRF only once while preserving the exact operation", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ token: "stale" }))
+      .mockResolvedValueOnce(
+        jsonResponse({ code: "request.invalid_antiforgery" }, 400),
+      )
+      .mockResolvedValueOnce(jsonResponse({ token: "fresh" }))
+      .mockResolvedValueOnce(
+        jsonResponse(archived, 200, { ETag: `"${renamedVersion}"` }),
+      );
+    await archiveField(archiveRequest);
+    for (const index of [1, 3]) {
+      const request = fetchMock.mock.calls[index]?.[1];
+      expect(request?.body).toBeUndefined();
+      expect(new Headers(request?.headers).get("If-Match")).toBe(
+        `"${field.version}"`,
+      );
+      expect(new Headers(request?.headers).get("Idempotency-Key")).toBe(
+        archiveRequest.idempotencyKey,
+      );
+    }
+    expect(
+      new Headers(fetchMock.mock.calls[3]?.[1]?.headers).get("X-CSRF-TOKEN"),
+    ).toBe("fresh");
+  });
+
+  it.each([undefined, `W/"${renamedVersion}"`, `"${field.version}"`])(
+    "rejects an archive response with invalid ETag %s",
+    async (etag) => {
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({ token: "csrf" }))
+        .mockResolvedValueOnce(
+          jsonResponse(
+            archived,
+            200,
+            etag === undefined ? undefined : { ETag: etag },
+          ),
+        );
+      await expect(archiveField(archiveRequest)).rejects.toMatchObject({
+        kind: "error",
+        status: 502,
+      });
+    },
+  );
+
+  it.each(["organizationId", "fieldId"])(
+    "rejects an archive response with a foreign %s",
+    async (key) => {
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({ token: "csrf" }))
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { ...archived, [key]: "64eb2297-6603-4fc9-b2b0-a582a7bf1992" },
+            200,
+            { ETag: `"${renamedVersion}"` },
+          ),
+        );
+      await expect(archiveField(archiveRequest)).rejects.toMatchObject({
+        kind: "error",
+        status: 502,
+      });
+    },
+  );
+
   it("normalizes NFC after trimming and rejects Unicode controls", () => {
     expect(normalizeFieldDisplayName("  e\u0301🌱  ")).toBe("é🌱");
     expect(normalizeFieldDisplayName("\u0085Campo Norte\uFEFF")).toBe(
@@ -89,7 +210,7 @@ describe("field API boundary", () => {
     expect(normalizeFieldDisplayName("🌱".repeat(121))).toBeNull();
   });
 
-  it("accepts only the frozen draft and non-spatial literals", () => {
+  it("keeps creation frozen to non-spatial drafts", () => {
     expect(parseFieldSummary(field)).toEqual(field);
     expect(parseCreatedField({ ...field, isReplay: false })).toEqual({
       ...field,
@@ -97,9 +218,79 @@ describe("field API boundary", () => {
     });
 
     expect(() =>
-      parseFieldSummary({ ...field, spatialStatus: "configured" }),
+      parseCreatedField({
+        ...field,
+        spatialStatus: "configured",
+        isReplay: false,
+      }),
     ).toThrow(FieldApiError);
     expect(() => parseCreatedField(field)).toThrow(FieldApiError);
+  });
+
+  it("preserves the configured status in existing field summaries", () => {
+    const configured = { ...field, spatialStatus: "configured" };
+    expect(parseFieldSummary(configured)).toEqual(configured);
+  });
+
+  it.each([undefined, null, "", "validated", "CONFIGURED", 1])(
+    "rejects unsupported spatial status %s",
+    (spatialStatus) => {
+      expect(() => parseFieldSummary({ ...field, spatialStatus })).toThrow(
+        FieldApiError,
+      );
+      expect(() =>
+        parseRenamedField({
+          ...field,
+          spatialStatus,
+          revision: 2,
+          isReplay: false,
+        }),
+      ).toThrow(FieldApiError);
+    },
+  );
+
+  it("does not widen lifecycle or field type when accepting geometry", () => {
+    const configured = { ...field, spatialStatus: "configured" };
+    expect(() =>
+      parseFieldSummary({ ...configured, status: "deleted" }),
+    ).toThrow(FieldApiError);
+    expect(() => parseFieldSummary({ ...configured, type: "paddock" })).toThrow(
+      FieldApiError,
+    );
+    expect(() =>
+      parseFieldSummary({ ...configured, fieldId: "invalid" }),
+    ).toThrow(FieldApiError);
+  });
+
+  it("loads a mixed list without discarding configured fields", async () => {
+    const configured = {
+      ...field,
+      fieldId: "ceb92343-63e6-41da-b338-c70f7d87a41d",
+      spatialStatus: "configured",
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse([field, configured]));
+    await expect(listFields(organizationId)).resolves.toEqual([
+      field,
+      configured,
+    ]);
+  });
+
+  it("loads configured detail and still rejects a mismatched tenant", async () => {
+    const configured = { ...field, spatialStatus: "configured" };
+    fetchMock.mockResolvedValueOnce(jsonResponse(configured));
+    await expect(getField(organizationId, fieldId)).resolves.toEqual(
+      configured,
+    );
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        ...configured,
+        organizationId: "64eb2297-6603-4fc9-b2b0-a582a7bf1992",
+      }),
+    );
+    await expect(getField(organizationId, fieldId)).rejects.toMatchObject({
+      kind: "error",
+      status: 502,
+    });
   });
 
   it("strictly parses the frozen rename result including revision", () => {
@@ -190,44 +381,48 @@ describe("field API boundary", () => {
     expect(new Headers(retriedPost?.headers).get("X-CSRF-TOKEN")).toBe("fresh");
   });
 
-  it("sends an exact rename PATCH with CSRF, strong If-Match and idempotency", async () => {
-    const idempotencyKey = "37dd6174317ee878f12c414ef5450449";
-    const renamed = {
-      ...field,
-      displayName: "Campo Sur",
-      version: renamedVersion,
-      isReplay: false,
-      revision: 2,
-    };
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ token: "csrf-token" }))
-      .mockResolvedValueOnce(
-        jsonResponse(renamed, 200, { ETag: `"${renamedVersion}"` }),
-      );
-
-    await expect(
-      renameField({
-        organizationId,
-        fieldId,
+  it.each(["not_configured", "configured"])(
+    "sends an exact rename PATCH for %s with CSRF, strong If-Match and idempotency",
+    async (spatialStatus) => {
+      const idempotencyKey = "37dd6174317ee878f12c414ef5450449";
+      const renamed = {
+        ...field,
+        spatialStatus,
         displayName: "Campo Sur",
-        version: String(field.version),
-        idempotencyKey,
-      }),
-    ).resolves.toEqual(renamed);
+        version: renamedVersion,
+        isReplay: false,
+        revision: 2,
+      };
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({ token: "csrf-token" }))
+        .mockResolvedValueOnce(
+          jsonResponse(renamed, 200, { ETag: `"${renamedVersion}"` }),
+        );
 
-    const renameCall = fetchMock.mock.calls[1];
-    expect(renameCall?.[0]).toBe(
-      `/api/organizations/${organizationId}/fields/${fieldId}`,
-    );
-    const request = renameCall?.[1];
-    expect(request?.method).toBe("PATCH");
-    const headers = new Headers(request?.headers);
-    expect(headers.get("X-CSRF-TOKEN")).toBe("csrf-token");
-    expect(headers.get("Idempotency-Key")).toBe(idempotencyKey);
-    expect(headers.get("If-Match")).toBe(`"${field.version}"`);
-    const body: unknown = JSON.parse(String(request?.body));
-    expect(body).toEqual({ displayName: "Campo Sur" });
-  });
+      await expect(
+        renameField({
+          organizationId,
+          fieldId,
+          displayName: "Campo Sur",
+          version: String(field.version),
+          idempotencyKey,
+        }),
+      ).resolves.toEqual(renamed);
+
+      const renameCall = fetchMock.mock.calls[1];
+      expect(renameCall?.[0]).toBe(
+        `/api/organizations/${organizationId}/fields/${fieldId}`,
+      );
+      const request = renameCall?.[1];
+      expect(request?.method).toBe("PATCH");
+      const headers = new Headers(request?.headers);
+      expect(headers.get("X-CSRF-TOKEN")).toBe("csrf-token");
+      expect(headers.get("Idempotency-Key")).toBe(idempotencyKey);
+      expect(headers.get("If-Match")).toBe(`"${field.version}"`);
+      const body: unknown = JSON.parse(String(request?.body));
+      expect(body).toEqual({ displayName: "Campo Sur" });
+    },
+  );
 
   it("retries rename antiforgery without changing If-Match or idempotency", async () => {
     const idempotencyKey = "37dd6174317ee878f12c414ef5450449";

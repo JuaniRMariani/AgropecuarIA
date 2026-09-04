@@ -451,7 +451,7 @@ public sealed class ProductiveCoreDbContext(DbContextOptions<ProductiveCoreDbCon
                     table.HasCheckConstraint(
                         "CK_journal_entries_Action",
                         "\"Action\" IN ('management_unit_created', " +
-                        "'management_unit_display_name_changed')");
+                        "'management_unit_display_name_changed', 'management_unit_archived', 'management_unit_geometry_configured')");
                     table.HasCheckConstraint(
                         "CK_journal_entries_Outcome",
                         "\"Outcome\" = 'succeeded'");
@@ -473,7 +473,7 @@ public sealed class ProductiveCoreDbContext(DbContextOptions<ProductiveCoreDbCon
                     table.HasCheckConstraint(
                         "CK_productive_outbox_messages_EventType",
                         "\"EventType\" IN ('ManagementUnitCreated', " +
-                        "'ManagementUnitDisplayNameChanged')");
+                        "'ManagementUnitDisplayNameChanged', 'ManagementUnitArchived', 'ManagementUnitGeometryConfigured')");
                     table.HasCheckConstraint(
                         "CK_productive_outbox_messages_AggregateType",
                         "\"AggregateType\" = 'ManagementUnit'");
@@ -481,7 +481,7 @@ public sealed class ProductiveCoreDbContext(DbContextOptions<ProductiveCoreDbCon
                         "CK_productive_outbox_messages_Versions",
                         "\"SchemaVersion\" = '1.0.0' AND " +
                         "((\"EventType\" = 'ManagementUnitCreated' AND \"AggregateVersion\" = 1) OR " +
-                        "(\"EventType\" = 'ManagementUnitDisplayNameChanged' " +
+                        "(\"EventType\" IN ('ManagementUnitDisplayNameChanged', 'ManagementUnitArchived', 'ManagementUnitGeometryConfigured') " +
                         "AND \"AggregateVersion\" >= 2))");
                     table.HasCheckConstraint(
                         "CK_productive_outbox_messages_SourceScope",

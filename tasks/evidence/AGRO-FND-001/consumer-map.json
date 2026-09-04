@@ -21,6 +21,8 @@
     { "provider": "national-catalog", "consumers": ["productive-core", "integrations"], "name": "CatalogEntryRef", "interaction": "application-port", "scope": "tenant-or-platform-explicit", "supportedVersions": ["1.x"] },
     { "provider": "productive-core", "consumers": [], "name": "ManagementUnitCreated", "interaction": "event", "scope": "tenant", "supportedVersions": ["1.x"] },
     { "provider": "productive-core", "consumers": [], "name": "ManagementUnitDisplayNameChanged", "interaction": "event", "scope": "tenant", "supportedVersions": ["1.x"] },
+    { "provider": "productive-core", "consumers": [], "name": "ManagementUnitArchived", "interaction": "event", "scope": "tenant", "supportedVersions": ["1.x"] },
+    { "provider": "productive-core", "consumers": [], "name": "ManagementUnitGeometryConfigured", "interaction": "event", "scope": "tenant", "supportedVersions": ["1.x"] },
     { "provider": "productive-core", "consumers": ["operations", "agriculture", "livestock", "grazing-forage", "inventory-assets", "commerce-finance", "analytics-ai", "integrations"], "name": "ManagementUnitRef", "interaction": "application-port", "scope": "tenant", "supportedVersions": ["1.x"] },
     { "provider": "operations", "consumers": ["agriculture", "analytics-ai"], "name": "OperationFact", "interaction": "event", "scope": "tenant", "supportedVersions": ["1.x"] },
     { "provider": "agriculture", "consumers": ["analytics-ai"], "name": "AgricultureFact", "interaction": "event", "scope": "tenant", "supportedVersions": ["1.x"] },

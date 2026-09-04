@@ -3,17 +3,20 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Globalization;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using AgropecuarIA.Identity.Domain;
 using AgropecuarIA.Identity.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AgropecuarIA.Identity.Application;
 
-public sealed record SetupTotpResult(string SharedKey, string AuthenticatorUri);
-public sealed record EnableTotpCommand(string Code);
+public sealed record SetupTotpResult(string SharedKey, string AuthenticatorUri, string EnrollmentToken);
+public sealed record EnableTotpCommand(string Code, string EnrollmentToken);
+public sealed record DisableTotpCommand(string Code);
 public sealed record EnableTotpResult(string[] RecoveryCodes);
 public sealed record ConsumeRecoveryCodeCommand(string RecoveryCode);
 
@@ -33,22 +36,28 @@ public sealed class MfaApplicationService
 {
     private readonly IdentityDbContext _dbContext;
     private readonly IDataProtector _dataProtector;
+    private readonly IDataProtector _enrollmentProtector;
     private readonly TimeProvider _timeProvider;
+    private readonly IdentityRuntimeOptions _runtimeOptions;
 
     public MfaApplicationService(
         IdentityDbContext dbContext,
         IDataProtectionProvider dataProtectionProvider,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IOptions<IdentityRuntimeOptions> runtimeOptions)
     {
         _dbContext = dbContext;
         _dataProtector = dataProtectionProvider.CreateProtector("AgropecuarIA.Identity.TOTP");
+        _enrollmentProtector = dataProtectionProvider.CreateProtector("AgropecuarIA.Identity.TOTP.Enrollment.v1");
         _timeProvider = timeProvider;
+        _runtimeOptions = runtimeOptions.Value;
     }
 
     public async Task<SetupTotpResult> SetupTotpAsync(
         AuthenticatedSession session,
         CancellationToken cancellationToken)
     {
+        RequireRecentAuthentication(session);
         bool hasTotp = await _dbContext.TotpCredentials
             .AnyAsync(c => c.UserId == session.UserId, cancellationToken);
         if (hasTotp)
@@ -64,15 +73,36 @@ public sealed class MfaApplicationService
         string account = Uri.EscapeDataString(session.UserId.ToString());
         string uri = "otpauth://totp/" + issuer + ":" + account + "?secret=" + base32Secret + "&issuer=" + issuer + "&digits=6";
 
-        return new SetupTotpResult(base32Secret, uri);
+        string enrollmentToken = _enrollmentProtector.Protect(JsonSerializer.Serialize(new TotpEnrollment(
+            session.UserId, session.SessionId, base32Secret, _timeProvider.GetUtcNow().AddMinutes(10))));
+        return new SetupTotpResult(base32Secret, uri, enrollmentToken);
     }
 
     public async Task<EnableTotpResult> EnableTotpAsync(
         EnableTotpCommand command,
-        string unverifiedSecret,
         AuthenticatedSession session,
         CancellationToken cancellationToken)
     {
+        RequireRecentAuthentication(session);
+        TotpEnrollment enrollment;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(command.EnrollmentToken) || command.EnrollmentToken.Length > 4096)
+            {
+                throw MfaErrors.InvalidCode();
+            }
+            enrollment = JsonSerializer.Deserialize<TotpEnrollment>(
+                _enrollmentProtector.Unprotect(command.EnrollmentToken)) ?? throw MfaErrors.InvalidCode();
+        }
+        catch (Exception exception) when (exception is CryptographicException or JsonException)
+        {
+            throw MfaErrors.InvalidCode();
+        }
+        if (enrollment.UserId != session.UserId || enrollment.SessionId != session.SessionId ||
+            enrollment.ExpiresAtUtc <= _timeProvider.GetUtcNow())
+        {
+            throw MfaErrors.InvalidCode();
+        }
         bool hasTotp = await _dbContext.TotpCredentials
             .AnyAsync(c => c.UserId == session.UserId, cancellationToken);
         if (hasTotp)
@@ -80,12 +110,12 @@ public sealed class MfaApplicationService
             throw MfaErrors.TotpAlreadyEnabled();
         }
 
-        if (!ValidateTotp(unverifiedSecret, command.Code))
+        if (!ValidateTotp(enrollment.Secret, command.Code))
         {
             throw MfaErrors.InvalidCode();
         }
 
-        string protectedSecret = _dataProtector.Protect(unverifiedSecret);
+        string protectedSecret = _dataProtector.Protect(enrollment.Secret);
         var credential = new UserTotpCredential(session.UserId, protectedSecret);
         _dbContext.TotpCredentials.Add(credential);
 
@@ -103,14 +133,21 @@ public sealed class MfaApplicationService
     }
 
     public async Task DisableTotpAsync(
+        DisableTotpCommand command,
         AuthenticatedSession session,
         CancellationToken cancellationToken)
     {
+        RequireRecentAuthentication(session);
         var credential = await _dbContext.TotpCredentials
             .FirstOrDefaultAsync(c => c.UserId == session.UserId, cancellationToken);
         if (credential is null)
         {
             throw MfaErrors.TotpNotEnabled();
+        }
+
+        if (!ValidateTotp(_dataProtector.Unprotect(credential.ProtectedSecret), command.Code))
+        {
+            throw MfaErrors.InvalidCode();
         }
 
         _dbContext.TotpCredentials.Remove(credential);
@@ -128,23 +165,25 @@ public sealed class MfaApplicationService
         AuthenticatedSession session,
         CancellationToken cancellationToken)
     {
-        string hashedCode = HashRecoveryCode(command.RecoveryCode);
-
-        var codeEntity = await _dbContext.RecoveryCodes
-            .FirstOrDefaultAsync(c => c.UserId == session.UserId && c.CodeHash == hashedCode, cancellationToken);
-
-        if (codeEntity is null || codeEntity.UsedAtUtc.HasValue)
+        RequireRecentAuthentication(session);
+        if (string.IsNullOrWhiteSpace(command.RecoveryCode) || command.RecoveryCode.Length > 128)
         {
             throw MfaErrors.InvalidRecoveryCode();
         }
-
-        codeEntity.MarkAsUsed(_timeProvider.GetUtcNow());
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        string hashedCode = HashRecoveryCode(command.RecoveryCode);
+        DateTimeOffset usedAtUtc = _timeProvider.GetUtcNow();
+        int consumed = await _dbContext.RecoveryCodes
+            .Where(c => c.UserId == session.UserId && c.CodeHash == hashedCode && c.UsedAtUtc == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(c => c.UsedAtUtc, usedAtUtc), cancellationToken);
+        if (consumed != 1)
+        {
+            throw MfaErrors.InvalidRecoveryCode();
+        }
     }
 
     private bool ValidateTotp(string secret, string code)
     {
-        if (string.IsNullOrWhiteSpace(code) || code.Length != 6 || !int.TryParse(code, out _))
+        if (string.IsNullOrWhiteSpace(code) || code.Length != 6 || code.Any(c => c is < '0' or > '9'))
             return false;
 
         byte[] secretBytes = Base32Decode(secret);
@@ -153,7 +192,8 @@ public sealed class MfaApplicationService
 
         for (long i = -1; i <= 1; i++)
         {
-            if (GenerateTotpCode(secretBytes, timeWindow + i) == code)
+            if (CryptographicOperations.FixedTimeEquals(
+                Encoding.ASCII.GetBytes(GenerateTotpCode(secretBytes, timeWindow + i)), Encoding.ASCII.GetBytes(code)))
             {
                 return true;
             }
@@ -186,10 +226,10 @@ public sealed class MfaApplicationService
 
     private static string GenerateRecoveryCode()
     {
-        byte[] bytes = new byte[8];
+        byte[] bytes = new byte[16];
         RandomNumberGenerator.Fill(bytes);
         string code = Convert.ToHexString(bytes).ToLowerInvariant();
-        return $"{code.Substring(0, 4)}-{code.Substring(4, 4)}-{code.Substring(8, 4)}-{code.Substring(12, 4)}";
+        return $"{code[..8]}-{code[8..16]}-{code[16..24]}-{code[24..]}";
     }
 
     private static string HashRecoveryCode(string code)
@@ -197,6 +237,17 @@ public sealed class MfaApplicationService
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(code.Trim().ToLowerInvariant()));
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
+
+    private void RequireRecentAuthentication(AuthenticatedSession session)
+    {
+        TimeSpan age = _timeProvider.GetUtcNow() - session.AuthenticatedAtUtc;
+        if (!session.IsAuthenticationAssuranceVerified || age < TimeSpan.Zero || age >= _runtimeOptions.RecentAuthenticationWindow)
+        {
+            throw IdentityErrors.RecentAuthenticationRequired();
+        }
+    }
+
+    private sealed record TotpEnrollment(Guid UserId, Guid SessionId, string Secret, DateTimeOffset ExpiresAtUtc);
 
     private static string Base32Encode(byte[] data)
     {

@@ -28,8 +28,6 @@ public sealed class ProductiveCoreArchiveApplicationService(
     {
         RequireRequestScope(command, requestContext);
         ValidateIdempotencyKey(command.IdempotencyKey);
-        
-        
 
         using Activity? activity = ProductiveCoreTelemetry.Start("productive_core.field_archive");
         DateTimeOffset now = ToPostgresPrecision(timeProvider.GetUtcNow());
@@ -45,7 +43,7 @@ public sealed class ProductiveCoreArchiveApplicationService(
             }
 
             Dictionary<string, byte[]> keyRing = GetKeyRing();
-            if (!await unitOfWork.RetainedRenameKeyVersionsCoveredAsync(
+            if (!await unitOfWork.RetainedArchiveKeyVersionsCoveredAsync(
                     keyRing.Keys.ToArray(),
                     cancellationToken))
             {
@@ -58,7 +56,6 @@ public sealed class ProductiveCoreArchiveApplicationService(
                 keyRing);
             byte[] fingerprint = CreateRequestFingerprint(
                 command,
-                
                 requestContext,
                 authorizationVersion.Value);
             Guid? existingLedgerId = await unitOfWork.FindArchiveLedgerIdAsync(
@@ -98,7 +95,12 @@ public sealed class ProductiveCoreArchiveApplicationService(
                 throw ProductiveCoreErrors.FieldVersionStale();
             }
 
-            
+            if (field.Status != ManagementUnitStatuses.Draft)
+            {
+                throw ProductiveCoreErrors.FieldNotAvailable();
+            }
+
+
 
             Guid resultVersion = Guid.NewGuid();
             field.Archive(command.ExpectedVersion, resultVersion);
@@ -133,7 +135,7 @@ public sealed class ProductiveCoreArchiveApplicationService(
                     now))
                 .ToArray();
             ProductiveJournalEntry journal =
-                ProductiveJournalEntry.CreateManagementUnitDisplayNameChanged(
+                ProductiveJournalEntry.CreateManagementUnitArchived(
                     Guid.NewGuid(),
                     command.OrganizationId,
                     requestContext.ActorUserId,
@@ -141,13 +143,14 @@ public sealed class ProductiveCoreArchiveApplicationService(
                     requestContext.CorrelationId,
                     now);
             ProductiveOutboxMessage outbox =
-                ProductiveOutboxMessage.CreateManagementUnitDisplayNameChanged(
+                ProductiveOutboxMessage.CreateManagementUnitArchived(
                     Guid.NewGuid(),
                     requestContext.CorrelationId,
-                    new ManagementUnitDisplayNameChangedIntegrationEventPayload(
+                    new ManagementUnitArchivedIntegrationEventPayload(
                         command.OrganizationId,
                         field.Id,
                         field.Revision,
+                        field.Status,
                         now));
             unitOfWork.AddArchive(ledger, keyAliases, journal, outbox);
             await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -172,7 +175,6 @@ public sealed class ProductiveCoreArchiveApplicationService(
             return await ResolveRaceAsync(
                 command,
                 requestContext,
-                
                 missingIsConflict: true,
                 cancellationToken);
         }
@@ -197,7 +199,6 @@ public sealed class ProductiveCoreArchiveApplicationService(
             return await RecoverUnknownCommitAsync(
                 command,
                 requestContext,
-                
                 retryAfterRace,
                 cancellationToken);
         }
@@ -216,7 +217,6 @@ public sealed class ProductiveCoreArchiveApplicationService(
     private async Task<ArchivedManagementUnitResult> ResolveRaceAsync(
         ArchiveFieldDraftCommand command,
         ProductiveRequestContext requestContext,
-        
         bool missingIsConflict,
         CancellationToken cancellationToken)
     {
@@ -232,7 +232,7 @@ public sealed class ProductiveCoreArchiveApplicationService(
             }
 
             Dictionary<string, byte[]> keyRing = GetKeyRing();
-            if (!await recovery.RetainedRenameKeyVersionsCoveredAsync(
+            if (!await recovery.RetainedArchiveKeyVersionsCoveredAsync(
                     keyRing.Keys.ToArray(),
                     cancellationToken))
             {
@@ -256,7 +256,6 @@ public sealed class ProductiveCoreArchiveApplicationService(
 
             byte[] fingerprint = CreateRequestFingerprint(
                 command,
-                
                 requestContext,
                 authorizationVersion.Value);
             ArchivedManagementUnitResult result = await ResolveReplayAsync(
@@ -286,7 +285,6 @@ public sealed class ProductiveCoreArchiveApplicationService(
     private async Task<ArchivedManagementUnitResult> RecoverUnknownCommitAsync(
         ArchiveFieldDraftCommand command,
         ProductiveRequestContext requestContext,
-        
         bool mayRetry,
         CancellationToken cancellationToken)
     {
@@ -295,7 +293,6 @@ public sealed class ProductiveCoreArchiveApplicationService(
             return await ResolveRaceAsync(
                 command,
                 requestContext,
-                
                 missingIsConflict: false,
                 cancellationToken);
         }
@@ -356,7 +353,6 @@ public sealed class ProductiveCoreArchiveApplicationService(
         }
 
         if (ledger.State != ManagementUnitArchiveProtocol.States.Succeeded ||
-            
             ledger.ResultVersion is null ||
             ledger.ResultRevision is null)
         {
@@ -433,7 +429,7 @@ public sealed class ProductiveCoreArchiveApplicationService(
     {
         byte[] message = Encoding.ASCII.GetBytes(string.Join(
             '|',
-            "rename-field-idempotency-v1",
+            "archive-field-idempotency-v1",
             organizationId.ToString("D"),
             idempotencyKey));
         Dictionary<string, byte[]> aliases = new(StringComparer.Ordinal);
@@ -447,13 +443,12 @@ public sealed class ProductiveCoreArchiveApplicationService(
 
     private static byte[] CreateRequestFingerprint(
         ArchiveFieldDraftCommand command,
-        
         ProductiveRequestContext requestContext,
         Guid authorizationVersion)
     {
         string canonical = string.Join(
             '|',
-            "rename-field-v1",
+            "archive-field-v1",
             command.OrganizationId.ToString("D"),
             command.FieldId.ToString("D"),
             command.ExpectedVersion.ToString("D"),
@@ -483,6 +478,7 @@ public sealed class ProductiveCoreArchiveApplicationService(
         ArchiveFieldDraftCommand command,
         ProductiveRequestContext requestContext)
     {
+        ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(requestContext);
         if (command.OrganizationId == Guid.Empty ||
             command.FieldId == Guid.Empty ||

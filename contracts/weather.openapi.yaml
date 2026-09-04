@@ -1,0 +1,259 @@
+openapi: 3.1.0
+info:
+  title: AgropecuarIA Weather API
+  version: 1.0.0
+  description: "Current integrated-local surface, not completion of CLI-001–004. Tenant resource authorization and platform ingestion authority are distinct. Missing rule data must abstain."
+security:
+  - SessionCookie: []
+paths:
+  /api/organizations/{organizationId}/weather/rules:
+    get:
+      operationId: GetWeatherRules
+      description: "Current integrated-local endpoint; parent backlog acceptance remains incomplete."
+      parameters:
+        - {"name":"organizationId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+        - {"name":"fieldId","in":"query","required":false,"schema":{"type":"string","format":"uuid"}}
+      responses:
+        '200':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"type":"array","items":{"$ref":"#/components/schemas/ActivityRule"}}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '404':
+          description: "Neutral unknown or unauthorized tenant resource"
+        '503':
+          description: "Weather persistence or configured capability unavailable"
+        '429':
+          description: "Rate limit exceeded"
+    post:
+      operationId: PostWeatherRule
+      description: "Owner-authorized explicit thresholds; recording a rule is not professional approval or a prescription."
+      security:
+        - SessionCookie: []
+          AntiforgeryCookie: []
+      parameters:
+        - {"name":"organizationId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+        - {"name":"X-CSRF-TOKEN","in":"header","required":true,"schema":{"type":"string"}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {"$ref":"#/components/schemas/CreateActivityRule"}
+      responses:
+        '201':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"$ref":"#/components/schemas/ActivityRule"}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '404':
+          description: "Neutral unknown or unauthorized tenant resource"
+        '503':
+          description: "Weather persistence or configured capability unavailable"
+        '429':
+          description: "Rate limit exceeded"
+  /api/organizations/{organizationId}/fields/{fieldId}/weather/forecast:
+    get:
+      operationId: GetWeatherForecast
+      description: "Requires authorized organization/field. Coordinates are presently caller supplied; no claim of server-derived geometry. Freshness labels distinguish cached/stale/unavailable; JSON variable fields are strings."
+      parameters:
+        - {"name":"organizationId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+        - {"name":"fieldId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+        - {"name":"latitude","in":"query","required":true,"schema":{"type":"number"}}
+        - {"name":"longitude","in":"query","required":true,"schema":{"type":"number"}}
+      responses:
+        '200':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"$ref":"#/components/schemas/WeatherForecast"}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '404':
+          description: "Neutral unknown or unauthorized tenant resource"
+        '503':
+          description: "Weather persistence or configured capability unavailable"
+        '429':
+          description: "Rate limit exceeded"
+  /api/organizations/{organizationId}/fields/{fieldId}/weather/rain:
+    get:
+      operationId: GetObservedRain
+      description: "Current integrated-local endpoint; parent backlog acceptance remains incomplete."
+      parameters:
+        - {"name":"organizationId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+        - {"name":"fieldId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+      responses:
+        '200':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"type":"array","items":{"$ref":"#/components/schemas/ObservedRain"}}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '404':
+          description: "Neutral unknown or unauthorized tenant resource"
+        '503':
+          description: "Weather persistence or configured capability unavailable"
+        '429':
+          description: "Rate limit exceeded"
+    post:
+      operationId: PostObservedRain
+      description: "Explicit observed measurement, not a forecast. Actor derives from session. A rectifiedFromId must identify a measurement in the same organization and field; unknown or out-of-scope references return neutral 400 with code weather.rain.reference_unavailable."
+      security:
+        - SessionCookie: []
+          AntiforgeryCookie: []
+      parameters:
+        - {"name":"organizationId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+        - {"name":"fieldId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+        - {"name":"X-CSRF-TOKEN","in":"header","required":true,"schema":{"type":"string"}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {"$ref":"#/components/schemas/RecordObservedRain"}
+      responses:
+        '201':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"$ref":"#/components/schemas/ObservedRain"}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '404':
+          description: "Neutral unknown or unauthorized tenant resource"
+        '503':
+          description: "Weather persistence or configured capability unavailable"
+        '429':
+          description: "Rate limit exceeded"
+  /api/organizations/{organizationId}/fields/{fieldId}/weather/alerts:
+    get:
+      operationId: GetWeatherAlerts
+      description: "Current implementation filters active ingested alerts by bounding box, not exact polygon intersection. It does not certify official feed provenance."
+      parameters:
+        - {"name":"organizationId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+        - {"name":"fieldId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+        - {"name":"latitude","in":"query","required":true,"schema":{"type":"number"}}
+        - {"name":"longitude","in":"query","required":true,"schema":{"type":"number"}}
+      responses:
+        '200':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"type":"array","items":{"$ref":"#/components/schemas/WeatherAlert"}}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '404':
+          description: "Neutral unknown or unauthorized tenant resource"
+        '503':
+          description: "Weather persistence or configured capability unavailable"
+        '429':
+          description: "Rate limit exceeded"
+  /api/organizations/{organizationId}/fields/{fieldId}/weather/suitability:
+    get:
+      operationId: GetWeatherSuitability
+      description: "Compares explicit enabled scoped rules only. No rule produces one insufficient_data result, isSuitable false, empty ruleName and rule_unconfigured reason. Empty thresholds also abstain. Status is not professional approval or permission to apply products."
+      parameters:
+        - {"name":"organizationId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+        - {"name":"fieldId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}
+        - {"name":"activityType","in":"query","required":false,"schema":{"type":"string"}}
+        - {"name":"windSpeedKmh","in":"query","required":true,"schema":{"type":"number"}}
+        - {"name":"temperatureCelsius","in":"query","required":true,"schema":{"type":"number"}}
+        - {"name":"precipitationProbability","in":"query","required":true,"schema":{"type":"number"}}
+        - {"name":"precipitationMm","in":"query","required":true,"schema":{"type":"number"}}
+        - {"name":"relativeHumidity","in":"query","required":true,"schema":{"type":"number"}}
+      responses:
+        '200':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"type":"array","items":{"$ref":"#/components/schemas/ActivitySuitability"}}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '404':
+          description: "Neutral unknown or unauthorized tenant resource"
+        '503':
+          description: "Weather persistence or configured capability unavailable"
+        '429':
+          description: "Rate limit exceeded"
+  /api/weather/alerts/ingest:
+    post:
+      operationId: PostWeatherAlertIngest
+      description: "Separately provisioned WeatherAlertIngestion platform permission required. JSON adapter input, not an official XML CAP fetch endpoint."
+      security:
+        - SessionCookie: []
+          AntiforgeryCookie: []
+      parameters:
+        - {"name":"X-CSRF-TOKEN","in":"header","required":true,"schema":{"type":"string"}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {"$ref":"#/components/schemas/IngestCapAlert"}
+      responses:
+        '201':
+          description: "Successful response"
+          content:
+            application/json:
+              schema: {"$ref":"#/components/schemas/WeatherAlert"}
+        '400':
+          description: "Invalid request or antiforgery token"
+        '401':
+          description: "Session authentication required"
+        '403':
+          description: "Permission denied"
+        '404':
+          description: "Neutral unknown or unauthorized tenant resource"
+        '503':
+          description: "Weather persistence or configured capability unavailable"
+        '429':
+          description: "Rate limit exceeded"
+components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-agro-session
+    AntiforgeryCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-agro-xsrf
+  schemas:
+    WeatherForecast: {"type":"object","required":["freshness","provider","modelName","centroidLatitude","centroidLongitude","issuedAtUtc","validUntilUtc","hourlyVariablesJson","dailyVariablesJson","isCached"],"properties":{"freshness":{"type":"string"},"provider":{"type":"string"},"modelName":{"type":"string"},"centroidLatitude":{"type":"number"},"centroidLongitude":{"type":"number"},"issuedAtUtc":{"type":"string","format":"date-time"},"validUntilUtc":{"type":"string","format":"date-time"},"hourlyVariablesJson":{"type":"string"},"dailyVariablesJson":{"type":"string"},"isCached":{"type":"boolean"}}}
+    RecordObservedRain: {"type":"object","required":["observedDateUtc","amountMillimeters"],"properties":{"observedDateUtc":{"type":"string","format":"date-time"},"amountMillimeters":{"type":"number"},"method":{"anyOf":[{"type":"string"},{"type":"null"}]},"notes":{"anyOf":[{"type":"string"},{"type":"null"}]},"rectifiedFromId":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}]}}}
+    ObservedRain: {"type":"object","required":["id","organizationId","fieldId","observedDateUtc","amountMillimeters","method","notes","recordedByUserId","recordedAtUtc","rectifiedFromId"],"properties":{"id":{"type":"string","format":"uuid"},"organizationId":{"type":"string","format":"uuid"},"fieldId":{"type":"string","format":"uuid"},"observedDateUtc":{"type":"string","format":"date-time"},"amountMillimeters":{"type":"number"},"method":{"type":"string"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}]},"recordedByUserId":{"type":"string","format":"uuid"},"recordedAtUtc":{"type":"string","format":"date-time"},"rectifiedFromId":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}]}}}
+    CreateActivityRule: {"type":"object","required":["activityType","ruleName"],"properties":{"fieldId":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}]},"activityType":{"type":"string"},"ruleName":{"type":"string"},"maxWindSpeedKmh":{"anyOf":[{"type":"number"},{"type":"null"}]},"minTemperatureCelsius":{"anyOf":[{"type":"number"},{"type":"null"}]},"maxTemperatureCelsius":{"anyOf":[{"type":"number"},{"type":"null"}]},"maxPrecipitationProbability":{"anyOf":[{"type":"number"},{"type":"null"}]},"maxPrecipitationMm":{"anyOf":[{"type":"number"},{"type":"null"}]},"minRelativeHumidity":{"anyOf":[{"type":"number"},{"type":"null"}]},"maxRelativeHumidity":{"anyOf":[{"type":"number"},{"type":"null"}]}}}
+    ActivityRule: {"type":"object","required":["id","organizationId","fieldId","activityType","ruleName","maxWindSpeedKmh","minTemperatureCelsius","maxTemperatureCelsius","maxPrecipitationProbability","maxPrecipitationMm","minRelativeHumidity","maxRelativeHumidity","isEnabled","createdAtUtc"],"properties":{"id":{"type":"string","format":"uuid"},"organizationId":{"type":"string","format":"uuid"},"fieldId":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}]},"activityType":{"type":"string"},"ruleName":{"type":"string"},"maxWindSpeedKmh":{"anyOf":[{"type":"number"},{"type":"null"}]},"minTemperatureCelsius":{"anyOf":[{"type":"number"},{"type":"null"}]},"maxTemperatureCelsius":{"anyOf":[{"type":"number"},{"type":"null"}]},"maxPrecipitationProbability":{"anyOf":[{"type":"number"},{"type":"null"}]},"maxPrecipitationMm":{"anyOf":[{"type":"number"},{"type":"null"}]},"minRelativeHumidity":{"anyOf":[{"type":"number"},{"type":"null"}]},"maxRelativeHumidity":{"anyOf":[{"type":"number"},{"type":"null"}]},"isEnabled":{"type":"boolean"},"createdAtUtc":{"type":"string","format":"date-time"}}}
+    ActivitySuitability: {"type":"object","required":["activityType","ruleName","status","isSuitable","riskFactors","reasonCode"],"properties":{"activityType":{"type":"string"},"ruleName":{"type":"string"},"status":{"type":"string","enum":["optima","marginal","no_apta","insufficient_data"]},"isSuitable":{"type":"boolean"},"riskFactors":{"type":"array","items":{"type":"string"}},"reasonCode":{"anyOf":[{"type":"string","enum":["weather.activity.rule_unconfigured","weather.activity.rule_disabled","weather.activity.thresholds_unconfigured"]},{"type":"null"}]}}}
+    IngestCapAlert: {"type":"object","required":["identifier","sender","sentUtc","status","eventName","severity","certainty","headline","description","areaDescription","polygonCoordinatesJson","minLatitude","maxLatitude","minLongitude","maxLongitude","effectiveUtc","expiresUtc"],"properties":{"identifier":{"type":"string"},"sender":{"type":"string"},"sentUtc":{"type":"string","format":"date-time"},"status":{"type":"string"},"eventName":{"type":"string"},"severity":{"type":"string"},"certainty":{"type":"string"},"headline":{"type":"string"},"description":{"type":"string"},"instruction":{"anyOf":[{"type":"string"},{"type":"null"}]},"areaDescription":{"type":"string"},"polygonCoordinatesJson":{"type":"string"},"minLatitude":{"type":"number"},"maxLatitude":{"type":"number"},"minLongitude":{"type":"number"},"maxLongitude":{"type":"number"},"effectiveUtc":{"type":"string","format":"date-time"},"expiresUtc":{"type":"string","format":"date-time"}}}
+    WeatherAlert: {"type":"object","required":["id","identifier","sender","sentUtc","status","eventName","severity","certainty","headline","description","instruction","areaDescription","effectiveUtc","expiresUtc"],"properties":{"id":{"type":"string","format":"uuid"},"identifier":{"type":"string"},"sender":{"type":"string"},"sentUtc":{"type":"string","format":"date-time"},"status":{"type":"string"},"eventName":{"type":"string"},"severity":{"type":"string"},"certainty":{"type":"string"},"headline":{"type":"string"},"description":{"type":"string"},"instruction":{"anyOf":[{"type":"string"},{"type":"null"}]},"areaDescription":{"type":"string"},"effectiveUtc":{"type":"string","format":"date-time"},"expiresUtc":{"type":"string","format":"date-time"}}}

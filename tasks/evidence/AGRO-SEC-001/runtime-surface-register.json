@@ -2,132 +2,442 @@
   "schemaVersion": "1.0",
   "taskId": "AGRO-SEC-001",
   "currentRelease": "R1",
-  "reviewedAt": "2026-08-18",
+  "reviewedAt": "2026-09-04",
   "surfaces": [
     {
       "id": "RS-001",
       "name": "Identity ASP.NET Core API",
       "status": "integrated-local",
-      "threatIds": ["TM-001", "TM-002", "TM-009", "TM-012", "TM-014"],
+      "threatIds": [
+        "TM-001",
+        "TM-002",
+        "TM-009",
+        "TM-012",
+        "TM-014"
+      ],
       "owner": "Identity + API + AppSec",
       "control": "OIDC code plus PKCE, server-bound request context, antiforgery, secure cookies, fixed-window rate limits, purpose-bound step-up, session rotation, neutral errors, privacy-safe own-session inventory, CAS revocation and actor-serialized batch revocation both excluding and including current, an idempotent organization bootstrap, one-shot co-owner invitations and last-owner-safe co-owner removal that derive actor and tenant server-side.",
-      "tests": ["OidcConfigurationContractTests", "StepUpApiIntegrationTests", "IdentitySessionSecurityTests", "IdentityRequestContextTests", "OwnSessionInventoryApiTests", "OrganizationCreateApiIntegrationTests", "OrganizationOwnerInvitationApiTests", "OrganizationOwnerMembershipApiTests"],
-      "contractPaths": ["/api/identity/capabilities", "/api/identity/session", "/api/identity/sessions", "/api/identity/sessions/others", "/api/identity/sessions/{sessionId}", "/api/identity/antiforgery", "/api/identity/login/{connection}", "/signin-oidc", "/api/identity/link-attempts", "/api/identity/step-up-attempts", "/api/identity/step-up/{attemptId}", "/api/identity/link-attempts/{attemptId}/complete", "/api/identity/identities/{identityId}", "/api/identity/session/revoke", "/api/identity/organizations", "/api/identity/organizations/{organizationId}/owner-invitations", "/api/identity/organizations/{organizationId}/owner-invitations/{invitationId}/revoke", "/api/identity/owner-invitations/accept", "/api/identity/organizations/{organizationId}/owner-memberships", "/api/identity/organizations/{organizationId}/owner-memberships/{membershipId}"],
-      "evidence": ["apps/AgropecuarIA.Api/Program.cs", "apps/AgropecuarIA.Api/IdentityEndpoints.cs", "apps/AgropecuarIA.Api/OidcReauthentication.cs", "tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs", "tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationCreateApiIntegrationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApiTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerMembershipApiTests.cs"],
+      "tests": [
+        "OidcConfigurationContractTests",
+        "StepUpApiIntegrationTests",
+        "IdentitySessionSecurityTests",
+        "IdentityRequestContextTests",
+        "OwnSessionInventoryApiTests",
+        "OrganizationCreateApiIntegrationTests",
+        "OrganizationOwnerInvitationApiTests",
+        "OrganizationOwnerMembershipApiTests"
+      ],
+      "contractPaths": [
+        "/api/identity/capabilities",
+        "/api/identity/session",
+        "/api/identity/sessions",
+        "/api/identity/sessions/others",
+        "/api/identity/sessions/{sessionId}",
+        "/api/identity/antiforgery",
+        "/api/identity/login/{connection}",
+        "/signin-oidc",
+        "/api/identity/link-attempts",
+        "/api/identity/step-up-attempts",
+        "/api/identity/step-up/{attemptId}",
+        "/api/identity/link-attempts/{attemptId}/complete",
+        "/api/identity/identities/{identityId}",
+        "/api/identity/session/revoke",
+        "/api/identity/organizations",
+        "/api/identity/organizations/{organizationId}/owner-invitations",
+        "/api/identity/organizations/{organizationId}/owner-invitations/{invitationId}/revoke",
+        "/api/identity/owner-invitations/accept",
+        "/api/identity/organizations/{organizationId}/owner-memberships",
+        "/api/identity/organizations/{organizationId}/owner-memberships/{membershipId}"
+      ],
+      "evidence": [
+        "apps/AgropecuarIA.Api/Program.cs",
+        "apps/AgropecuarIA.Api/IdentityEndpoints.cs",
+        "apps/AgropecuarIA.Api/OidcReauthentication.cs",
+        "tests/AgropecuarIA.Identity.Tests/StepUpApiIntegrationTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionInventoryApiTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationCreateApiIntegrationTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApiTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerMembershipApiTests.cs"
+      ],
       "gate": "Integrated-local only; external OIDC and shared delivery remain NO-GO until RS-005 passes."
     },
     {
       "id": "RS-002",
       "name": "Identity Next.js web flow",
       "status": "integrated-local",
-      "threatIds": ["TM-002", "TM-014"],
+      "threatIds": [
+        "TM-002",
+        "TM-014"
+      ],
       "owner": "Frontend + Identity + AppSec",
       "control": "Server-mediated authentication flow exposes loading, conflict, forbidden, provider-down and retry states without storing provider secrets or tokens in browser storage.",
-      "tests": ["apps/web/tests/e2e/identity.spec.ts"],
-      "evidence": ["apps/web/package.json", "apps/web/pnpm-lock.yaml", "apps/web/tests/e2e/identity.spec.ts"],
+      "tests": [
+        "apps/web/tests/e2e/identity.spec.ts"
+      ],
+      "evidence": [
+        "apps/web/package.json",
+        "apps/web/pnpm-lock.yaml",
+        "apps/web/tests/e2e/identity.spec.ts"
+      ],
       "gate": "Integrated-local only; CSP and shared edge behavior remain NO-GO under RS-006."
     },
     {
       "id": "RS-003",
       "name": "Identity PostgreSQL persistence",
       "status": "integrated-local",
-      "threatIds": ["TM-001", "TM-009", "TM-011", "TM-012"],
+      "threatIds": [
+        "TM-001",
+        "TM-009",
+        "TM-011",
+        "TM-012"
+      ],
       "owner": "Identity + Data + AppSec",
       "control": "EF Core migrations, optimistic concurrency, transactional journal/outbox, privacy-safe own-session inventory, individual, current, other-session and global revocation serialized by one actor lock with current revalidated before target locks, and rollback across every target journal, CreateOrganization, one-shot co-owner invitations and last-owner-safe co-owner removal are exercised against real local PostgreSQL. Identity platform operations use actor/session/version-bound SECURITY DEFINER functions without exposing token hashes; tenant mutations use split privilege roles, actor-bound SET LOCAL context and FORCE RLS with A/B/no-context/pool/job negative tests.",
-      "tests": ["IdentityDatabaseMigrationTests", "IdentityLinkingIntegrationTests", "IdentityPublishedEventContractTests", "OwnSessionManagementDatabaseSecurityTests", "OrganizationCreateApplicationTests", "OrganizationDatabaseSecurityTests", "OrganizationOwnerInvitationApplicationTests", "OrganizationOwnerInvitationDatabaseSecurityTests", "OrganizationOwnerMembershipApplicationTests", "OrganizationOwnerRemovalDatabaseSecurityTests"],
-      "evidence": ["src/AgropecuarIA.Identity/Infrastructure/IdentityDbContext.cs", "src/AgropecuarIA.Identity/Infrastructure/Migrations/IdentityDbContextModelSnapshot.cs", "src/AgropecuarIA.Identity/Infrastructure/Migrations/20260818213000_AddOwnSessionManagement.cs", "src/AgropecuarIA.Identity/Infrastructure/Migrations/20260818230000_AddRevokeAllOtherOwnSessions.cs", "src/AgropecuarIA.Identity/Infrastructure/Migrations/20260818234500_AddRevokeAllOwnSessions.cs", "tests/AgropecuarIA.Identity.Tests/IdentityDatabaseMigrationTests.cs", "tests/AgropecuarIA.Identity.Tests/OwnSessionManagementDatabaseSecurityTests.cs", "tests/AgropecuarIA.Identity.Tests/RevokeAllOwnSessionsDatabaseSecurityTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationCreateApplicationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationDatabaseSecurityTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApplicationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationDatabaseSecurityTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerMembershipApplicationTests.cs", "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerRemovalDatabaseSecurityTests.cs", "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/IdentityPublishedEventContractTests.cs"],
+      "tests": [
+        "IdentityDatabaseMigrationTests",
+        "IdentityLinkingIntegrationTests",
+        "IdentityPublishedEventContractTests",
+        "OwnSessionManagementDatabaseSecurityTests",
+        "OrganizationCreateApplicationTests",
+        "OrganizationDatabaseSecurityTests",
+        "OrganizationOwnerInvitationApplicationTests",
+        "OrganizationOwnerInvitationDatabaseSecurityTests",
+        "OrganizationOwnerMembershipApplicationTests",
+        "OrganizationOwnerRemovalDatabaseSecurityTests"
+      ],
+      "evidence": [
+        "src/AgropecuarIA.Identity/Infrastructure/IdentityDbContext.cs",
+        "src/AgropecuarIA.Identity/Infrastructure/Migrations/IdentityDbContextModelSnapshot.cs",
+        "src/AgropecuarIA.Identity/Infrastructure/Migrations/20260818213000_AddOwnSessionManagement.cs",
+        "src/AgropecuarIA.Identity/Infrastructure/Migrations/20260818230000_AddRevokeAllOtherOwnSessions.cs",
+        "src/AgropecuarIA.Identity/Infrastructure/Migrations/20260818234500_AddRevokeAllOwnSessions.cs",
+        "tests/AgropecuarIA.Identity.Tests/IdentityDatabaseMigrationTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/OwnSessionManagementDatabaseSecurityTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/RevokeAllOwnSessionsDatabaseSecurityTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationCreateApplicationTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationDatabaseSecurityTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationApplicationTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerInvitationDatabaseSecurityTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerMembershipApplicationTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/OrganizationOwnerRemovalDatabaseSecurityTests.cs",
+        "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/IdentityPublishedEventContractTests.cs"
+      ],
       "gate": "CreateOrganization, owner invitations and co-owner removal tenancy/RLS are integrated locally. Managed credentials, shared PostgreSQL, migrator execution, delivery workers and tenant isolation for every later module remain NO-GO."
     },
     {
       "id": "RS-004",
       "name": "Synthetic identity provider",
       "status": "development-test-only",
-      "threatIds": ["TM-002"],
+      "threatIds": [
+        "TM-002"
+      ],
       "owner": "Identity + AppSec",
       "control": "Synthetic provider routes are registered only in Development/Test and production-like environments fail closed without approved OIDC configuration.",
-      "tests": ["DevelopmentIdentityEndpointSecurityTests", "IdentitySessionSecurityTests", "OidcConfigurationContractTests"],
-      "contractPaths": ["/api/development/identity/sign-in", "/api/development/identity/link-attempts/{attemptId}/verify", "/api/development/identity/step-up-attempts/{attemptId}/complete"],
-      "evidence": ["apps/AgropecuarIA.Api/Program.cs", "tests/AgropecuarIA.Identity.Tests/DevelopmentIdentityEndpointSecurityTests.cs", "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs", "tests/AgropecuarIA.Identity.Tests/OidcConfigurationContractTests.cs"],
+      "tests": [
+        "DevelopmentIdentityEndpointSecurityTests",
+        "IdentitySessionSecurityTests",
+        "OidcConfigurationContractTests"
+      ],
+      "contractPaths": [
+        "/api/development/identity/sign-in",
+        "/api/development/identity/link-attempts/{attemptId}/verify",
+        "/api/development/identity/step-up-attempts/{attemptId}/complete"
+      ],
+      "evidence": [
+        "apps/AgropecuarIA.Api/Program.cs",
+        "tests/AgropecuarIA.Identity.Tests/DevelopmentIdentityEndpointSecurityTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/IdentitySessionSecurityTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/OidcConfigurationContractTests.cs"
+      ],
       "gate": "Must remain Development/Test-only; any registration in another environment blocks release."
     },
     {
       "id": "RS-005",
       "name": "External OIDC provider and lifecycle",
       "status": "external-no-go",
-      "threatIds": ["TM-002", "TM-013", "TM-014"],
+      "threatIds": [
+        "TM-002",
+        "TM-013",
+        "TM-014"
+      ],
       "owner": "Identity + AppSec + Privacy/Legal + Sponsor",
       "control": "Provider adapter and sandbox gate are specified; no external account, credential, region or contract is treated as approved.",
-      "tests": ["TST-ID-AUTH external sandbox", "Recovery, factor loss, revocation and provider-outage scenarios"],
-      "evidence": ["tasks/evidence/AGRO-DIS-003/idp-decision-matrix.md", "docs/adr/ADR-003-identidad.md"],
+      "tests": [
+        "TST-ID-AUTH external sandbox",
+        "Recovery, factor loss, revocation and provider-outage scenarios"
+      ],
+      "evidence": [
+        "tasks/evidence/AGRO-DIS-003/idp-decision-matrix.md",
+        "docs/adr/ADR-003-identidad.md"
+      ],
       "gate": "NO-GO until sandbox callbacks and lifecycle pass and region, DPA, retention, subprocessors, plan, SLA and exportability are approved."
     },
     {
       "id": "RS-006",
       "name": "Shared hosting, edge and telemetry backend",
       "status": "external-no-go",
-      "threatIds": ["TM-002", "TM-008", "TM-010", "TM-014"],
+      "threatIds": [
+        "TM-002",
+        "TM-008",
+        "TM-010",
+        "TM-014"
+      ],
       "owner": "Platform/SRE + AppSec + Privacy",
       "control": "Local OpenTelemetry emission and delivery security requirements are specified without inventing a collector, edge or provider.",
-      "tests": ["TST-OTEL-REDACTION end-to-end", "CSP, cache-isolation, secret-canary and provider-outage tests"],
-      "evidence": ["src/AgropecuarIA.Identity/IdentityTelemetry.cs", "tests/AgropecuarIA.Identity.Tests/IdentityTelemetryTests.cs", "tasks/evidence/AGRO-DIS-007/sli-slo-catalog.md"],
+      "tests": [
+        "TST-OTEL-REDACTION end-to-end",
+        "CSP, cache-isolation, secret-canary and provider-outage tests"
+      ],
+      "evidence": [
+        "src/AgropecuarIA.Identity/IdentityTelemetry.cs",
+        "tests/AgropecuarIA.Identity.Tests/IdentityTelemetryTests.cs",
+        "tasks/evidence/AGRO-DIS-007/sli-slo-catalog.md"
+      ],
       "gate": "NO-GO until hosting/collector region, access, DPA, retention, CSP, edge isolation and redaction are verified end-to-end."
     },
     {
       "id": "RS-007",
       "name": "Locked product dependency graph",
       "status": "integrated-local",
-      "threatIds": ["TM-010"],
+      "threatIds": [
+        "TM-010"
+      ],
       "owner": "Platform + module owners + AppSec",
       "control": "NuGet and pnpm dependency graphs are locked for API, Identity, tests, architecture fitness and web.",
-      "tests": ["Frozen dotnet restore", "pnpm frozen-lockfile install", "Local SCA and secret scan"],
-      "evidence": ["apps/AgropecuarIA.Api/packages.lock.json", "src/AgropecuarIA.Identity/packages.lock.json", "tests/AgropecuarIA.Identity.Tests/packages.lock.json", "apps/web/pnpm-lock.yaml", "tasks/evidence/AGRO-FND-001/fitness/src/AgropecuarIA.ArchitectureFitness/packages.lock.json", "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/packages.lock.json"],
+      "tests": [
+        "Frozen dotnet restore",
+        "pnpm frozen-lockfile install",
+        "Local SCA and secret scan"
+      ],
+      "evidence": [
+        "apps/AgropecuarIA.Api/packages.lock.json",
+        "src/AgropecuarIA.Identity/packages.lock.json",
+        "tests/AgropecuarIA.Identity.Tests/packages.lock.json",
+        "apps/web/pnpm-lock.yaml",
+        "tasks/evidence/AGRO-FND-001/fitness/src/AgropecuarIA.ArchitectureFitness/packages.lock.json",
+        "tasks/evidence/AGRO-FND-001/fitness/tests/AgropecuarIA.ArchitectureFitness.Tests/packages.lock.json"
+      ],
       "gate": "Local reproducibility only; CI identity, protected review, SBOM, provenance, signing and artifact registry remain NO-GO."
     },
     {
       "id": "RS-008",
       "name": "CI and release artifact chain",
       "status": "external-no-go",
-      "threatIds": ["TM-010"],
+      "threatIds": [
+        "TM-010"
+      ],
       "owner": "Platform + AppSec",
       "control": "Required CI security gates are documented; absence is explicit and cannot be substituted by local lockfiles.",
-      "tests": ["TST-SEC-GATES", "SBOM, provenance and signature verification"],
-      "evidence": ["tasks/evidence/AGRO-SEC-001/release-security-gates.md", "tasks/backlog/EPIC-16-plataforma-observabilidad-operacion.md"],
+      "tests": [
+        "TST-SEC-GATES",
+        "SBOM, provenance and signature verification"
+      ],
+      "evidence": [
+        "tasks/evidence/AGRO-SEC-001/release-security-gates.md",
+        "tasks/backlog/EPIC-16-plataforma-observabilidad-operacion.md"
+      ],
       "gate": "NO-GO for release promotion until a least-privilege CI identity and immutable signed artifact chain enforce every required gate."
     },
     {
       "id": "RS-009",
       "name": "Territory authenticated API, web flow and local official snapshot",
       "status": "integrated-local",
-      "threatIds": ["TM-004", "TM-006", "TM-008", "TM-011", "TM-014"],
+      "threatIds": [
+        "TM-004",
+        "TM-006",
+        "TM-008",
+        "TM-011",
+        "TM-014"
+      ],
       "owner": "Territory/GIS + API + Frontend + Data + AppSec",
       "control": "Authenticated GET search/resolve endpoints use strict bounded inputs and response contracts, per-session rate limiting and no-store headers. Search reads an immutable active local snapshot of the 23 provinces plus CABA under least-privilege roles and FORCE RLS. Explicit coordinate resolution calls only the fixed Georef v2.0 adapter; exact coordinates are never written to PostgreSQL, journal, browser storage or application logs and exist only in a bounded volatile in-process cache. Provider failure returns labelled stale data or unavailable with manual local search fallback.",
-      "tests": ["TerritoryEndpointsTests", "TerritoryReferenceServiceTests", "TerritorySnapshotValidatorTests", "TerritoryDatabaseSecurityTests", "apps/web/tests/unit/territory-api.test.ts", "apps/web/tests/unit/territory-explorer.test.tsx"],
-      "contractPaths": ["/api/territory/search", "/api/territory/resolve"],
-      "evidence": ["contracts/territory.openapi.yaml", "apps/AgropecuarIA.Api/Program.cs", "src/AgropecuarIA.Territory/Application/TerritoryReferenceService.cs", "src/AgropecuarIA.Territory/Application/TerritoryResolutionCache.cs", "src/AgropecuarIA.Territory/Delivery/TerritoryExceptionHandler.cs", "src/AgropecuarIA.Territory/Infrastructure/Migrations/20260811223525_InitializeOfficialTerritory.cs", "tests/AgropecuarIA.Territory.Tests/TerritoryEndpointsTests.cs", "tests/AgropecuarIA.Territory.Tests/TerritoryDatabaseSecurityTests.cs", "apps/web/tests/unit/territory-explorer.test.tsx"],
+      "tests": [
+        "TerritoryEndpointsTests",
+        "TerritoryReferenceServiceTests",
+        "TerritorySnapshotValidatorTests",
+        "TerritoryDatabaseSecurityTests",
+        "apps/web/tests/unit/territory-api.test.ts",
+        "apps/web/tests/unit/territory-explorer.test.tsx"
+      ],
+      "contractPaths": [
+        "/api/territory/search",
+        "/api/territory/resolve"
+      ],
+      "evidence": [
+        "contracts/territory.openapi.yaml",
+        "apps/AgropecuarIA.Api/Program.cs",
+        "src/AgropecuarIA.Territory/Application/TerritoryReferenceService.cs",
+        "src/AgropecuarIA.Territory/Application/TerritoryResolutionCache.cs",
+        "src/AgropecuarIA.Territory/Delivery/TerritoryExceptionHandler.cs",
+        "src/AgropecuarIA.Territory/Infrastructure/Migrations/20260811223525_InitializeOfficialTerritory.cs",
+        "tests/AgropecuarIA.Territory.Tests/TerritoryEndpointsTests.cs",
+        "tests/AgropecuarIA.Territory.Tests/TerritoryDatabaseSecurityTests.cs",
+        "apps/web/tests/unit/territory-explorer.test.tsx"
+      ],
       "gate": "GO only for the integrated-local official snapshot, authenticated UI and local adapter verification with literal synthetic responses while egress remains disabled by default. Shared hosting, managed database, query-string redaction at every proxy/collector and any real external Georef traffic remain NO-GO under RS-006 and RS-010."
     },
     {
       "id": "RS-010",
       "name": "External Georef v2.0 coordinate resolution provider",
       "status": "external-no-go",
-      "threatIds": ["TM-004", "TM-006", "TM-008", "TM-013", "TM-014"],
+      "threatIds": [
+        "TM-004",
+        "TM-006",
+        "TM-008",
+        "TM-013",
+        "TM-014"
+      ],
       "owner": "Territory/GIS + Integrations + AppSec + Privacy/Legal + SRE",
       "control": "The local adapter is pinned to https://apis.datos.gob.ar/georef/api/v2.0/, disables redirects, cookies and automatic decompression, applies a five-second timeout and 256 KiB response limit, and strictly validates JSON shape and official codes. Requests contain only the explicit latitude/longitude required for resolution; no tenant, field name or parcel geometry is sent, persisted or application-logged.",
-      "tests": ["GeorefTerritoryClientTests", "TerritoryReferenceServiceTests", "TerritoryEndpointsTests"],
-      "evidence": ["src/AgropecuarIA.Territory/Providers/Georef/GeorefTerritoryClient.cs", "src/AgropecuarIA.Territory/TerritoryServiceCollectionExtensions.cs", "tests/AgropecuarIA.Territory.Tests/GeorefTerritoryClientTests.cs", "tasks/evidence/AGRO-DIS-004/source-and-license-matrix.md"],
+      "tests": [
+        "GeorefTerritoryClientTests",
+        "TerritoryReferenceServiceTests",
+        "TerritoryEndpointsTests"
+      ],
+      "evidence": [
+        "src/AgropecuarIA.Territory/Providers/Georef/GeorefTerritoryClient.cs",
+        "src/AgropecuarIA.Territory/TerritoryServiceCollectionExtensions.cs",
+        "tests/AgropecuarIA.Territory.Tests/GeorefTerritoryClientTests.cs",
+        "tasks/evidence/AGRO-DIS-004/source-and-license-matrix.md"
+      ],
       "gate": "NO-GO for external Georef use until terms/licence, attribution, region, DPA, retention, subprocessors, SLA, quota/capacity, managed egress and end-to-end URL/query redaction are approved and verified. Passing local adapter tests does not approve the provider."
     },
     {
       "id": "RS-011",
       "name": "Productive Core non-spatial field API and PostgreSQL persistence",
       "status": "integrated-local",
-      "threatIds": ["TM-001", "TM-008", "TM-011", "TM-012", "TM-014"],
+      "threatIds": [
+        "TM-001",
+        "TM-008",
+        "TM-011",
+        "TM-012",
+        "TM-014"
+      ],
       "owner": "Productive Core + API + Data + AppSec",
       "control": "Authenticated owner-only GET/POST/PATCH field endpoints create, read and rename tenant-confidential non-spatial drafts without coordinates, area or geometry. The server derives actor, organization, unit type and states; mutations require antiforgery and versioned HMAC idempotency keys, while rename additionally requires a strong If-Match and returns neutral 412 on a stale new attempt. A narrow Identity SECURITY DEFINER port revalidates the live session and active owner membership before lookup/replay, then Productive Core uses NOLOGIN/NOINHERIT/NOBYPASSRLS roles, transaction-local actor/organization/session/authorization context, FORCE RLS, atomic unit+ledger+aliases+journal+typed outbox writes, append-only journal and neutral not-available errors. ManagementUnitDisplayNameChanged excludes both names and all actor/idempotency material. Telemetry is allow-listed to operation, outcome and bounded result count and excludes field name, organization/resource UUID, session and idempotency material.",
-      "tests": ["ProductiveCoreEndpointContractTests", "ProductiveCoreApplicationServiceTests", "ProductiveCoreRenameApplicationServiceTests", "ProductiveCoreDatabaseSecurityTests", "ProductiveCoreAuthorizationPortDatabaseTests", "ManagementUnitCreationOptionsValidatorTests"],
-      "contractPaths": ["/api/organizations/{organizationId}/fields", "/api/organizations/{organizationId}/fields/{fieldId}"],
-      "evidence": ["contracts/productive-core.openapi.yaml", "src/AgropecuarIA.ProductiveCore/Application/ProductiveCoreRenameApplicationService.cs", "src/AgropecuarIA.ProductiveCore/Infrastructure/ProductiveCoreDbContext.cs", "src/AgropecuarIA.ProductiveCore/Infrastructure/PostgresProductiveCoreUnitOfWork.cs", "src/AgropecuarIA.ProductiveCore/Infrastructure/Migrations/20260818170935_InitializeProductiveCore.cs", "src/AgropecuarIA.ProductiveCore/Infrastructure/Migrations/20260818181606_AddManagementUnitRename.cs", "src/AgropecuarIA.Identity/Infrastructure/Migrations/20260818180000_AddProductiveCoreAuthorizationPort.cs", "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs", "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreRenameApplicationServiceTests.cs", "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs", "tests/AgropecuarIA.Identity.Tests/ProductiveCoreAuthorizationPortDatabaseTests.cs"],
+      "tests": [
+        "ProductiveCoreEndpointContractTests",
+        "ProductiveCoreApplicationServiceTests",
+        "ProductiveCoreRenameApplicationServiceTests",
+        "ProductiveCoreDatabaseSecurityTests",
+        "ProductiveCoreAuthorizationPortDatabaseTests",
+        "ManagementUnitCreationOptionsValidatorTests"
+      ],
+      "contractPaths": [
+        "/api/organizations/{organizationId}/fields",
+        "/api/organizations/{organizationId}/fields/{fieldId}"
+      ],
+      "evidence": [
+        "contracts/productive-core.openapi.yaml",
+        "src/AgropecuarIA.ProductiveCore/Application/ProductiveCoreRenameApplicationService.cs",
+        "src/AgropecuarIA.ProductiveCore/Infrastructure/ProductiveCoreDbContext.cs",
+        "src/AgropecuarIA.ProductiveCore/Infrastructure/PostgresProductiveCoreUnitOfWork.cs",
+        "src/AgropecuarIA.ProductiveCore/Infrastructure/Migrations/20260818170935_InitializeProductiveCore.cs",
+        "src/AgropecuarIA.ProductiveCore/Infrastructure/Migrations/20260818181606_AddManagementUnitRename.cs",
+        "src/AgropecuarIA.Identity/Infrastructure/Migrations/20260818180000_AddProductiveCoreAuthorizationPort.cs",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.cs",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreRenameApplicationServiceTests.cs",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreEndpointContractTests.cs",
+        "tests/AgropecuarIA.Identity.Tests/ProductiveCoreAuthorizationPortDatabaseTests.cs"
+      ],
       "gate": "GO only for the integrated-local non-spatial draft field slice. Geometry, area, tiles, spatial history, non-owner roles, external delivery, managed credentials/database/backup, shared hosting and production remain NO-GO; local tests do not approve those capabilities."
+    },
+    {
+      "id": "RS-012",
+      "name": "Catalog authenticated read and platform editorial mutation API",
+      "status": "integrated-local-partial",
+      "threatIds": [
+        "TM-001",
+        "TM-011",
+        "TM-012"
+      ],
+      "owner": "Catalog + API + AppSec",
+      "control": "All routes require session authentication. Ingest/publish/rollback additionally require separately provisioned platform editorial permission and antiforgery; tenant ownership is not platform authority. Publication actor derives from session, and published tables have an additive migration.",
+      "tests": [
+        "CatalogEndpointIntegrationTests"
+      ],
+      "contractPaths": [
+        "/api/catalog/diff",
+        "/api/catalog/ingest",
+        "/api/catalog/publish",
+        "/api/catalog/rollback/{versionId}",
+        "/api/catalog/items",
+        "/api/catalog/items/{code}"
+      ],
+      "evidence": [
+        "contracts/catalog.openapi.yaml",
+        "tests/AgropecuarIA.Catalog.Tests/CatalogEndpointIntegrationTests.cs",
+        "src/AgropecuarIA.Catalog/Delivery/CatalogEndpoints.cs"
+      ],
+      "gate": "Partial only: diff does not compare a selected source version against active publication; concurrent publication, editorial workflow/UI, professional baseline approval and real-source operation remain incomplete."
+    },
+    {
+      "id": "RS-013",
+      "name": "Weather tenant measurements/rules and global forecast/alert data",
+      "status": "integrated-local-partial",
+      "threatIds": [
+        "TM-001",
+        "TM-004",
+        "TM-006",
+        "TM-008"
+      ],
+      "owner": "Weather + API + Data + AppSec",
+      "control": "Tenant endpoint filter revalidates live owner/session/resource; writes require antiforgery. Tenant rain/rules use FORCE RLS and a restricted runtime role, while global cache/alerts are separated. Alert ingestion requires separate platform permission. Missing configured rules/thresholds produce explicit insufficient_data abstention instead of invented defaults.",
+      "tests": [
+        "WeatherAccessApiIntegrationTests",
+        "WeatherActivityApplicationTests"
+      ],
+      "contractPaths": [
+        "/api/organizations/{organizationId}/weather/rules",
+        "/api/organizations/{organizationId}/fields/{fieldId}/weather/forecast",
+        "/api/organizations/{organizationId}/fields/{fieldId}/weather/rain",
+        "/api/organizations/{organizationId}/fields/{fieldId}/weather/alerts",
+        "/api/organizations/{organizationId}/fields/{fieldId}/weather/suitability",
+        "/api/weather/alerts/ingest"
+      ],
+      "evidence": [
+        "contracts/weather.openapi.yaml",
+        "tests/AgropecuarIA.Identity.Tests/WeatherAccessApiIntegrationTests.cs",
+        "tests/AgropecuarIA.Weather.Tests/WeatherActivityApplicationTests.cs",
+        "src/AgropecuarIA.Weather/Delivery/WeatherEndpoints.cs"
+      ],
+      "gate": "Partial only: exact CAP polygon/lifecycle and official provenance, safe provider egress/freshness guarantees, client-coordinate provenance, rule professional approval, UI, shared credentials and operation remain unresolved. Unit abstention tests do not prove database isolation."
+    },
+    {
+      "id": "RS-014",
+      "name": "Additional Productive Core archive, cycles and geometry surfaces",
+      "status": "integrated-local-partial",
+      "threatIds": [
+        "TM-001",
+        "TM-008",
+        "TM-011",
+        "TM-012"
+      ],
+      "owner": "Productive Core + API + Data + AppSec",
+      "control": "Archive uses a distinct ManagementUnitArchived contract. Cycles require live owner/resource authorization and tenant storage context. Initial geometry accepts only boundary and declared area; server PostGIS validates topology and generates spheroidal area/centroid. FORCE RLS protects an immutable typed snapshot; narrow transition checks and deferred integrity bind field, snapshot, journal and ManagementUnitGeometryConfigured event. Geometry GET reconciles ambiguous writes; no idempotency ledger or automatic retry. Neither geometry validation nor declared-area difference certifies cadastral status, official containment or agronomic suitability.",
+      "tests": [
+        "ProductiveCoreEndpointContractTests",
+        "ProductiveCoreDatabaseSecurityTests",
+        "GeometryFieldApiIntegrationTests"
+      ],
+      "contractPaths": [
+        "/api/organizations/{organizationId}/fields/{fieldId}/archive",
+        "/api/organizations/{organizationId}/fields/{fieldId}/geometry",
+        "/api/organizations/{organizationId}/fields/{fieldId}/cycles",
+        "/api/organizations/{organizationId}/cycles/{cycleId}/events",
+        "/api/organizations/{organizationId}/cycles/{cycleId}/timeline"
+      ],
+      "evidence": [
+        "contracts/productive-core.openapi.yaml",
+        "src/AgropecuarIA.ProductiveCore/Delivery/ProductiveCoreEndpoints.cs",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Cycles.cs",
+        "tests/AgropecuarIA.ProductiveCore.Tests/ProductiveCoreDatabaseSecurityTests.Geometry.cs",
+        "tests/AgropecuarIA.Identity.Tests/GeometryFieldApiIntegrationTests.cs",
+        "tasks/evidence/AGRO-FND-001/contracts/management-unit-archived.v1.schema.json",
+        "tasks/evidence/AGRO-FND-001/contracts/management-unit-geometry-configured.v1.schema.json",
+        "src/AgropecuarIA.ProductiveCore/Infrastructure/Migrations/20260904194958_ConfigureInitialFieldGeometry.cs"
+      ],
+      "gate": "Initial geometry PostgreSQL/HTTP verification passed in the 2026-09-04 integrated 521-test backend gate with isolated PostGIS 3.6.2: no failures or skips. Geometry replacement/effective history, map/form accessibility, authoritative territorial containment and tolerance/overlap policy remain incomplete. Cycle catalog provenance, event journal/outbox/idempotency and full productive UI also remain incomplete. Register membership is not a completed parent task or released capability."
     }
   ]
 }

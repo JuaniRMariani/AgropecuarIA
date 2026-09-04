@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agropecuaria.local/contracts/productive-core/management-unit-geometry-configured.v1.schema.json",
+  "title": "ManagementUnitGeometryConfigured v1 payload",
+  "description": "Initial server-validated geometry registration. The immutable geometryVersionId identifies the confidential snapshot; no polygon or official territorial claim is published.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["organizationId", "managementUnitId", "geometryVersionId", "revision", "spatialStatus", "declaredAreaHectares", "calculatedAreaHectares", "configuredAtUtc", "calculationMethod"],
+  "properties": {
+    "organizationId": {"type": "string", "format": "uuid"},
+    "managementUnitId": {"type": "string", "format": "uuid"},
+    "geometryVersionId": {"type": "string", "format": "uuid"},
+    "revision": {"type": "integer", "minimum": 2},
+    "spatialStatus": {"type": "string", "const": "configured"},
+    "declaredAreaHectares": {"type": "number", "exclusiveMinimum": 0},
+    "calculatedAreaHectares": {"type": "number", "exclusiveMinimum": 0},
+    "configuredAtUtc": {"type": "string", "format": "date-time"},
+    "calculationMethod": {"type": "string", "const": "postgis-geography-spheroid"}
+  }
+}

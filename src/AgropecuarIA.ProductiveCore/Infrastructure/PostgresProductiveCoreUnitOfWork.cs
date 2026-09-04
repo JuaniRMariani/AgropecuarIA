@@ -54,7 +54,7 @@ public sealed class PostgresProductiveCoreUnitOfWorkFactory(
         exception is NpgsqlException or InvalidOperationException or TimeoutException;
 }
 
-internal sealed class PostgresProductiveCoreUnitOfWork(
+internal sealed partial class PostgresProductiveCoreUnitOfWork(
     ProductiveCoreDbContext dbContext,
     IDbContextTransaction transaction) : IProductiveCoreUnitOfWork
 {
@@ -213,6 +213,104 @@ internal sealed class PostgresProductiveCoreUnitOfWork(
         }
     }
 
+    public async Task<ProductionCycle?> GetProductionCycleAsync(
+        Guid organizationId,
+        Guid cycleId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await dbContext.ProductionCycles.AsNoTracking().SingleOrDefaultAsync(
+                cycle => cycle.OrganizationId == organizationId && cycle.Id == cycleId,
+                cancellationToken);
+        }
+        catch (Exception exception) when (IsPersistenceFailure(exception))
+        {
+            throw Unavailable("read the production cycle", exception);
+        }
+    }
+
+    public async Task<ProductionCycle?> GetProductionCycleForUpdateAsync(
+        Guid organizationId,
+        Guid cycleId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            ProductionCycle[] matches = await dbContext.ProductionCycles
+                .FromSqlInterpolated(
+                    $"""
+                    SELECT * FROM productive_core.production_cycles
+                    WHERE "OrganizationId" = {organizationId} AND "Id" = {cycleId}
+                    FOR UPDATE
+                    """)
+                .ToArrayAsync(cancellationToken);
+            return matches.SingleOrDefault();
+        }
+        catch (Exception exception) when (IsSerializationFailure(exception))
+        {
+            throw new ProductiveSerializationRaceException(
+                "A production cycle lock lost serialization.", exception);
+        }
+        catch (Exception exception) when (IsPersistenceFailure(exception))
+        {
+            throw Unavailable("lock the production cycle", exception);
+        }
+    }
+
+    public async Task<IReadOnlyList<ProductionCycle>> ListProductionCyclesAsync(
+        Guid organizationId,
+        Guid managementUnitId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await dbContext.ProductionCycles.AsNoTracking()
+                .Where(cycle => cycle.OrganizationId == organizationId &&
+                    cycle.ManagementUnitId == managementUnitId)
+                .OrderByDescending(cycle => cycle.StartDateUtc)
+                .ThenBy(cycle => cycle.Id)
+                .ToArrayAsync(cancellationToken);
+        }
+        catch (Exception exception) when (IsPersistenceFailure(exception))
+        {
+            throw Unavailable("list production cycles", exception);
+        }
+    }
+
+    public async Task<IReadOnlyList<ProductionEvent>> ListProductionEventsAsync(
+        Guid organizationId,
+        Guid cycleId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await dbContext.ProductionEvents.AsNoTracking()
+                .Where(productionEvent => productionEvent.OrganizationId == organizationId &&
+                    productionEvent.ProductionCycleId == cycleId)
+                .OrderBy(productionEvent => productionEvent.EffectiveDateUtc)
+                .ThenBy(productionEvent => productionEvent.RecordedAtUtc)
+                .ThenBy(productionEvent => productionEvent.Id)
+                .ToArrayAsync(cancellationToken);
+        }
+        catch (Exception exception) when (IsPersistenceFailure(exception))
+        {
+            throw Unavailable("list production events", exception);
+        }
+    }
+
+    public void AddProductionCycle(ProductionCycle cycle)
+    {
+        ArgumentNullException.ThrowIfNull(cycle);
+        dbContext.ProductionCycles.Add(cycle);
+    }
+
+    public void AddProductionEvent(ProductionEvent productionEvent)
+    {
+        ArgumentNullException.ThrowIfNull(productionEvent);
+        dbContext.ProductionEvents.Add(productionEvent);
+    }
+
     public async Task<IReadOnlyList<ManagementUnit>> ListManagementUnitsAsync(
         Guid organizationId,
         CancellationToken cancellationToken)
@@ -304,6 +402,28 @@ internal sealed class PostgresProductiveCoreUnitOfWork(
             throw new ProductivePersistenceUnavailableException(
                 "Productive Core rename idempotency key coverage could not be verified.",
                 exception);
+        }
+    }
+
+    public async Task<bool> RetainedArchiveKeyVersionsCoveredAsync(
+        IReadOnlyCollection<string> retainedKeyVersions,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(retainedKeyVersions);
+        try
+        {
+            NpgsqlConnection connection = await GetOpenConnectionAsync(cancellationToken);
+            await using var command = new NpgsqlCommand(
+                "SELECT productive_core.management_unit_archive_retained_key_covered(@versions)",
+                connection,
+                GetTransaction());
+            command.Parameters.AddWithValue("versions", NpgsqlDbType.Array | NpgsqlDbType.Text,
+                retainedKeyVersions.ToArray());
+            return await command.ExecuteScalarAsync(cancellationToken) is true;
+        }
+        catch (Exception exception) when (IsPersistenceFailure(exception))
+        {
+            throw Unavailable("verify archive idempotency key coverage", exception);
         }
     }
 
@@ -751,10 +871,7 @@ internal sealed class PostgresProductiveCoreUnitOfWork(
             return null;
         }
 
-        if (!string.Equals(
-                aliasTable,
-                "management_unit_rename_key_aliases",
-                StringComparison.Ordinal))
+        if (aliasTable is not ("management_unit_rename_key_aliases" or "management_unit_archive_key_aliases"))
         {
             throw new ArgumentException("Unexpected Productive Core alias table.", nameof(aliasTable));
         }

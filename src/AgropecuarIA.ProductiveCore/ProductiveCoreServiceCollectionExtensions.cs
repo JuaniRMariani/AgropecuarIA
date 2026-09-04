@@ -44,6 +44,7 @@ public static class ProductiveCoreServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<ProductiveCoreTelemetry>();
         services.AddScoped<ProductiveCoreApplicationService>();
+        services.AddScoped<ProductiveCoreGeometryApplicationService>();
         services.AddScoped<ProductiveCoreRenameApplicationService>();
         services.AddScoped<ProductiveCoreArchiveApplicationService>();
         services.AddScoped<ProductionCycleApplicationService>();

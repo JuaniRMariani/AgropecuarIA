@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <ProjectReference Include="..\..\src\AgropecuarIA.Weather\AgropecuarIA.Weather.csproj" />
   </ItemGroup>
 </Project>

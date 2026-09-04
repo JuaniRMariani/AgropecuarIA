@@ -22,6 +22,7 @@ import {
 } from "./field-api";
 
 import type { FieldOrganization, FieldSummary } from "./field-types";
+import { FieldArchivePanel, useFieldArchive } from "./field-archive";
 
 export type FieldContextGuard = "clear" | "dirty" | "pending";
 
@@ -653,6 +654,12 @@ export function FieldManagement(props: FieldManagementProps) {
     kind: "idle",
   });
   const [rename, setRename] = useState<FieldRenameState>({ kind: "idle" });
+  const archive = useFieldArchive(ownerOrganizationIdsKey);
+  const archiveTriggerRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const restoreArchivedFocus = useRef(false);
+  const listGenerations = useRef(new Map<string, number>());
+  const restoredArchiveDetail = useRef<string | null>(null);
   const attemptKey = useRef<string | null>(null);
   const restoredAttempt = useRef(false);
   const restoredRenameAttempt = useRef(false);
@@ -686,15 +693,18 @@ export function FieldManagement(props: FieldManagementProps) {
       rename.kind === "in-progress" ||
       rename.kind === "reconciliation-required" ||
       rename.kind === "service-unavailable";
-    if (creationPending || renamePending) return "pending";
+    if (creationPending || renamePending || archive.guard === "pending")
+      return "pending";
 
     const createDraftOpen =
       formOrganizationId !== null && draft.trim().length > 0;
     const renameDraftChanged =
       "attempt" in rename &&
       rename.attempt.displayName !== rename.attempt.baseDisplayName;
-    return createDraftOpen || renameDraftChanged ? "dirty" : "clear";
-  }, [creation.kind, draft, formOrganizationId, rename]);
+    return createDraftOpen || renameDraftChanged || archive.guard === "dirty"
+      ? "dirty"
+      : "clear";
+  }, [archive.guard, creation.kind, draft, formOrganizationId, rename]);
 
   useEffect(() => {
     onContextGuardChange?.(contextGuard);
@@ -703,18 +713,30 @@ export function FieldManagement(props: FieldManagementProps) {
 
   const refreshFields = useCallback(
     async (organizationId: string, signal?: AbortSignal) => {
+      const generation = (listGenerations.current.get(organizationId) ?? 0) + 1;
+      listGenerations.current.set(organizationId, generation);
       setResources((current) => ({
         ...current,
         [organizationId]: { kind: "loading" },
       }));
       try {
         const items = await listFields(organizationId, signal);
+        if (
+          signal?.aborted ||
+          listGenerations.current.get(organizationId) !== generation
+        )
+          return;
         setResources((current) => ({
           ...current,
           [organizationId]: { kind: "ready", items },
         }));
       } catch (error) {
-        if (isAbortError(error)) return;
+        if (
+          isAbortError(error) ||
+          signal?.aborted ||
+          listGenerations.current.get(organizationId) !== generation
+        )
+          return;
         setResources((current) => ({
           ...current,
           [organizationId]: resourceFailure(error),
@@ -732,9 +754,12 @@ export function FieldManagement(props: FieldManagementProps) {
         ...current,
         [field.organizationId]: {
           kind: "ready",
-          items: previous.items.map((item) =>
-            item.fieldId === field.fieldId ? field : item,
-          ),
+          items:
+            field.status === "archived"
+              ? previous.items.filter((item) => item.fieldId !== field.fieldId)
+              : previous.items.map((item) =>
+                  item.fieldId === field.fieldId ? field : item,
+                ),
         },
       };
     });
@@ -743,6 +768,17 @@ export function FieldManagement(props: FieldManagementProps) {
       [field.organizationId]: { kind: "ready", field },
     }));
   }, []);
+
+  useEffect(() => {
+    const field = archive.observed;
+    if (
+      field === null ||
+      !ownerOrganizationIdsKey.split(",").includes(field.organizationId)
+    )
+      return;
+    applyField(field);
+    if (field.status === "archived") void refreshFields(field.organizationId);
+  }, [archive.observed, applyField, ownerOrganizationIdsKey, refreshFields]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -941,6 +977,10 @@ export function FieldManagement(props: FieldManagementProps) {
           controller.signal,
         );
         if (!isCurrentRequest()) return;
+        if (field.status === "archived") {
+          applyField(field);
+          void refreshFields(organizationId);
+        }
         setDetails((current) => ({
           ...current,
           [organizationId]: { kind: "ready", field },
@@ -975,8 +1015,20 @@ export function FieldManagement(props: FieldManagementProps) {
         }
       }
     },
-    [deepLink, onDeepLinkIntent],
+    [applyField, deepLink, onDeepLinkIntent, refreshFields],
   );
+
+  useEffect(() => {
+    if (!("attempt" in archive.state)) return;
+    const { organizationId, fieldId } = archive.state.attempt;
+    if (!ownerOrganizationIdsKey.split(",").includes(organizationId)) return;
+    const key = `${organizationId}:${fieldId}`;
+    if (restoredArchiveDetail.current === key) return;
+    restoredArchiveDetail.current = key;
+    const detail = details[organizationId];
+    if (detail?.kind === "ready" && detail.field.fieldId === fieldId) return;
+    void openDetail(organizationId, fieldId);
+  }, [archive.state, details, openDetail, ownerOrganizationIdsKey]);
 
   useEffect(
     () => () => {
@@ -1045,20 +1097,24 @@ export function FieldManagement(props: FieldManagementProps) {
     }
   }, [details, rename]);
 
-  const startRename = useCallback((field: FieldSummary) => {
-    clearStoredRenameAttempt();
-    setRename({
-      kind: "editing",
-      attempt: {
-        organizationId: field.organizationId,
-        fieldId: field.fieldId,
-        baseDisplayName: field.displayName,
-        displayName: field.displayName,
-        version: field.version,
-        idempotencyKey: createFieldIdempotencyKey(),
-      },
-    });
-  }, []);
+  const startRename = useCallback(
+    (field: FieldSummary) => {
+      if (field.status !== "draft" || archive.guard !== "clear") return;
+      clearStoredRenameAttempt();
+      setRename({
+        kind: "editing",
+        attempt: {
+          organizationId: field.organizationId,
+          fieldId: field.fieldId,
+          baseDisplayName: field.displayName,
+          displayName: field.displayName,
+          version: field.version,
+          idempotencyKey: createFieldIdempotencyKey(),
+        },
+      });
+    },
+    [archive.guard],
+  );
 
   const cancelRename = useCallback(() => {
     if (rename.kind === "submitting" || rename.kind === "reloading") return;
@@ -1174,6 +1230,10 @@ export function FieldManagement(props: FieldManagementProps) {
       );
       applyField(field);
       clearStoredRenameAttempt();
+      if (field.status === "archived") {
+        setRename({ kind: "idle" });
+        return;
+      }
       setRename({
         kind: "editing",
         attempt: {
@@ -1195,7 +1255,10 @@ export function FieldManagement(props: FieldManagementProps) {
 
   const closeDetail = useCallback(
     (organizationId: string) => {
+      if (archive.guard !== "clear") return;
       const detail = details[organizationId];
+      restoreArchivedFocus.current =
+        detail?.kind === "ready" && detail.field.status === "archived";
       const closingFieldId =
         detail?.kind === "ready"
           ? detail.field.fieldId
@@ -1234,11 +1297,12 @@ export function FieldManagement(props: FieldManagementProps) {
         [organizationId]: { kind: "closed" },
       }));
     },
-    [deepLink, details, onDeepLinkIntent, rename],
+    [archive.guard, deepLink, details, onDeepLinkIntent, rename],
   );
 
   const selectField = useCallback(
     (field: FieldSummary) => {
+      if (archive.guard !== "clear") return;
       setDeepLinkNotice(null);
       closedDeepLinkPrefixRef.current = null;
       if (!deepLinkControlled) {
@@ -1250,7 +1314,7 @@ export function FieldManagement(props: FieldManagementProps) {
         prefix: formatShortId(field.fieldId),
       });
     },
-    [deepLinkControlled, onDeepLinkIntent, openDetail],
+    [archive.guard, deepLinkControlled, onDeepLinkIntent, openDetail],
   );
 
   useEffect(() => {
@@ -1335,6 +1399,14 @@ export function FieldManagement(props: FieldManagementProps) {
     const matches = resource.items.filter(
       (field) => formatShortId(field.fieldId) === deepLink.prefix,
     );
+    const knownDetail = details[organization.organizationId];
+    if (
+      matches.length === 0 &&
+      knownDetail?.kind === "ready" &&
+      knownDetail.field.status === "archived" &&
+      formatShortId(knownDetail.field.fieldId) === deepLink.prefix
+    )
+      return;
     if (matches.length !== 1) {
       const reason = matches.length === 0 ? "unknown" : "ambiguous";
       const rejectionKey = `${organization.organizationId}:${deepLink.prefix}:${reason}`;
@@ -1396,6 +1468,13 @@ export function FieldManagement(props: FieldManagementProps) {
           detail.fieldId === fieldId),
     );
     if (detailStillOpen) return;
+    if (restoreArchivedFocus.current) {
+      restoreArchivedFocus.current = false;
+      restoreDetailFocusToFieldIdRef.current = null;
+      restoreDetailFocusElementRef.current = null;
+      headingRef.current?.focus();
+      return;
+    }
     const fieldListReady = Object.values(resources).some(
       (resource) =>
         resource.kind === "ready" &&
@@ -1427,13 +1506,20 @@ export function FieldManagement(props: FieldManagementProps) {
       <div className="section-heading field-management__heading">
         <div>
           <p className="section-kicker">Unidades de manejo</p>
-          <h2 id={titleId}>Tus campos</h2>
+          <h2 id={titleId} ref={headingRef} tabIndex={-1}>
+            Tus campos
+          </h2>
           <p>
             Creá la ficha privada ahora. El mapa, el área y la geometría se
             configuran en un paso posterior.
           </p>
         </div>
       </div>
+
+      <FieldArchivePanel
+        controller={archive}
+        returnFocusRef={archiveTriggerRef}
+      />
 
       {visibleDeepLinkNotice !== null ? (
         <div className="inline-notice" role="status">
@@ -1487,6 +1573,7 @@ export function FieldManagement(props: FieldManagementProps) {
                 {!formOpen ? (
                   <button
                     className="button button--secondary"
+                    disabled={archive.guard !== "clear"}
                     onClick={() => startCreate(organization.organizationId)}
                     type="button"
                   >
@@ -1615,15 +1702,22 @@ export function FieldManagement(props: FieldManagementProps) {
                           <strong>{field.displayName}</strong>
                           <span>Campo {formatShortId(field.fieldId)}</span>
                           <div className="field-chips">
-                            <span className="field-chip">Borrador</span>
+                            <span className="field-chip">
+                              {field.status === "archived"
+                                ? "Archivado"
+                                : "Borrador"}
+                            </span>
                             <span className="field-chip field-chip--spatial">
-                              Sin geometría
+                              {field.spatialStatus === "configured"
+                                ? "Geometría registrada"
+                                : "Sin geometría"}
                             </span>
                           </div>
                         </div>
                         <button
                           aria-label={`Abrir ficha de ${field.displayName}, campo ${formatShortId(field.fieldId)}`}
                           className="button button--quiet"
+                          disabled={archive.guard !== "clear"}
                           onClick={() => selectField(field)}
                           ref={(element) => {
                             if (element === null) {
@@ -1706,12 +1800,14 @@ export function FieldManagement(props: FieldManagementProps) {
                       <h4 id={detailTitleId}>{detail.field.displayName}</h4>
                       <p>Campo {formatShortId(detail.field.fieldId)}</p>
                     </div>
-                    {renameAttemptState === null ||
-                    renameAttemptState.attempt.fieldId !==
-                      detail.field.fieldId ? (
+                    {detail.field.status === "draft" &&
+                    (renameAttemptState === null ||
+                      renameAttemptState.attempt.fieldId !==
+                        detail.field.fieldId) ? (
                       <button
                         className="button button--quiet"
                         disabled={
+                          archive.guard !== "clear" ||
                           rename.kind === "submitting" ||
                           rename.kind === "reloading"
                         }
@@ -1733,9 +1829,25 @@ export function FieldManagement(props: FieldManagementProps) {
                         Editar nombre
                       </button>
                     ) : null}
+                    {detail.field.status === "draft" &&
+                    renameAttemptState === null ? (
+                      <button
+                        className="button button--quiet"
+                        disabled={
+                          contextGuard !== "clear" ||
+                          formOrganizationId !== null
+                        }
+                        onClick={() => archive.start(detail.field)}
+                        ref={archiveTriggerRef}
+                        type="button"
+                      >
+                        Archivar campo
+                      </button>
+                    ) : null}
                   </div>
 
-                  {renameAttemptState !== null &&
+                  {detail.field.status === "draft" &&
+                  renameAttemptState !== null &&
                   renameAttemptState.attempt.fieldId ===
                     detail.field.fieldId ? (
                     <form
@@ -1845,16 +1957,24 @@ export function FieldManagement(props: FieldManagementProps) {
                   <dl>
                     <div>
                       <dt>Estado</dt>
-                      <dd>Borrador</dd>
+                      <dd>
+                        {detail.field.status === "archived"
+                          ? "Archivado"
+                          : "Borrador"}
+                      </dd>
                     </div>
                     <div>
                       <dt>Geometría</dt>
-                      <dd>Sin geometría</dd>
+                      <dd>
+                        {detail.field.spatialStatus === "configured"
+                          ? "Geometría registrada"
+                          : "Sin geometría"}
+                      </dd>
                     </div>
                   </dl>
                   <button
                     className="button button--quiet"
-                    disabled={renameBusy}
+                    disabled={renameBusy || archive.guard !== "clear"}
                     onClick={() => closeDetail(organization.organizationId)}
                     type="button"
                   >

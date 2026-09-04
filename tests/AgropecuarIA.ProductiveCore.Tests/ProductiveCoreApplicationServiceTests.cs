@@ -454,6 +454,22 @@ public sealed class ProductiveCoreApplicationServiceTests
 
     private sealed class InMemoryUnitOfWork(InMemoryStore store) : IProductiveCoreUnitOfWork
     {
+        public Task<ProductionCycle?> GetProductionCycleAsync(Guid organizationId, Guid cycleId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ProductionCycle?> GetProductionCycleForUpdateAsync(Guid organizationId, Guid cycleId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ProductionCycle>> ListProductionCyclesAsync(Guid organizationId, Guid managementUnitId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ProductionEvent>> ListProductionEventsAsync(Guid organizationId, Guid cycleId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public void AddProductionCycle(ProductionCycle cycle) => throw new NotSupportedException();
+
+        public void AddProductionEvent(ProductionEvent productionEvent) => throw new NotSupportedException();
+
         public Task<Guid?> AuthorizeOwnerAsync(
             ProductiveRequestContext requestContext,
             CancellationToken cancellationToken)
@@ -540,6 +556,21 @@ public sealed class ProductiveCoreApplicationServiceTests
             IReadOnlyCollection<string> retainedKeyVersions,
             CancellationToken cancellationToken) =>
             RetainedKeyVersionsCoveredAsync(retainedKeyVersions, cancellationToken);
+
+        public Task<bool> RetainedArchiveKeyVersionsCoveredAsync(
+            IReadOnlyCollection<string> retainedKeyVersions,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("This creation-only fake does not implement archival.");
+
+        public Task<ValidatedFieldGeometry> ValidateInitialGeometryAsync(string geoJson, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Geometry uses real PostGIS proofs.");
+
+        public Task AddInitialGeometryAsync(InitialFieldGeometrySnapshot snapshot, ProductiveJournalEntry journalEntry,
+            ProductiveOutboxMessage outboxMessage, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Geometry uses real PostGIS proofs.");
+
+        public Task<InitialFieldGeometrySnapshot?> GetInitialGeometryAsync(Guid organizationId, Guid fieldId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Geometry uses real PostGIS proofs.");
 
         public Task<Guid?> FindRenameLedgerIdAsync(
             Guid organizationId,
